@@ -12,7 +12,8 @@
 #include "mol2/minimize.h"
 #include "mol2/nbenergy.h"
 #include "mol2/pdb.h"
-#include "mol2/density.h"
+
+#include "nmrgrad/noe.h"
 
 #define __TOL__ 5E-4
 
@@ -51,6 +52,8 @@ struct energy_prm {
     struct acesetup *ace_setup;
     struct springset_pairs *sprst_pairs;
     struct springset_points *sprst_points;
+    struct nmr_noe *spec;
+    double nmr_weight;
     bool torsions;
 };
 
@@ -109,6 +112,8 @@ void usage_message(char **argv);
 void help_message(void);
 
 int main(int argc, char **argv) {
+    mol_enable_floating_point_exceptions();
+
     //static int verbose_flag = 0;
     static int ace_flag = 0;
     char *protocol = NULL;
@@ -130,24 +135,24 @@ int main(int argc, char **argv) {
     static struct option long_options[] =
             {
                     //{"verbose", no_argument, &verbose_flag, 1},
-                    {"rtf",         required_argument, 0,         0},
-                    {"prm",         required_argument, 0,         0},
-                    {"out",         required_argument, 0,         0},
-                    {"protocol",    required_argument, 0,         0},
-                    {"pdb",         required_argument, 0,         0},
-                    {"psf",         required_argument, 0,         0},
-                    {"json",        required_argument, 0,         0},
-                    {"rec-pdb",     required_argument, 0,         0},
-                    {"rec-psf",     required_argument, 0,         0},
-                    {"rec-json",    required_argument, 0,         0},
-                    {"lig-pdb",     required_argument, 0,         0},
-                    {"lig-psf",     required_argument, 0,         0},
-                    {"lig-json",    required_argument, 0,         0},
+                    {"rtf",      required_argument, 0,         0},
+                    {"prm",      required_argument, 0,         0},
+                    {"out",      required_argument, 0,         0},
+                    {"protocol", required_argument, 0,         0},
+                    {"pdb",      required_argument, 0,         0},
+                    {"psf",      required_argument, 0,         0},
+                    {"json",     required_argument, 0,         0},
+                    {"rec-pdb",  required_argument, 0,         0},
+                    {"rec-psf",  required_argument, 0,         0},
+                    {"rec-json", required_argument, 0,         0},
+                    {"lig-pdb",  required_argument, 0,         0},
+                    {"lig-psf",  required_argument, 0,         0},
+                    {"lig-json", required_argument, 0,         0},
                     //{"density-pdb", required_argument, 0,         0},
-                    {"nsteps",      required_argument, 0,         0},
-                    {"gbsa",        no_argument,       &ace_flag, 1},
-                    {"help",        no_argument,       0,         'h'},
-                    {0, 0,                             0,         0}
+                    {"nsteps",   required_argument, 0,         0},
+                    {"gbsa",     no_argument,       &ace_flag, 1},
+                    {"help",     no_argument,       0,         'h'},
+                    {0, 0,                          0,         0}
             };
 
     int option_index = 0;
@@ -304,13 +309,32 @@ int main(int argc, char **argv) {
     //engpar.density = density;
     engpar.torsions = true;
 
+    /*struct nmr_group_list *g = nmr_group_list_read("../test/data/cil_md_ch22.groups");
+    struct nmr_noe *spec = nmr_noe_create(g, 0.00006, 0.1, 0.2, 1000.);
+    struct nmr_grad *in_ana = nmr_grad_create(ag->natoms, g->ngroups);
+    struct nmr_grad *rx_ana = nmr_grad_create(ag->natoms, g->ngroups);
+    spec->rx_grad = rx_ana;
+    spec->in_grad = in_ana;
+    spec->mask = calloc(spec->size * spec->size, sizeof(int));
+    spec->exp = nmr_matrix_read("../test/data/cil_md_ch22.mat", g->ngroups, spec->mask);
+
+    for (int i = 0; i < spec->size; i++) {
+        for (int j = 0; j < spec->size - 1; j++)
+            printf("%i ", spec->mask[i * spec->size + j]);
+        printf("%i\n", spec->mask[i * spec->size + spec->size - 1]);
+    }
+
+    engpar.spec = spec;
+    engpar.nmr_weight = 0.;*/
+    engpar.spec = NULL;
+
     for (int modeli = 0; modeli < aglist->size; modeli++) {
         if (aglist->size > 1) {
             fprintf(outfile, "MODEL %i\n", (modeli + 1));
         }
 
         ag = &aglist->members[modeli];
-        ag->gradients = MYCALLOC(ag->gradients, ag->natoms, sizeof(struct mol_vector3));
+        ag->gradients = MYCALLOC(ag->gradients, ag->natoms, sizeof(struct mol_vector3))
         mol_fixed_init(ag);
         mol_fixed_update(ag, 0, NULL);
 
@@ -395,6 +419,7 @@ int main(int argc, char **argv) {
                 ERR_MSG("Number of steps must be non-negative (nsteps = %i)\n", nsteps);
             }
 
+
             engpar.ag = ag;
             engpar.ag_setup = &ags;
             engpar.sprst_pairs = NULL;
@@ -444,6 +469,7 @@ static lbfgsfloatval_t energy_func(
     struct energy_prm *energy_prm = (struct energy_prm *) prm;
 
     if (array != NULL) {
+        assert(array_size == energy_prm->ag->active_atoms->size * 3);
         mol_atom_group_set_actives(energy_prm->ag, array);
     }
     bool updated = check_clusterupdate(energy_prm->ag, energy_prm->ag_setup);
@@ -451,7 +477,6 @@ static lbfgsfloatval_t energy_func(
         if (energy_prm->ace_setup != NULL) {
             ace_updatenblst(energy_prm->ag_setup, energy_prm->ace_setup);
         }
-
     }
 
     mol_zero_gradients(energy_prm->ag);
@@ -482,8 +507,17 @@ static lbfgsfloatval_t energy_func(
     if (energy_prm->sprst_pairs != NULL) {
         springeng_pair(energy_prm->sprst_pairs, &energy);
     }
+
     if (energy_prm->sprst_points != NULL) {
         springeng_point(energy_prm->sprst_points, &energy);
+    }
+
+    if (energy_prm->spec != NULL) {
+        nmr_r2_mat(energy_prm->spec->r2, energy_prm->ag, energy_prm->spec->grps);
+        nmr_compute_peaks(energy_prm->spec, energy_prm->ag);
+        rx_energy(energy_prm->spec, energy_prm->ag->gradients, energy_prm->nmr_weight);
+        energy += energy_prm->spec->energy;
+        printf("%.4f %.4f\n", energy_prm->spec->energy, energy_prm->spec->scale);
     }
 
     if (gradient != NULL) {
@@ -498,8 +532,7 @@ static lbfgsfloatval_t energy_func(
     return energy;
 }
 
-static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix)
-{
+static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) {
     lbfgsfloatval_t energy = 0.0;
     lbfgsfloatval_t total = 0.0;
     struct energy_prm *energy_prm = (struct energy_prm *) prm;
@@ -525,43 +558,44 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix)
         energy = 0.0;
     }
 
+    printf("adssa\n");
     vdweng(energy_prm->ag, &energy, energy_prm->ag_setup->nblst);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "VWD: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-
+    printf("adssa\n");
     vdwengs03(1.0, energy_prm->ag_setup->nblst->nbcof, energy_prm->ag, &energy,
               energy_prm->ag_setup->nf03, energy_prm->ag_setup->listf03);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "VWD03: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-
+    printf("adssa\n");
     beng(energy_prm->ag, &energy);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Bonded: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-
+    printf("adssa\n");
     aeng(energy_prm->ag, &energy);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Angles: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-
+    printf("adssa\n");
     teng(energy_prm->ag, &energy);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Torsions: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-
+    printf("adssa\n");
     ieng(energy_prm->ag, &energy);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Impropers: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-
+    printf("adssa\n");
     if (energy_prm->sprst_pairs != NULL) {
         springeng_pair(energy_prm->sprst_pairs, &energy);
         strcpy(fmt, prefix);
@@ -569,6 +603,7 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix)
         total += energy;
         energy = 0.0;
     }
+
     if (energy_prm->sprst_points != NULL) {
         springeng_point(energy_prm->sprst_points, &energy);
         strcpy(fmt, prefix);
@@ -576,6 +611,23 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix)
         total += energy;
         energy = 0.0;
     }
+
+    if (energy_prm->spec != NULL) {
+        /*nmr_r2_mat(energy_prm->spec->r2, energy_prm->ag, energy_prm->spec->grps);
+        nmr_compute_peaks_no_grad(energy_prm->spec, energy_prm->ag);
+        energy = rx_energy(energy_prm->spec, NULL, energy_prm->nmr_weight);
+
+        //printf("Computed\n");
+        //nmr_matrix_fwrite(stdout, energy_prm->spec->in, energy_prm->spec->size);
+        //printf("Exp\n");
+        //nmr_matrix_fwrite(stdout, energy_prm->spec->exp, energy_prm->spec->size);
+
+        strcpy(fmt, prefix);
+        fprintf(stream, strcat(fmt, "NMR: % .6f\n"), energy);
+        total += energy;
+        energy = 0.0;*/
+    }
+
     //if (energy_prm->density != NULL) {
     //    energy = mol_fit_to_atom_group_exp(energy_prm->ag,
     //                               energy_prm->density->ref_ag,
