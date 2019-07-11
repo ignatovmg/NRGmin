@@ -18,7 +18,7 @@
 #define __TOL__ 5E-4
 
 #define ERR_MSG(fmt, ...) {                                   \
-    fprintf(stderr, fmt "in file %s, function %s, line %i\n"  \
+    fprintf(stderr, fmt  " - file %s, function %s, line %i\n" \
             "Exiting ...\n", ##__VA_ARGS__, __FILE__,         \
             __func__, __LINE__);                              \
     exit(EXIT_FAILURE);                                       \
@@ -37,6 +37,19 @@
     }                                                         \
 }
 
+#define READ_WORD(f, word, line) do { \
+        word = NULL; \
+        while (fgets(line, 512, f) != NULL) { \
+            if (line[0] != '#') {\
+                word = strtok(line, " \t\n"); \
+                if (word == NULL || word[0] == '#') { \
+                    ERR_MSG("Line cannot be empty") \
+                } \
+                break; \
+            } \
+        } \
+    } while(0)
+
 #define MAGIC_ARGS(arg) {                                     \
     char name[] = #arg;                                       \
     char* pos = strchr(name, '_');                            \
@@ -52,8 +65,7 @@ struct energy_prm {
     struct acesetup *ace_setup;
     struct springset_pairs *sprst_pairs;
     struct springset_points *sprst_points;
-    struct nmr_noe *spec;
-    double nmr_weight;
+    struct noesy_spectrum *nmr;
     bool torsions;
 };
 
@@ -83,12 +95,21 @@ struct springset_points {
     struct point_spring *springs;  /**< array of springs */
 };
 
+struct noesy_spectrum {
+    struct nmr_noe *spec;
+    double weight;
+};
+
 
 void read_fix(char *ffile, int *nfix, size_t **fix);
 
 struct springset_pairs *read_springset_pairs(struct mol_atom_group *ag, char *sfile);
 
 struct springset_points *read_springset_points(struct mol_atom_group *ag, char *sfile);
+
+struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfile);
+
+void free_noesy_spectrum(struct noesy_spectrum *nmr);
 
 void free_springset_pairs(struct springset_pairs **sprst);
 
@@ -129,7 +150,7 @@ int main(int argc, char **argv) {
     char *lig_pdb = NULL;
     char *lig_psf = NULL;
     char *lig_json = NULL;
-    //char *density_pdb = NULL;
+    char *noe_params = NULL;
     int nsteps = 1000;
 
     static struct option long_options[] =
@@ -148,8 +169,8 @@ int main(int argc, char **argv) {
                     {"lig-pdb",  required_argument, 0,         0},
                     {"lig-psf",  required_argument, 0,         0},
                     {"lig-json", required_argument, 0,         0},
-                    //{"density-pdb", required_argument, 0,         0},
                     {"nsteps",   required_argument, 0,         0},
+                    {"noe-params", required_argument, 0,         0},
                     {"gbsa",     no_argument,       &ace_flag, 1},
                     {"help",     no_argument,       0,         'h'},
                     {0, 0,                          0,         0}
@@ -159,7 +180,6 @@ int main(int argc, char **argv) {
     int opt;
     while (1) {
         opt = getopt_long_only(argc, argv, "h", long_options, &option_index);
-
 
         if (opt == -1) {
             break;
@@ -204,7 +224,7 @@ int main(int argc, char **argv) {
         MAGIC_ARGS(lig_pdb);
         MAGIC_ARGS(lig_psf);
         MAGIC_ARGS(lig_json);
-        //MAGIC_ARGS(density_pdb);
+        MAGIC_ARGS(noe_params);
 
         if (strcmp("nsteps", long_options[option_index].name) == 0) {
             nsteps = atoi(optarg);
@@ -271,15 +291,6 @@ int main(int argc, char **argv) {
         mol_atom_group_read_geometry(lig_ag, lig_psf, prm, rtf);
     }
 
-    /*struct ref_density *density = NULL;
-    if (density_pdb != NULL) {
-        density = MYCALLOC(density, 1, sizeof(struct ref_density));
-
-        density->ref_ag = mol_read_pdb(density_pdb);
-        density->scale = 1.0 / 23.;
-        density->radius = 2.0;
-    }*/
-
     if (aglist == NULL) {
         aglist = mol_atom_group_list_create(1);
 
@@ -303,30 +314,18 @@ int main(int argc, char **argv) {
         printf("Using model(s) from file provided with --pdb or --json\n");
     }
 
-
     FILE *outfile = MYFOPEN(outfile, out, "w");
     struct energy_prm engpar;
-    //engpar.density = density;
-    engpar.torsions = true;
 
-    /*struct nmr_group_list *g = nmr_group_list_read("../test/data/cil_md_ch22.groups");
-    struct nmr_noe *spec = nmr_noe_create(g, 0.00006, 0.1, 0.2, 1000.);
-    struct nmr_grad *in_ana = nmr_grad_create(ag->natoms, g->ngroups);
-    struct nmr_grad *rx_ana = nmr_grad_create(ag->natoms, g->ngroups);
-    spec->rx_grad = rx_ana;
-    spec->in_grad = in_ana;
-    spec->mask = calloc(spec->size * spec->size, sizeof(int));
-    spec->exp = nmr_matrix_read("../test/data/cil_md_ch22.mat", g->ngroups, spec->mask);
-
-    for (int i = 0; i < spec->size; i++) {
-        for (int j = 0; j < spec->size - 1; j++)
-            printf("%i ", spec->mask[i * spec->size + j]);
-        printf("%i\n", spec->mask[i * spec->size + spec->size - 1]);
+    // NMR 2D spectrum
+    if (noe_params != NULL) {
+        engpar.nmr = read_noesy_spectrum(&aglist->members[0], noe_params);
+    } else {
+        engpar.nmr = NULL;
     }
 
-    engpar.spec = spec;
-    engpar.nmr_weight = 0.;*/
-    engpar.spec = NULL;
+    // Torsions on
+    engpar.torsions = true;
 
     for (int modeli = 0; modeli < aglist->size; modeli++) {
         if (aglist->size > 1) {
@@ -352,7 +351,6 @@ int main(int argc, char **argv) {
 
         struct springset_pairs *sprst_pairs = NULL;
         struct springset_points *sprst_points = NULL;
-
 
         if (protocol != NULL) {
             FILE *prot_file = MYFOPEN(prot_file, protocol, "r");
@@ -450,8 +448,12 @@ int main(int argc, char **argv) {
 
         free_springset_pairs(&sprst_pairs);
         free_springset_points(&sprst_points);
+
     }
 
+    if (engpar.nmr != NULL) {
+        free_noesy_spectrum(engpar.nmr);
+    }
     fclose(outfile);
     mol_atom_group_list_free(aglist);
 
@@ -481,14 +483,6 @@ static lbfgsfloatval_t energy_func(
 
     mol_zero_gradients(energy_prm->ag);
 
-    /*if (energy_prm->density != NULL) {
-        double aln_score = mol_fit_to_atom_group_exp(energy_prm->ag,
-                                                      energy_prm->density->ref_ag,
-                                                      energy_prm->density->radius,
-                                                      energy_prm->density->scale);
-        energy += aln_score;
-    }*/
-
     if (energy_prm->ace_setup != NULL) {
         aceeng(energy_prm->ag, &energy, energy_prm->ace_setup, energy_prm->ag_setup);
     }
@@ -512,12 +506,13 @@ static lbfgsfloatval_t energy_func(
         springeng_point(energy_prm->sprst_points, &energy);
     }
 
-    if (energy_prm->spec != NULL) {
-        nmr_r2_mat(energy_prm->spec->r2, energy_prm->ag, energy_prm->spec->grps);
-        nmr_compute_peaks(energy_prm->spec, energy_prm->ag);
-        rx_energy(energy_prm->spec, energy_prm->ag->gradients, energy_prm->nmr_weight);
-        energy += energy_prm->spec->energy;
-        printf("%.4f %.4f\n", energy_prm->spec->energy, energy_prm->spec->scale);
+    if (energy_prm->nmr != NULL) {
+        struct nmr_noe* spec = energy_prm->nmr->spec;
+        nmr_r2_mat(spec->r2, energy_prm->ag, spec->grps);
+        nmr_compute_peaks(spec, energy_prm->ag);
+        rx_energy(spec, energy_prm->ag->gradients, energy_prm->nmr->weight);
+        energy += spec->energy;
+        printf("%.4f %.4f\n", spec->energy, spec->scale);
     }
 
     if (gradient != NULL) {
@@ -537,9 +532,6 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
     lbfgsfloatval_t total = 0.0;
     struct energy_prm *energy_prm = (struct energy_prm *) prm;
 
-    //if (array != NULL) {
-    //	mol_atom_group_set_actives(energy_prm->ag, array);
-    //}
     bool updated = check_clusterupdate(energy_prm->ag, energy_prm->ag_setup);
     if (updated) {
         if (energy_prm->ace_setup != NULL) {
@@ -558,44 +550,43 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
         energy = 0.0;
     }
 
-    printf("adssa\n");
     vdweng(energy_prm->ag, &energy, energy_prm->ag_setup->nblst);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "VWD: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-    printf("adssa\n");
+
     vdwengs03(1.0, energy_prm->ag_setup->nblst->nbcof, energy_prm->ag, &energy,
               energy_prm->ag_setup->nf03, energy_prm->ag_setup->listf03);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "VWD03: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-    printf("adssa\n");
+
     beng(energy_prm->ag, &energy);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Bonded: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-    printf("adssa\n");
+
     aeng(energy_prm->ag, &energy);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Angles: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-    printf("adssa\n");
+
     teng(energy_prm->ag, &energy);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Torsions: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-    printf("adssa\n");
+
     ieng(energy_prm->ag, &energy);
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Impropers: % .3f\n"), energy);
     total += energy;
     energy = 0.0;
-    printf("adssa\n");
+
     if (energy_prm->sprst_pairs != NULL) {
         springeng_pair(energy_prm->sprst_pairs, &energy);
         strcpy(fmt, prefix);
@@ -612,10 +603,10 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
         energy = 0.0;
     }
 
-    if (energy_prm->spec != NULL) {
-        /*nmr_r2_mat(energy_prm->spec->r2, energy_prm->ag, energy_prm->spec->grps);
-        nmr_compute_peaks_no_grad(energy_prm->spec, energy_prm->ag);
-        energy = rx_energy(energy_prm->spec, NULL, energy_prm->nmr_weight);
+    if (energy_prm->nmr != NULL) {
+        nmr_r2_mat(energy_prm->nmr->spec->r2, energy_prm->ag, energy_prm->nmr->spec->grps);
+        nmr_compute_peaks_no_grad(energy_prm->nmr->spec, energy_prm->ag);
+        energy = rx_energy(energy_prm->nmr->spec, NULL, energy_prm->nmr->weight);
 
         //printf("Computed\n");
         //nmr_matrix_fwrite(stdout, energy_prm->spec->in, energy_prm->spec->size);
@@ -625,7 +616,7 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
         strcpy(fmt, prefix);
         fprintf(stream, strcat(fmt, "NMR: % .6f\n"), energy);
         total += energy;
-        energy = 0.0;*/
+        energy = 0.0;
     }
 
     //if (energy_prm->density != NULL) {
@@ -641,6 +632,72 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
 
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Total: % .3f\n"), total);
+}
+
+struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfile) {
+    struct noesy_spectrum *nmr = calloc(1, sizeof(struct noesy_spectrum));
+
+    char line[512];
+    FILE *f = MYFOPEN(f, sfile, "r");
+
+    char *word;
+    READ_WORD(f, word, line);
+    char groups_path[512];
+    strcpy(groups_path, word);
+
+    READ_WORD(f, word, line);
+    char matrix_path[512];
+    strcpy(matrix_path, word);
+
+    READ_WORD(f, word, line);
+    double freq = atof(word);
+
+    READ_WORD(f, word, line);
+    double corr_time = atof(word);
+
+    READ_WORD(f, word, line);
+    double mix_time = atof(word);
+
+    READ_WORD(f, word, line);
+    double dist_cutoff = atof(word);
+
+    READ_WORD(f, word, line);
+    bool mask_on = false;
+    if (strcmp(word, "on\0") == 0) {
+        mask_on = true;
+    } else if (strcmp(word, "off\0") != 0) {
+        ERR_MSG("Wrong value (on/off)")
+    }
+
+    READ_WORD(f, word, line);
+    double weight = atof(word);
+
+    fclose(f);
+
+    struct nmr_group_list *groups = nmr_group_list_read(groups_path);
+    nmr->spec = nmr_noe_create(groups, freq, corr_time, mix_time, dist_cutoff);
+    nmr->spec->in_grad = nmr_grad_create(ag->natoms, groups->ngroups);
+    nmr->spec->rx_grad = nmr_grad_create(ag->natoms, groups->ngroups);
+
+    nmr->spec->omega = freq;
+    nmr->spec->t_mix = mix_time;
+    nmr->spec->t_cor = corr_time;
+    nmr->spec->cutoff = dist_cutoff;
+
+    int *mask = NULL;
+    if (mask_on) {
+        mask = calloc(groups->ngroups * groups->ngroups, sizeof(int));
+    }
+    nmr->spec->exp = nmr_matrix_read(matrix_path, groups->ngroups, mask);
+
+    nmr->weight = weight;
+
+    return nmr;
+}
+
+void free_noesy_spectrum(struct noesy_spectrum *nmr) {
+    nmr_noe_free(nmr->spec);
+    free(nmr);
 }
 
 void read_fix(char *ffile, int *nfix, size_t **fix) {
