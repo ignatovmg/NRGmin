@@ -38,17 +38,17 @@
 }
 
 #define READ_WORD(f, word, line) do { \
-        word = NULL; \
-        while (fgets(line, 512, f) != NULL) { \
-            if (line[0] != '#') {\
-                word = strtok(line, " \t\n"); \
-                if (word == NULL || word[0] == '#') { \
-                    ERR_MSG("Line cannot be empty") \
-                } \
-                break; \
+    word = NULL; \
+    while (fgets(line, 512, f) != NULL) { \
+        if (line[0] != '#') {\
+            word = strtok(line, " \t\n"); \
+            if (word == NULL || word[0] == '#') { \
+                ERR_MSG("Line cannot be empty") \
             } \
+            break; \
         } \
-    } while(0)
+    } \
+} while(0)
 
 #define MAGIC_ARGS(arg) {                                     \
     char name[] = #arg;                                       \
@@ -137,6 +137,7 @@ int main(int argc, char **argv) {
 
     //static int verbose_flag = 0;
     static int ace_flag = 0;
+    static int torsions_off = 0;
     char *protocol = NULL;
     char *pdb = NULL;
     char *psf = NULL;
@@ -172,6 +173,7 @@ int main(int argc, char **argv) {
                     {"nsteps",   required_argument, 0,         0},
                     {"noe-params", required_argument, 0,         0},
                     {"gbsa",     no_argument,       &ace_flag, 1},
+                    {"torsions-off",     no_argument,  &torsions_off, 1},
                     {"help",     no_argument,       0,         'h'},
                     {0, 0,                          0,         0}
             };
@@ -258,13 +260,16 @@ int main(int argc, char **argv) {
     }
 
     if (pdb != NULL && psf != NULL) {
-        printf("Reading pdb file\n");
+        printf("Reading the pdb file\n");
 
-        //ag = mol_read_pdb(pdb);
         aglist = mol_read_pdb_models(pdb);
         if (aglist == NULL) {
+            printf("Reading as a single model pdb file\n");
             ag = mol_read_pdb(pdb);
-            aglist = mol_atom_group_list_create(1); //calloc(1, sizeof(struct mol_atom_group_list));
+            if (ag == NULL) {
+                ERR_MSG("Failed reading pdb file")
+            }
+            aglist = mol_atom_group_list_create(1);
             aglist->members[0] = *ag;
         }
 
@@ -314,7 +319,6 @@ int main(int argc, char **argv) {
         printf("Using model(s) from file provided with --pdb or --json\n");
     }
 
-    FILE *outfile = MYFOPEN(outfile, out, "w");
     struct energy_prm engpar;
 
     // NMR 2D spectrum
@@ -324,9 +328,14 @@ int main(int argc, char **argv) {
         engpar.nmr = NULL;
     }
 
-    // Torsions on
-    engpar.torsions = true;
+    // Torsions
+    if (torsions_off == 1) {
+        engpar.torsions = false;
+    } else {
+        engpar.torsions = true;
+    }
 
+    FILE *outfile = MYFOPEN(outfile, out, "w");
     for (int modeli = 0; modeli < aglist->size; modeli++) {
         if (aglist->size > 1) {
             fprintf(outfile, "MODEL %i\n", (modeli + 1));
@@ -510,9 +519,8 @@ static lbfgsfloatval_t energy_func(
         struct nmr_noe* spec = energy_prm->nmr->spec;
         nmr_r2_mat(spec->r2, energy_prm->ag, spec->grps);
         nmr_compute_peaks(spec, energy_prm->ag);
-        rx_energy(spec, energy_prm->ag->gradients, energy_prm->nmr->weight);
+        nmr_energy(spec, energy_prm->ag->gradients, energy_prm->nmr->weight);
         energy += spec->energy;
-        printf("%.4f %.4f\n", spec->energy, spec->scale);
     }
 
     if (gradient != NULL) {
@@ -575,17 +583,19 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
     total += energy;
     energy = 0.0;
 
-    teng(energy_prm->ag, &energy);
-    strcpy(fmt, prefix);
-    fprintf(stream, strcat(fmt, "Torsions: % .3f\n"), energy);
-    total += energy;
-    energy = 0.0;
+    if (energy_prm->torsions) {
+        teng(energy_prm->ag, &energy);
+        strcpy(fmt, prefix);
+        fprintf(stream, strcat(fmt, "Torsions: % .3f\n"), energy);
+        total += energy;
+        energy = 0.0;
 
-    ieng(energy_prm->ag, &energy);
-    strcpy(fmt, prefix);
-    fprintf(stream, strcat(fmt, "Impropers: % .3f\n"), energy);
-    total += energy;
-    energy = 0.0;
+        ieng(energy_prm->ag, &energy);
+        strcpy(fmt, prefix);
+        fprintf(stream, strcat(fmt, "Impropers: % .3f\n"), energy);
+        total += energy;
+        energy = 0.0;
+    }
 
     if (energy_prm->sprst_pairs != NULL) {
         springeng_pair(energy_prm->sprst_pairs, &energy);
@@ -606,29 +616,13 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
     if (energy_prm->nmr != NULL) {
         nmr_r2_mat(energy_prm->nmr->spec->r2, energy_prm->ag, energy_prm->nmr->spec->grps);
         nmr_compute_peaks_no_grad(energy_prm->nmr->spec, energy_prm->ag);
-        energy = rx_energy(energy_prm->nmr->spec, NULL, energy_prm->nmr->weight);
-
-        //printf("Computed\n");
-        //nmr_matrix_fwrite(stdout, energy_prm->spec->in, energy_prm->spec->size);
-        //printf("Exp\n");
-        //nmr_matrix_fwrite(stdout, energy_prm->spec->exp, energy_prm->spec->size);
+        energy = nmr_energy(energy_prm->nmr->spec, NULL, energy_prm->nmr->weight);
 
         strcpy(fmt, prefix);
-        fprintf(stream, strcat(fmt, "NMR: % .6f\n"), energy);
+        fprintf(stream, strcat(fmt, "NOE: % .6f\n"), energy);
         total += energy;
         energy = 0.0;
     }
-
-    //if (energy_prm->density != NULL) {
-    //    energy = mol_fit_to_atom_group_exp(energy_prm->ag,
-    //                               energy_prm->density->ref_ag,
-    //                               energy_prm->density->radius,
-    //                              energy_prm->density->scale);
-    //    strcpy(fmt, prefix);
-    //    fprintf(stream, strcat(fmt, "Density: % .3f\n"), energy);
-    //    total += energy;
-    //    energy = 0.0;
-    //}
 
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Total: % .3f\n"), total);
@@ -936,52 +930,83 @@ void usage_message(char **argv) {
 }
 
 void help_message(void) {
-    printf("--prm      - Parameter file (required)\n"
-           "--rtf      - Topology file (required)\n"
-           "--pdb      - Full molecule pdb file (can contain multiple models)\n"
-           "--psf      - Full molecule psf file\n"
-           "--json     - Full molecule json file\n"
-           "--rec-pdb  - Receptor pdb file\n"
-           "--rec-psf  - Receptor psf file\n"
-           "--rec-json - Receptor json file\n"
-           "--lig-pdb  - Ligand pdb file\n"
-           "--lig-psf  - Ligand psf file\n"
-           "--lig-json  - Ligand json file\n"
-           "--out      - Minimized structure (default: min.pdb)\n"
-           "--protocol - Protocol file\n"
-           "--nsteps   - Number of minimization steps (default: 1000)\n"
-           "--gbsa     - Turn GBSA on (default: off)\n"
-           "--help     - This message\n\n"
+    printf("\t--prm ------------------ Parameter file (required)\n"
+           "\t--rtf ------------------ Topology file (required)\n"
+           "\t--pdb ------------------ Full molecule pdb file (can contain multiple models)\n"
+           "\t--psf ------------------ Full molecule psf file\n"
+           "\t--json ----------------- Full molecule json file\n"
+           "\t--rec-pdb -------------- Receptor pdb file\n"
+           "\t--rec-psf -------------- Receptor psf file\n"
+           "\t--rec-json ------------- Receptor json file\n"
+           "\t--lig-pdb -------------- Ligand pdb file\n"
+           "\t--lig-psf -------------- Ligand psf file\n"
+           "\t--lig-json ------------- Ligand json file\n"
+           "\t--out ------------------ Minimized structure (default: min.pdb)\n"
+           "\t--protocol ------------- Protocol file\n"
+           "\t--torsions-off --------- Turns torsional forces off\n"
+           "\t--noe-params ----------- File with 2D NOE spectrum params\n"
+           "\t--nsteps --------------- Number of minimization steps (default: 1000)\n"
+           "\t--gbsa ----------------- Turn GBSA on (default: off)\n"
+           "\t--help ----------------- This message\n\n"
 
            "Prm and rft are required. One of the following must be provided:\n\n"
-           "\t * pdb and psf of the full molecule (--pdb --psf)\n"
-           "\t * OR rec-pdb, rec-psf, lig-pdb and lig-psf\n"
-           "\t * OR rec-pdb, rec-psf, lig-json\n\n"
+           "\t * pdb and psf or json of the full molecule (--pdb --psf)\n"
+           "\t * OR ((rec-pdb + rec-psf) or rec-json) and ((lig-pdb + lig-psf) or lig-json)\n\n"
 
            "Protocol file format:\n\n"
-           "\tnumber_of_steps1 fixed_atoms_file1 pair_springs_file1 point_springs_file1\n"
-           "\tnumber_of_steps2 fixed_atoms_file2 pair_springs_file2 point_springs_file2\n"
-           "\t...\n\n"
+           "\t> number_of_steps1 fixed_atoms_file1 pair_springs_file1 point_springs_file1\n"
+           "\t> number_of_steps2 fixed_atoms_file2 pair_springs_file2 point_springs_file2\n"
+           "\t> ...\n\n"
 
            "Pairwise springs file format:\n\n"
-           "\tnumber_of_springs\n"
-           "\tlength relative_error force_constant atom1_id(PDB) atom1_name atom2_id(PDB) atom2_name\n"
-           "\t...\n\n"
+           "\t> number_of_springs\n"
+           "\t> length absolute_error force_constant atom1_id(PDB) atom1_name atom2_id(PDB) atom2_name\n"
+           "\t> ...\n\n"
 
            "Point springs (attached to a single point) file format:\n\n"
-           "\tnumber_of_springs\n"
-           "\tnumber_of_atoms_attached force_constant X0 Y0 Z0\n\tatom1_id(from PDB) atom1_name\n\tatom2_id(from PDB) atom2_name\n"
-           "\t...\n\n"
+           "\t> number_of_springs\n"
+           "\t> number_of_atoms_attached force_constant X0 Y0 Z0\n"
+           "\t> atom1_id(from PDB) atom1_name\n"
+           "\t> atom2_id(from PDB) atom2_name\n"
+           "\t> ...\n\n"
+
+           "NOE params file format (lines starting with # are skipped):\n"
+           "\tAtom group file path\n"
+           "\tExperimental matrix file path\n"
+           "\tFrequency (in GHz): ex. 0.00006\n"
+           "\tCorellation time (in nanoseconds): ex. 0.1\n"
+           "\tMixing time (in seconds): ex. 0.3\n"
+           "\tDistance cutoff for atom groups (Angstroms): ex. 10\n"
+           "\tMask everything except for the peaks on experimental matrix, when computing NMR energy (on/off)\n"
+           "\tNMR energy weight in energy function\n\n"
+
+           "\tNOE params file example:\n"
+           "\t> # groups file\n"
+           "\t> 104.fake_groups\n"
+           "\t> # experimental matrix\n"
+           "\t> 104.fake_mat\n"
+           "\t> # frequency\n"
+           "\t> 0.00006\n"
+           "\t> # cor time\n"
+           "\t> 0.1\n"
+           "\t> # mix time\n"
+           "\t> 0.3\n"
+           "\t> # distance cutoff\n"
+           "\t> 1000\n"
+           "\t> # mask\n"
+           "\t> off\n"
+           "\t> # nmr energy weight\n"
+           "\t> 100.0\n\n"
 
            "Fixed atoms file format: simply a slice of pdb containing fixed atoms\n\n"
 
            "If you wish to skip any of the files in the protocol file,\n"
-           "just replace it with a dot. For instance if no fixed atoms\n"
+           "just replace it with a dot \".\". For instance if no fixed atoms\n"
            "are needed then the line should be \n"
            "\t1000 . spring_pairs spring_points\n\n"
 
-           "CAREFUL: If ligand and receptor are specified separately,\n"
+           "WARNING: If ligand and receptor are specified separately,\n"
            "\tthen ligand atom ids need to be increased by the number of receptor atoms.\n"
-           "\tCorrectness is verified by comparing atom names.\n\n");
+           "\tConsistency is verified by comparing atom names.\n\n");
 }
 
