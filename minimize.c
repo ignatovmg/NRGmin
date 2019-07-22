@@ -97,6 +97,7 @@ struct springset_points {
 
 struct noesy_spectrum {
     struct nmr_noe *spec;
+    bool print_noe_matrix;
     double weight;
 };
 
@@ -138,6 +139,7 @@ int main(int argc, char **argv) {
     //static int verbose_flag = 0;
     static int ace_flag = 0;
     static int torsions_off = 0;
+    static int print_noe_matrix = 0;
     char *protocol = NULL;
     char *pdb = NULL;
     char *psf = NULL;
@@ -174,6 +176,7 @@ int main(int argc, char **argv) {
                     {"noe-params", required_argument, 0,         0},
                     {"gbsa",     no_argument,       &ace_flag, 1},
                     {"torsions-off",     no_argument,  &torsions_off, 1},
+                    {"print_noe_matrix",     no_argument,  &print_noe_matrix, 1},
                     {"help",     no_argument,       0,         'h'},
                     {0, 0,                          0,         0}
             };
@@ -324,6 +327,7 @@ int main(int argc, char **argv) {
     // NMR 2D spectrum
     if (noe_params != NULL) {
         engpar.nmr = read_noesy_spectrum(&aglist->members[0], noe_params);
+        engpar.nmr->print_noe_matrix = print_noe_matrix;
     } else {
         engpar.nmr = NULL;
     }
@@ -618,6 +622,19 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
         nmr_compute_peaks_no_grad(energy_prm->nmr->spec, energy_prm->ag);
         energy = nmr_energy(energy_prm->nmr->spec, NULL, energy_prm->nmr->weight);
 
+        if (energy_prm->nmr->print_noe_matrix) {
+            strcpy(fmt, prefix);
+            fprintf(stdout, strcat(fmt, "NOESY_MATRIX_SCALE: %.6f\n"), energy_prm->nmr->spec->scale);
+            fprintf(stdout, strcat(fmt, "NOESY_MATRIX_START\n"));
+            //int size = energy_prm->nmr->spec->size;
+            //for (int i = 0; i < size*size; i++) {
+            //    energy_prm->nmr->spec->in[i] /= energy_prm->nmr->spec->scale;
+            //}
+            nmr_matrix_fwrite(stdout, energy_prm->nmr->spec->in, energy_prm->nmr->spec->size);
+            strcpy(fmt, prefix);
+            fprintf(stdout, strcat(fmt, "NOESY_MATRIX_FINISH\n"));
+        }
+
         strcpy(fmt, prefix);
         fprintf(stream, strcat(fmt, "NOE: % .6f\n"), energy);
         total += energy;
@@ -685,6 +702,8 @@ struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfil
     nmr->spec->exp = nmr_matrix_read(matrix_path, groups->ngroups, mask);
 
     nmr->weight = weight;
+
+    nmr->print_noe_matrix = false;
 
     return nmr;
 }
