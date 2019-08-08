@@ -12,6 +12,7 @@
 #include "mol2/minimize.h"
 #include "mol2/nbenergy.h"
 #include "mol2/pdb.h"
+#include "mol2/fitting.h"
 
 #include "nmrgrad/noe.h"
 
@@ -66,6 +67,7 @@ struct energy_prm {
     struct springset_pairs *sprst_pairs;
     struct springset_points *sprst_points;
     struct noesy_spectrum *nmr;
+    struct fitting_params *fit_prms;
     bool torsions;
 };
 
@@ -101,6 +103,12 @@ struct noesy_spectrum {
     double weight;
 };
 
+struct fitting_params {
+    struct mol_atom_group **ag_list;
+    int ag_count;
+    double weight;
+    struct mol_fitting_params prms;
+};
 
 void read_fix(char *ffile, int *nfix, size_t **fix);
 
@@ -109,6 +117,10 @@ struct springset_pairs *read_springset_pairs(struct mol_atom_group *ag, char *sf
 struct springset_points *read_springset_points(struct mol_atom_group *ag, char *sfile);
 
 struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfile);
+
+struct fitting_params *make_fitting_prms(char *fitting_pdblist, double weight, double radius);
+
+void free_fitting_prms(struct fitting_params *prms);
 
 void free_noesy_spectrum(struct noesy_spectrum *nmr);
 
@@ -140,6 +152,8 @@ int main(int argc, char **argv) {
     static int ace_flag = 0;
     static int torsions_off = 0;
     static int print_noe_matrix = 0;
+    static int score_only = 0;
+    double fitting_weight = 1.;
     char *protocol = NULL;
     char *pdb = NULL;
     char *psf = NULL;
@@ -154,31 +168,39 @@ int main(int argc, char **argv) {
     char *lig_psf = NULL;
     char *lig_json = NULL;
     char *noe_params = NULL;
+    char *pairsprings = NULL;
+    char *pointsprings = NULL;
+    char *fitting_pdblist = NULL;
     int nsteps = 1000;
 
     static struct option long_options[] =
             {
                     //{"verbose", no_argument, &verbose_flag, 1},
-                    {"rtf",      required_argument, 0,         0},
-                    {"prm",      required_argument, 0,         0},
-                    {"out",      required_argument, 0,         0},
-                    {"protocol", required_argument, 0,         0},
-                    {"pdb",      required_argument, 0,         0},
-                    {"psf",      required_argument, 0,         0},
-                    {"json",     required_argument, 0,         0},
-                    {"rec-pdb",  required_argument, 0,         0},
-                    {"rec-psf",  required_argument, 0,         0},
-                    {"rec-json", required_argument, 0,         0},
-                    {"lig-pdb",  required_argument, 0,         0},
-                    {"lig-psf",  required_argument, 0,         0},
-                    {"lig-json", required_argument, 0,         0},
-                    {"nsteps",   required_argument, 0,         0},
-                    {"noe-params", required_argument, 0,         0},
-                    {"gbsa",     no_argument,       &ace_flag, 1},
-                    {"torsions-off",     no_argument,  &torsions_off, 1},
-                    {"print_noe_matrix",     no_argument,  &print_noe_matrix, 1},
-                    {"help",     no_argument,       0,         'h'},
-                    {0, 0,                          0,         0}
+                    {"rtf",              required_argument, 0,                 0},
+                    {"prm",              required_argument, 0,                 0},
+                    {"out",              required_argument, 0,                 0},
+                    {"protocol",         required_argument, 0,                 0},
+                    {"pdb",              required_argument, 0,                 0},
+                    {"psf",              required_argument, 0,                 0},
+                    {"json",             required_argument, 0,                 0},
+                    {"rec-pdb",          required_argument, 0,                 0},
+                    {"rec-psf",          required_argument, 0,                 0},
+                    {"rec-json",         required_argument, 0,                 0},
+                    {"lig-pdb",          required_argument, 0,                 0},
+                    {"lig-psf",          required_argument, 0,                 0},
+                    {"lig-json",         required_argument, 0,                 0},
+                    {"nsteps",           required_argument, 0,                 0},
+                    {"noe-params",       required_argument, 0,                 0},
+                    {"pairsprings",      required_argument, 0,                 0},
+                    {"pointsprings",     required_argument, 0,                 0},
+                    {"fitting-pdblist",  required_argument, 0,                 0},
+                    {"fitting-weight",   required_argument, 0,                 0},
+                    {"gbsa",             no_argument,       &ace_flag,         1},
+                    {"torsions-off",     no_argument,       &torsions_off,     1},
+                    {"print_noe_matrix", no_argument,       &print_noe_matrix, 1},
+                    {"score_only",       no_argument,       &score_only,       1},
+                    {"help",             no_argument,       0,                 'h'},
+                    {0, 0,                                  0,                 0}
             };
 
     int option_index = 0;
@@ -230,9 +252,15 @@ int main(int argc, char **argv) {
         MAGIC_ARGS(lig_psf);
         MAGIC_ARGS(lig_json);
         MAGIC_ARGS(noe_params);
+        MAGIC_ARGS(pairsprings);
+        MAGIC_ARGS(pointsprings);
+        MAGIC_ARGS(fitting_pdblist);
 
         if (strcmp("nsteps", long_options[option_index].name) == 0) {
             nsteps = atoi(optarg);
+        }
+        if (strcmp("fitting-weight", long_options[option_index].name) == 0) {
+            fitting_weight = atof(optarg);
         }
     }
 
@@ -240,6 +268,10 @@ int main(int argc, char **argv) {
     struct mol_atom_group_list *aglist = NULL;
     struct mol_atom_group *rec_ag = NULL;
     struct mol_atom_group *lig_ag = NULL;
+
+    if (protocol != NULL && score_only != 0) {
+        fprintf(stderr, "--protocol is not effective, when --score_only flag is provided\n");
+    }
 
     if ((rtf == NULL || prm == NULL) && json == NULL) {
         fprintf(stderr, "A pair of RTF and PRM files or a JSON file is required\n");
@@ -280,7 +312,6 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < aglist->size; i++) {
             mol_atom_group_read_geometry(&aglist->members[i], psf, prm, rtf);
         }
-
     }
 
     if (rec_pdb != NULL && rec_psf != NULL) {
@@ -322,7 +353,15 @@ int main(int argc, char **argv) {
         printf("Using model(s) from file provided with --pdb or --json\n");
     }
 
+    // Fill minimization parameters
     struct energy_prm engpar;
+
+    // Torsions
+    if (torsions_off == 1) {
+        engpar.torsions = false;
+    } else {
+        engpar.torsions = true;
+    }
 
     // NMR 2D spectrum
     if (noe_params != NULL) {
@@ -332,11 +371,25 @@ int main(int argc, char **argv) {
         engpar.nmr = NULL;
     }
 
-    // Torsions
-    if (torsions_off == 1) {
-        engpar.torsions = false;
+    // Pairsprings
+    if (pairsprings != NULL) {
+        engpar.sprst_pairs = read_springset_pairs(ag, pairsprings);
     } else {
-        engpar.torsions = true;
+        engpar.sprst_pairs = NULL;
+    }
+
+    // Point springs
+    if (pointsprings != NULL) {
+        engpar.sprst_points = read_springset_points(ag, pointsprings);
+    } else {
+        engpar.sprst_points = NULL;
+    };
+
+    // Density fitting
+    if (fitting_pdblist != NULL) {
+        engpar.fit_prms = make_fitting_prms(fitting_pdblist, fitting_weight, 2.0);
+    } else {
+        engpar.fit_prms = NULL;
     }
 
     FILE *outfile = MYFOPEN(outfile, out, "w");
@@ -362,10 +415,7 @@ int main(int argc, char **argv) {
             ace_updatenblst(&ags, &ace_setup);
         }
 
-        struct springset_pairs *sprst_pairs = NULL;
-        struct springset_points *sprst_points = NULL;
-
-        if (protocol != NULL) {
+        if (score_only == 0 && protocol != NULL) {
             FILE *prot_file = MYFOPEN(prot_file, protocol, "r");
             int cur_nsteps;
             char fix_path[1024];
@@ -400,6 +450,9 @@ int main(int argc, char **argv) {
                     fix = NULL;
                 }
 
+                struct springset_pairs *sprst_pairs = NULL;
+                struct springset_points *sprst_points = NULL;
+
                 if (strcmp(spr_pair_path, ".") != 0) {
                     sprst_pairs = read_springset_pairs(ag, spr_pair_path);
                 }
@@ -424,17 +477,17 @@ int main(int argc, char **argv) {
                 if (cur_nsteps > 0) {
                     mol_minimize_ag(MOL_LBFGS, cur_nsteps, __TOL__, ag, (void *) (&engpar), energy_func);
                 }
+
+                free_springset_pairs(&sprst_pairs);
+                free_springset_points(&sprst_points);
             }
         } else {
             if (nsteps < 0) {
                 ERR_MSG("Number of steps must be non-negative (nsteps = %i)\n", nsteps);
             }
 
-
             engpar.ag = ag;
             engpar.ag_setup = &ags;
-            engpar.sprst_pairs = NULL;
-            engpar.sprst_points = NULL;
 
             if (ace_flag == 1) {
                 engpar.ace_setup = &ace_setup;
@@ -444,29 +497,34 @@ int main(int argc, char **argv) {
 
             fprint_energy_terms(outfile, &engpar, "REMARK START ");
 
-            if (nsteps > 0) {
+            if (score_only == 0 && nsteps > 0) {
                 mol_minimize_ag(MOL_LBFGS, nsteps, __TOL__, ag, (void *) (&engpar), energy_func);
             }
-
         }
 
-        fprintf(outfile, "REMARK\n");
-        fprint_energy_terms(outfile, &engpar, "REMARK FINAL ");
+        if (score_only == 0) {
+            fprintf(outfile, "REMARK\n");
+            fprint_energy_terms(outfile, &engpar, "REMARK FINAL ");
+        }
+
         mol_fwrite_pdb(outfile, ag);
 
         if (aglist->size > 1) {
             fprintf(outfile, "ENDMDL\n");
         }
         fflush(outfile);
-
-        free_springset_pairs(&sprst_pairs);
-        free_springset_points(&sprst_points);
-
     }
 
-    if (engpar.nmr != NULL) {
-        free_noesy_spectrum(engpar.nmr);
+    free_noesy_spectrum(engpar.nmr);
+    free_fitting_prms(engpar.fit_prms);
+
+    if (engpar.sprst_points != NULL) {
+        free_springset_points(&engpar.sprst_points);
     }
+    if (engpar.sprst_pairs != NULL) {
+        free_springset_pairs(&engpar.sprst_pairs);
+    }
+
     fclose(outfile);
     mol_atom_group_list_free(aglist);
 
@@ -520,11 +578,19 @@ static lbfgsfloatval_t energy_func(
     }
 
     if (energy_prm->nmr != NULL) {
-        struct nmr_noe* spec = energy_prm->nmr->spec;
+        struct nmr_noe *spec = energy_prm->nmr->spec;
         nmr_r2_mat(spec->r2, energy_prm->ag, spec->grps);
         nmr_compute_peaks(spec, energy_prm->ag);
         nmr_energy(spec, energy_prm->ag->gradients, energy_prm->nmr->weight);
         energy += spec->energy;
+    }
+
+    if (energy_prm->fit_prms != NULL) {
+        energy += mol_fitting_score_aglist(energy_prm->ag,
+                                           energy_prm->fit_prms->ag_list,
+                                           energy_prm->fit_prms->ag_count,
+                                           &energy_prm->fit_prms->prms,
+                                           energy_prm->fit_prms->weight);
     }
 
     if (gradient != NULL) {
@@ -624,15 +690,8 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
 
         if (energy_prm->nmr->print_noe_matrix) {
             strcpy(fmt, prefix);
-            fprintf(stdout, strcat(fmt, "NOESY_MATRIX_SCALE: %.6f\n"), energy_prm->nmr->spec->scale);
-            fprintf(stdout, strcat(fmt, "NOESY_MATRIX_START\n"));
-            //int size = energy_prm->nmr->spec->size;
-            //for (int i = 0; i < size*size; i++) {
-            //    energy_prm->nmr->spec->in[i] /= energy_prm->nmr->spec->scale;
-            //}
+            fprintf(stdout, strcat(fmt, "NOESY_MATRIX_SCALE: %e\n"), energy_prm->nmr->spec->scale);
             nmr_matrix_fwrite(stdout, energy_prm->nmr->spec->in, energy_prm->nmr->spec->size);
-            strcpy(fmt, prefix);
-            fprintf(stdout, strcat(fmt, "NOESY_MATRIX_FINISH\n"));
         }
 
         strcpy(fmt, prefix);
@@ -641,9 +700,66 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
         energy = 0.0;
     }
 
+    if (energy_prm->fit_prms != NULL) {
+        energy = mol_fitting_score_aglist(energy_prm->ag,
+                                          energy_prm->fit_prms->ag_list,
+                                          energy_prm->fit_prms->ag_count,
+                                          &energy_prm->fit_prms->prms,
+                                          energy_prm->fit_prms->weight);
+        strcpy(fmt, prefix);
+        fprintf(stream, strcat(fmt, "Density: % .4f\n"), energy);
+        total += energy;
+        energy = 0.0;
+    }
+
     strcpy(fmt, prefix);
     fprintf(stream, strcat(fmt, "Total: % .3f\n"), total);
 }
+
+
+struct fitting_params *make_fitting_prms(char *fitting_pdblist, double weight, double radius) {
+    struct fitting_params *fit_prms = calloc(1, sizeof(struct fitting_params));
+
+    /*struct mol_atom_group_list* ag_list_fit = mol_read_pdb_models(fitting_pdb);
+    if (ag_list_fit == NULL) {
+        ag_list_fit = mol_atom_group_list_create(1);
+        mol_atom_group_free(ag_list_fit->members);
+        ag_list_fit->members = mol_read_pdb(fitting_pdb);
+    }*/
+    FILE *f = fopen(fitting_pdblist, "r");
+    char pdb_file[512];
+    struct mol_atom_group **aglist = calloc(1, sizeof(struct mol_atom_group *));
+    int ag_count = 0;
+    int cur_size = 1;
+    while (fgets(pdb_file, 512, f) != NULL) {
+        struct mol_atom_group *ag = mol_read_pdb(pdb_file);
+        ag_count++;
+
+        if (ag_count > cur_size) {
+            cur_size *= 2;
+            aglist = realloc(aglist, cur_size * sizeof(struct mol_atom_group *));
+        }
+
+        aglist[ag_count - 1] = ag;
+    }
+
+    fit_prms->ag_list = aglist;
+    fit_prms->ag_count = ag_count;
+    fit_prms->prms.radius = radius;
+    fit_prms->weight = weight;
+    return fit_prms;
+}
+
+
+void free_fitting_prms(struct fitting_params *prms) {
+    if (prms != NULL) {
+        for (int i = 0; i < prms->ag_count; i++) {
+            mol_atom_group_free(prms->ag_list[i]);
+        }
+        free(prms);
+    }
+}
+
 
 struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfile) {
     struct noesy_spectrum *nmr = calloc(1, sizeof(struct noesy_spectrum));
@@ -709,8 +825,10 @@ struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfil
 }
 
 void free_noesy_spectrum(struct noesy_spectrum *nmr) {
-    nmr_noe_free(nmr->spec);
-    free(nmr);
+    if (nmr != NULL) {
+        nmr_noe_free(nmr->spec);
+        free(nmr);
+    }
 }
 
 void read_fix(char *ffile, int *nfix, size_t **fix) {
@@ -963,7 +1081,12 @@ void help_message(void) {
            "\t--out ------------------ Minimized structure (default: min.pdb)\n"
            "\t--protocol ------------- Protocol file\n"
            "\t--torsions-off --------- Turns torsional forces off\n"
+           "\t--fitting-pdb ---------- PDB file for atomic density fitting\n"
+           "\t--fitting-weight ------- Weight of atomic density fit in energy function\n"
            "\t--noe-params ----------- File with 2D NOE spectrum params\n"
+           "\t--pairsprings ---------- File with pairwise distance restraints\n"
+           "\t--pointsprings --------- File with point distance restraints\n"
+           "\t--score_only ----------- Don't run minimization, just score the models\n"
            "\t--nsteps --------------- Number of minimization steps (default: 1000)\n"
            "\t--gbsa ----------------- Turn GBSA on (default: off)\n"
            "\t--help ----------------- This message\n\n"
