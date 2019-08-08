@@ -153,6 +153,7 @@ int main(int argc, char **argv) {
     static int torsions_off = 0;
     static int print_noe_matrix = 0;
     static int score_only = 0;
+    static int fix_rec = 0;
     double fitting_weight = 1.;
     char *protocol = NULL;
     char *pdb = NULL;
@@ -170,6 +171,7 @@ int main(int argc, char **argv) {
     char *noe_params = NULL;
     char *pairsprings = NULL;
     char *pointsprings = NULL;
+    char *fixed_pdb = NULL;
     char *fitting_pdblist = NULL;
     int nsteps = 1000;
 
@@ -195,8 +197,10 @@ int main(int argc, char **argv) {
                     {"pointsprings",     required_argument, 0,                 0},
                     {"fitting-pdblist",  required_argument, 0,                 0},
                     {"fitting-weight",   required_argument, 0,                 0},
+                    {"fixed-pdb",   required_argument, 0,                 0},
                     {"gbsa",             no_argument,       &ace_flag,         1},
                     {"torsions-off",     no_argument,       &torsions_off,     1},
+                    {"fix-rec",          no_argument,       &fix_rec,          1},
                     {"print_noe_matrix", no_argument,       &print_noe_matrix, 1},
                     {"score_only",       no_argument,       &score_only,       1},
                     {"help",             no_argument,       0,                 'h'},
@@ -255,6 +259,7 @@ int main(int argc, char **argv) {
         MAGIC_ARGS(pairsprings);
         MAGIC_ARGS(pointsprings);
         MAGIC_ARGS(fitting_pdblist);
+        MAGIC_ARGS(fixed_pdb);
 
         if (strcmp("nsteps", long_options[option_index].name) == 0) {
             nsteps = atoi(optarg);
@@ -265,6 +270,7 @@ int main(int argc, char **argv) {
     }
 
     struct mol_atom_group *ag = NULL;
+    struct mol_atom_group *ag_json = NULL;
     struct mol_atom_group_list *aglist = NULL;
     struct mol_atom_group *rec_ag = NULL;
     struct mol_atom_group *lig_ag = NULL;
@@ -285,18 +291,82 @@ int main(int argc, char **argv) {
 
     if (json != NULL) {
         printf("Reading json file\n");
-        ag = mol_read_json(json);
+        ag_json = mol_read_json(json);
+
+        if  (psf != NULL) {
+            fprintf(stderr,"Parameter --psf is not effective, since --json was provided\n");
+        }
     }
 
-    if (rec_json != NULL && lig_json != NULL) {
-        printf("Reading lig and rec json files\n");
+    if (rec_json != NULL) {
+        printf("Reading rec json file\n");
         rec_ag = mol_read_json(rec_json);
-        lig_ag = mol_read_json(lig_json);
+
+        if  (rec_psf != NULL) {
+            fprintf(stderr,"Parameter --rec-psf is not effective, since --rec-json was provided\n");
+        }
     }
 
-    if (pdb != NULL && psf != NULL) {
-        printf("Reading the pdb file\n");
+    if (lig_json != NULL) {
+        printf("Reading lig json file\n");
+        lig_ag = mol_read_json(lig_json);
 
+        if  (lig_psf != NULL) {
+            fprintf(stderr,"Parameter --lig-psf is not effective, since --lig-json was provided\n");
+        }
+    }
+
+    if (rec_pdb != NULL) {
+        if (rec_json != NULL) {
+            printf("Reading receptor coordinates from pdb file, using parameters from --rec-json\n");
+            struct mol_atom_group* rec_ag_crd = mol_read_pdb(rec_pdb);
+            if (rec_ag->natoms != rec_ag_crd->natoms) {
+                ERR_MSG("--rec-json and --rec-pdb have different atom numbers (%i, %i)", (int)rec_ag->natoms, (int)rec_ag_crd->natoms)
+            }
+            memcpy(rec_ag->coords, rec_ag_crd->coords, sizeof(struct mol_vector3) * rec_ag->natoms);
+            mol_atom_group_free(rec_ag_crd);
+
+        } else {
+            printf("Reading rec pdb file\n");
+            rec_ag = mol_read_pdb(rec_pdb);
+
+            if  (rec_psf != NULL) {
+                printf("Reading rec psf file\n");
+                mol_atom_group_read_geometry(rec_ag, rec_psf, prm, rtf);
+
+            } else {
+                fprintf(stderr, "--rec-psf or --rec-json must be provided with --rec-pdb\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    if (lig_pdb != NULL) {
+        if (lig_json != NULL) {
+            printf("Reading ligand coordinates from pdb file, using parameters from json\n");
+            struct mol_atom_group* lig_ag_crd = mol_read_pdb(lig_pdb);
+            if (lig_ag->natoms != lig_ag_crd->natoms) {
+                ERR_MSG("--lig-json and --lig-pdb have different atom numbers (%i, %i)", (int)lig_ag->natoms, (int)lig_ag_crd->natoms)
+            }
+            memcpy(lig_ag->coords, lig_ag_crd->coords, sizeof(struct mol_vector3) * lig_ag->natoms);
+            mol_atom_group_free(lig_ag_crd);
+
+        } else {
+            printf("Reading lig pdb file\n");
+            lig_ag = mol_read_pdb(lig_pdb);
+
+            if  (lig_psf != NULL) {
+                printf("Reading lig psf file\n");
+                mol_atom_group_read_geometry(lig_ag, lig_psf, prm, rtf);
+            } else {
+                fprintf(stderr, "--lig-psf or --lig-json must be provided with --lig-pdb\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    if (pdb != NULL) {
+        printf("Reading the pdb file\n");
         aglist = mol_read_pdb_models(pdb);
         if (aglist == NULL) {
             printf("Reading as a single model pdb file\n");
@@ -308,34 +378,41 @@ int main(int argc, char **argv) {
             aglist->members[0] = *ag;
         }
 
-        printf("Reading psf file\n");
-        for (size_t i = 0; i < aglist->size; i++) {
-            mol_atom_group_read_geometry(&aglist->members[i], psf, prm, rtf);
+        if (ag_json != NULL) {
+            printf("Reading coordinates from --pdb and geometry from --json\n");
+            // Copy geometry from json to aglist
+            struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(aglist->size);
+            for (size_t i = 0; i < fin_aglist->size; i++) {
+                fin_aglist->members[i] = *mol_atom_group_copy(ag_json);
+                if (ag_json->natoms != aglist->members[i].natoms) {
+                    ERR_MSG("Model %i in --pdb and --json have different atom numbers (%i, %i)", (int)i, (int)aglist->members[i].natoms, (int)ag_json->natoms)
+                }
+                memcpy(fin_aglist->members[i].coords,
+                       aglist->members[i].coords,
+                       sizeof(struct mol_vector3) * aglist->members[i].natoms);
+            }
+            mol_atom_group_list_free(aglist);
+            mol_atom_group_free(ag_json);
+            aglist = fin_aglist;
+            ag_json = NULL;
+
+        } else if (psf != NULL) {
+            printf("Reading geometry from --psf\n");
+            for (size_t i = 0; i < aglist->size; i++) {
+                mol_atom_group_read_geometry(&aglist->members[i], psf, prm, rtf);
+            }
+        } else {
+            ERR_MSG("--json or --psf must be provided with --pdb")
         }
     }
 
-    if (rec_pdb != NULL && rec_psf != NULL) {
-        printf("Reading rec pdb file\n");
-        rec_ag = mol_read_pdb(rec_pdb);
-
-        printf("Reading rec psf file\n");
-        mol_atom_group_read_geometry(rec_ag, rec_psf, prm, rtf);
-    }
-
-    if (lig_pdb != NULL && lig_psf != NULL) {
-        printf("Reading lig pdb file\n");
-        lig_ag = mol_read_pdb(lig_pdb);
-
-        printf("Reading lig psf file\n");
-        mol_atom_group_read_geometry(lig_ag, lig_psf, prm, rtf);
-    }
-
+    // If rec and lig were supplied separately
     if (aglist == NULL) {
         aglist = mol_atom_group_list_create(1);
 
-        if (ag != NULL) {
-            printf("Using single model from file provided with --pdb\n");
-            aglist->members[0] = *ag;
+        if (ag_json != NULL) {
+            printf("Using single model from file provided with --json\n");
+            aglist->members[0] = *ag_json;
 
         } else if (rec_ag != NULL && lig_ag != NULL) {
             printf("Using single model assembled from receptor and ligand provided separately\n");
@@ -392,6 +469,13 @@ int main(int argc, char **argv) {
         engpar.fit_prms = NULL;
     }
 
+    // Fixed part
+    int nfix_glob = 0;
+    size_t *fix_glob = NULL;
+    if (fixed_pdb != NULL) {
+        read_fix(fixed_pdb, &nfix_glob, &fix_glob);
+    }
+
     FILE *outfile = MYFOPEN(outfile, out, "w");
     for (int modeli = 0; modeli < aglist->size; modeli++) {
         if (aglist->size > 1) {
@@ -401,7 +485,7 @@ int main(int argc, char **argv) {
         ag = &aglist->members[modeli];
         ag->gradients = MYCALLOC(ag->gradients, ag->natoms, sizeof(struct mol_vector3))
         mol_fixed_init(ag);
-        mol_fixed_update(ag, 0, NULL);
+        mol_fixed_update(ag, nfix_glob, fix_glob);
 
         struct agsetup ags;
         init_nblst(ag, &ags);
@@ -523,6 +607,10 @@ int main(int argc, char **argv) {
     }
     if (engpar.sprst_pairs != NULL) {
         free_springset_pairs(&engpar.sprst_pairs);
+    }
+
+    if (fix_glob != NULL) {
+        free(fix_glob);
     }
 
     fclose(outfile);
