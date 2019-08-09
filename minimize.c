@@ -18,23 +18,31 @@
 
 #define __TOL__ 5E-4
 
-#define ERR_MSG(fmt, ...) {                                   \
-    fprintf(stderr, fmt  " - file %s, function %s, line %i\n" \
-            "Exiting ...\n", ##__VA_ARGS__, __FILE__,         \
-            __func__, __LINE__);                              \
-    exit(EXIT_FAILURE);                                       \
-}
+#define ERR_MSG(fmt, ...) do {                                              \
+    fprintf(stderr,"[Error] (file %s, %s, line %i):\n" fmt "\n"             \
+            "Exiting ...\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__);  \
+    exit(EXIT_FAILURE);                                                     \
+} while(0)
+
+#define WRN_MSG(fmt, ...) do {                                         \
+    fprintf(stderr,"[Warning] (file %s, %s, line %i):\n" fmt "\n",     \
+            __FILE__, __func__, __LINE__, ##__VA_ARGS__);              \
+} while(0)
+
+#define INFO_MSG(fmt, ...) do {                               \
+    fprintf(stderr,"[Info]: " fmt);                           \
+} while(0)
 
 #define MYFOPEN(fp, path, spec)  fopen(path, spec); {         \
     if (fp == NULL) {                                         \
-        ERR_MSG("ERROR opening file %s\n", path)              \
+        ERR_MSG("ERROR opening file %s\n", path);              \
     }                                                         \
 }
 
 #define MYCALLOC(ptr, n, size)  calloc(n, size); {            \
     if (ptr == NULL) {                                        \
         ERR_MSG("ERROR allocating %i bytes for variable %s\n",\
-            (int)((n))*(int)((size)), #ptr)                   \
+            (int)((n))*(int)((size)), #ptr);                   \
     }                                                         \
 }
 
@@ -44,7 +52,7 @@
         if (line[0] != '#') {\
             word = strtok(line, " \t\n"); \
             if (word == NULL || word[0] == '#') { \
-                ERR_MSG("Line cannot be empty") \
+                ERR_MSG("Line cannot be empty\n"); \
             } \
             break; \
         } \
@@ -68,7 +76,11 @@ struct energy_prm {
     struct springset_points *sprst_points;
     struct noesy_spectrum *nmr;
     struct fitting_params *fit_prms;
+    bool no_geom;
+    bool bonds;
+    bool angles;
     bool torsions;
+    bool vdw;
 };
 
 struct pair_spring {
@@ -154,6 +166,7 @@ int main(int argc, char **argv) {
     static int print_noe_matrix = 0;
     static int score_only = 0;
     static int fix_rec = 0;
+    static int nonpar_terms_only = 0; // if geometry is not provided
     double fitting_weight = 1.;
     char *protocol = NULL;
     char *pdb = NULL;
@@ -276,13 +289,20 @@ int main(int argc, char **argv) {
     struct mol_atom_group *lig_ag = NULL;
 
     if (protocol != NULL && score_only != 0) {
-        fprintf(stderr, "--protocol is not effective, when --score_only flag is provided\n");
+        ERR_MSG("--protocol is not effective, when --score_only flag is provided\n");
     }
 
-    if ((rtf == NULL || prm == NULL) && json == NULL) {
-        fprintf(stderr, "A pair of RTF and PRM files or a JSON file is required\n");
-        usage_message(argv);
-        exit(EXIT_FAILURE);
+    if ((rtf == NULL || prm == NULL) && json == NULL && (lig_json == NULL || rec_json)) {
+        if (score_only != 0) {
+            nonpar_terms_only = 1;
+            WRN_MSG("Without parameter files or json files score_only can compute only NOE, Pairsprings, Pointsprings and Density score\n");
+        } else {
+            ERR_MSG("A pair of RTF and PRM files, a JSON file or --scory_only flag is required\n");
+        }
+    }
+
+    if (nsteps < 0) {
+        ERR_MSG("Number of steps must be non-negative (nsteps = %i)\n", nsteps);
     }
 
     if (out == NULL) {
@@ -290,102 +310,104 @@ int main(int argc, char **argv) {
     }
 
     if (json != NULL) {
-        printf("Reading json file\n");
+        INFO_MSG("Reading json file\n");
         ag_json = mol_read_json(json);
 
         if  (psf != NULL) {
-            fprintf(stderr,"Parameter --psf is not effective, since --json was provided\n");
+            WRN_MSG("Parameter --psf is not effective, since --json was provided\n");
         }
     }
 
     if (rec_json != NULL) {
-        printf("Reading rec json file\n");
+        INFO_MSG("Reading rec json file\n");
         rec_ag = mol_read_json(rec_json);
 
         if  (rec_psf != NULL) {
-            fprintf(stderr,"Parameter --rec-psf is not effective, since --rec-json was provided\n");
+            WRN_MSG("Parameter --rec-psf is not effective, since --rec-json was provided\n");
         }
     }
 
     if (lig_json != NULL) {
-        printf("Reading lig json file\n");
+        INFO_MSG("Reading lig json file\n");
         lig_ag = mol_read_json(lig_json);
 
         if  (lig_psf != NULL) {
-            fprintf(stderr,"Parameter --lig-psf is not effective, since --lig-json was provided\n");
+            WRN_MSG("Parameter --lig-psf is not effective, since --lig-json was provided\n");
         }
     }
 
     if (rec_pdb != NULL) {
         if (rec_json != NULL) {
-            printf("Reading receptor coordinates from pdb file, using parameters from --rec-json\n");
+            INFO_MSG("Reading receptor coordinates from pdb file, using parameters from --rec-json\n");
             struct mol_atom_group* rec_ag_crd = mol_read_pdb(rec_pdb);
             if (rec_ag->natoms != rec_ag_crd->natoms) {
-                ERR_MSG("--rec-json and --rec-pdb have different atom numbers (%i, %i)", (int)rec_ag->natoms, (int)rec_ag_crd->natoms)
+                ERR_MSG("--rec-json and --rec-pdb have different atom numbers (%i, %i)", (int)rec_ag->natoms, (int)rec_ag_crd->natoms);
             }
             memcpy(rec_ag->coords, rec_ag_crd->coords, sizeof(struct mol_vector3) * rec_ag->natoms);
             mol_atom_group_free(rec_ag_crd);
 
         } else {
-            printf("Reading rec pdb file\n");
+            INFO_MSG("Reading rec pdb file\n");
             rec_ag = mol_read_pdb(rec_pdb);
 
             if  (rec_psf != NULL) {
-                printf("Reading rec psf file\n");
+                INFO_MSG("Reading rec psf file\n");
                 mol_atom_group_read_geometry(rec_ag, rec_psf, prm, rtf);
 
+            } else if (score_only != 0 && nonpar_terms_only != 0) {
+                WRN_MSG("Geometry for the receptor is not provided, computing only non-parametric terms\n");
             } else {
-                fprintf(stderr, "--rec-psf or --rec-json must be provided with --rec-pdb\n");
-                exit(EXIT_FAILURE);
+                ERR_MSG("--rec-psf or --rec-json must be provided with --rec-pdb\n");
             }
         }
     }
 
     if (lig_pdb != NULL) {
         if (lig_json != NULL) {
-            printf("Reading ligand coordinates from pdb file, using parameters from json\n");
+            INFO_MSG("Reading ligand coordinates from pdb file, using parameters from json\n");
             struct mol_atom_group* lig_ag_crd = mol_read_pdb(lig_pdb);
             if (lig_ag->natoms != lig_ag_crd->natoms) {
-                ERR_MSG("--lig-json and --lig-pdb have different atom numbers (%i, %i)", (int)lig_ag->natoms, (int)lig_ag_crd->natoms)
+                ERR_MSG("--lig-json and --lig-pdb have different atom numbers (%i, %i)", (int)lig_ag->natoms, (int)lig_ag_crd->natoms);
             }
             memcpy(lig_ag->coords, lig_ag_crd->coords, sizeof(struct mol_vector3) * lig_ag->natoms);
             mol_atom_group_free(lig_ag_crd);
 
         } else {
-            printf("Reading lig pdb file\n");
+            INFO_MSG("Reading lig pdb file\n");
             lig_ag = mol_read_pdb(lig_pdb);
 
             if  (lig_psf != NULL) {
-                printf("Reading lig psf file\n");
+                INFO_MSG("Reading lig psf file\n");
                 mol_atom_group_read_geometry(lig_ag, lig_psf, prm, rtf);
+            } else if (score_only != 0 && nonpar_terms_only != 0) {
+                WRN_MSG("Geometry for the ligand is not provided, computing only non-parametric terms\n");
             } else {
-                fprintf(stderr, "--lig-psf or --lig-json must be provided with --lig-pdb\n");
-                exit(EXIT_FAILURE);
+                ERR_MSG("--lig-psf or --lig-json must be provided with --lig-pdb\n");
             }
         }
     }
 
     if (pdb != NULL) {
-        printf("Reading the pdb file\n");
+        INFO_MSG("Trying to read the pdb file as a multimodel one (with MODEL records)\n");
         aglist = mol_read_pdb_models(pdb);
         if (aglist == NULL) {
-            printf("Reading as a single model pdb file\n");
+            INFO_MSG("The pdb file doesn't have MODEL records. Reading as a regular pdb file\n");
             ag = mol_read_pdb(pdb);
             if (ag == NULL) {
-                ERR_MSG("Failed reading pdb file")
+                ERR_MSG("Failed reading pdb file");
             }
             aglist = mol_atom_group_list_create(1);
             aglist->members[0] = *ag;
         }
 
         if (ag_json != NULL) {
-            printf("Reading coordinates from --pdb and geometry from --json\n");
+            INFO_MSG("Reading coordinates from --pdb and geometry from --json\n");
             // Copy geometry from json to aglist
             struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(aglist->size);
             for (size_t i = 0; i < fin_aglist->size; i++) {
                 fin_aglist->members[i] = *mol_atom_group_copy(ag_json);
                 if (ag_json->natoms != aglist->members[i].natoms) {
-                    ERR_MSG("Model %i in --pdb and --json have different atom numbers (%i, %i)", (int)i, (int)aglist->members[i].natoms, (int)ag_json->natoms)
+                    ERR_MSG("Model %i in --pdb and --json have different atom numbers (%i, %i)", (int)i, (int)aglist->members[i].natoms, (int)ag_json->natoms);
                 }
                 memcpy(fin_aglist->members[i].coords,
                        aglist->members[i].coords,
@@ -397,12 +419,14 @@ int main(int argc, char **argv) {
             ag_json = NULL;
 
         } else if (psf != NULL) {
-            printf("Reading geometry from --psf\n");
+            INFO_MSG("Reading geometry from --psf\n");
             for (size_t i = 0; i < aglist->size; i++) {
                 mol_atom_group_read_geometry(&aglist->members[i], psf, prm, rtf);
             }
+        } else if (score_only != 0 && nonpar_terms_only != 0) {
+            WRN_MSG("Geometry for the molecule is not provided, computing only non-parametric terms\n");
         } else {
-            ERR_MSG("--json or --psf must be provided with --pdb")
+            ERR_MSG("--json or --psf must be provided with --pdb");
         }
     }
 
@@ -411,33 +435,43 @@ int main(int argc, char **argv) {
         aglist = mol_atom_group_list_create(1);
 
         if (ag_json != NULL) {
-            printf("Using single model from file provided with --json\n");
+            INFO_MSG("Using single model from file provided with --json\n");
             aglist->members[0] = *ag_json;
 
         } else if (rec_ag != NULL && lig_ag != NULL) {
-            printf("Using single model assembled from receptor and ligand provided separately\n");
+            INFO_MSG("Using single model assembled from receptor and ligand provided separately\n");
             ag = mol_atom_group_join(rec_ag, lig_ag);
             aglist->members[0] = *ag;
             mol_atom_group_free(lig_ag);
             mol_atom_group_free(rec_ag);
 
         } else {
-            fprintf(stderr, "Couldn't create an atom group\n");
-            usage_message(argv);
-            exit(EXIT_FAILURE);
+            ERR_MSG("Couldn't create an atom group\n");
         }
     } else {
-        printf("Using model(s) from file provided with --pdb or --json\n");
+        INFO_MSG("Using model(s) from file provided with --pdb or --json\n");
     }
 
     // Fill minimization parameters
     struct energy_prm engpar;
+    engpar.no_geom = false;
+    engpar.bonds = true;
+    engpar.angles = true;
+    engpar.torsions = true;
+    engpar.vdw = true;
 
     // Torsions
     if (torsions_off == 1) {
         engpar.torsions = false;
-    } else {
-        engpar.torsions = true;
+    }
+
+    // If geometry is not provided
+    if (nonpar_terms_only != 0) {
+        engpar.no_geom = true;
+        engpar.bonds = false;
+        engpar.angles = false;
+        engpar.torsions = false;
+        engpar.vdw = false;
     }
 
     // NMR 2D spectrum
@@ -483,72 +517,95 @@ int main(int argc, char **argv) {
         }
 
         ag = &aglist->members[modeli];
-        ag->gradients = MYCALLOC(ag->gradients, ag->natoms, sizeof(struct mol_vector3))
-        mol_fixed_init(ag);
-        mol_fixed_update(ag, nfix_glob, fix_glob);
+        engpar.ag = ag;
 
         struct agsetup ags;
-        init_nblst(ag, &ags);
-        update_nblst(ag, &ags);
-
         struct acesetup ace_setup;
-        if (ace_flag == 1) {
-            ace_setup.efac = 0.5;
-            ace_ini(ag, &ace_setup);
-            ace_fixedupdate(ag, &ags, &ace_setup);
-            ace_updatenblst(&ags, &ace_setup);
+
+        if (!engpar.no_geom) {
+            ag->gradients = MYCALLOC(ag->gradients, ag->natoms, sizeof(struct mol_vector3))
+            mol_fixed_init(ag);
+            mol_fixed_update(ag, nfix_glob, fix_glob);
+
+            init_nblst(ag, &ags);
+            update_nblst(ag, &ags);
+
+            if (ace_flag == 1) {
+                ace_setup.efac = 0.5;
+                ace_ini(ag, &ace_setup);
+                ace_fixedupdate(ag, &ags, &ace_setup);
+                ace_updatenblst(&ags, &ace_setup);
+            }
         }
 
-        if (score_only == 0 && protocol != NULL) {
-            FILE *prot_file = MYFOPEN(prot_file, protocol, "r");
-            int cur_nsteps;
-            char fix_path[1024];
-            char spr_pair_path[1024];
-            char spr_point_path[1024];
+        if (score_only == 0) {
+            if (protocol != NULL) {
+                FILE *prot_file = MYFOPEN(prot_file, protocol, "r");
+                int cur_nsteps;
+                char fix_path[1024];
+                char spr_pair_path[1024];
+                char spr_point_path[1024];
 
-            int c;
-            while ((c = fscanf(prot_file, "%i %s %s %s", &cur_nsteps, fix_path,
-                               spr_pair_path, spr_point_path)) != EOF) {
-                if (c != 4) {
-                    ERR_MSG("Wrong protocol file format (%i words read)\n", c);
-                }
-
-                if (cur_nsteps < 0) {
-                    ERR_MSG("Wrong protocol file format (number of steps must be non-negative)\n");
-                }
-
-                int nfix = 0;
-                size_t *fix = NULL;
-
-                if (strcmp(fix_path, ".") != 0) {
-                    read_fix(fix_path, &nfix, &fix);
-                    mol_fixed_update(ag, nfix, fix);
-                    update_nblst(ag, &ags);
-
-                    if (ace_flag == 1) {
-                        ace_fixedupdate(ag, &ags, &ace_setup);
-                        ace_updatenblst(&ags, &ace_setup);
+                int c;
+                while ((c = fscanf(prot_file, "%i %s %s %s", &cur_nsteps, fix_path,
+                                   spr_pair_path, spr_point_path)) != EOF) {
+                    if (c != 4) {
+                        ERR_MSG("Wrong protocol file format (%i words read)\n", c);
                     }
 
-                    free(fix);
-                    fix = NULL;
+                    if (cur_nsteps < 0) {
+                        ERR_MSG("Wrong protocol file format (number of steps must be non-negative)\n");
+                    }
+
+                    int nfix = 0;
+                    size_t *fix = NULL;
+
+                    if (strcmp(fix_path, ".") != 0) {
+                        read_fix(fix_path, &nfix, &fix);
+                        mol_fixed_update(ag, nfix, fix);
+                        update_nblst(ag, &ags);
+
+                        if (ace_flag == 1) {
+                            ace_fixedupdate(ag, &ags, &ace_setup);
+                            ace_updatenblst(&ags, &ace_setup);
+                        }
+
+                        free(fix);
+                        fix = NULL;
+                    }
+
+                    struct springset_pairs *sprst_pairs = NULL;
+                    struct springset_points *sprst_points = NULL;
+
+                    if (strcmp(spr_pair_path, ".") != 0) {
+                        sprst_pairs = read_springset_pairs(ag, spr_pair_path);
+                    }
+
+                    if (strcmp(spr_point_path, ".") != 0) {
+                        sprst_points = read_springset_points(ag, spr_point_path);
+                    }
+
+                    engpar.ag_setup = &ags;
+                    engpar.sprst_pairs = sprst_pairs;
+                    engpar.sprst_points = sprst_points;
+
+                    if (ace_flag == 1) {
+                        engpar.ace_setup = &ace_setup;
+                    } else {
+                        engpar.ace_setup = NULL;
+                    }
+
+                    fprint_energy_terms(outfile, &engpar, "REMARK START ");
+
+                    if (cur_nsteps > 0) {
+                        mol_minimize_ag(MOL_LBFGS, cur_nsteps, __TOL__, ag, (void *) (&engpar), energy_func);
+                    }
+
+                    free_springset_pairs(&sprst_pairs);
+                    free_springset_points(&sprst_points);
                 }
-
-                struct springset_pairs *sprst_pairs = NULL;
-                struct springset_points *sprst_points = NULL;
-
-                if (strcmp(spr_pair_path, ".") != 0) {
-                    sprst_pairs = read_springset_pairs(ag, spr_pair_path);
-                }
-
-                if (strcmp(spr_point_path, ".") != 0) {
-                    sprst_points = read_springset_points(ag, spr_point_path);
-                }
-
-                engpar.ag = ag;
+            } else {
                 engpar.ag_setup = &ags;
-                engpar.sprst_pairs = sprst_pairs;
-                engpar.sprst_points = sprst_points;
 
                 if (ace_flag == 1) {
                     engpar.ace_setup = &ace_setup;
@@ -558,38 +615,14 @@ int main(int argc, char **argv) {
 
                 fprint_energy_terms(outfile, &engpar, "REMARK START ");
 
-                if (cur_nsteps > 0) {
-                    mol_minimize_ag(MOL_LBFGS, cur_nsteps, __TOL__, ag, (void *) (&engpar), energy_func);
+                if (nsteps > 0) {
+                    mol_minimize_ag(MOL_LBFGS, nsteps, __TOL__, ag, (void *) (&engpar), energy_func);
                 }
-
-                free_springset_pairs(&sprst_pairs);
-                free_springset_points(&sprst_points);
-            }
-        } else {
-            if (nsteps < 0) {
-                ERR_MSG("Number of steps must be non-negative (nsteps = %i)\n", nsteps);
-            }
-
-            engpar.ag = ag;
-            engpar.ag_setup = &ags;
-
-            if (ace_flag == 1) {
-                engpar.ace_setup = &ace_setup;
-            } else {
-                engpar.ace_setup = NULL;
-            }
-
-            fprint_energy_terms(outfile, &engpar, "REMARK START ");
-
-            if (score_only == 0 && nsteps > 0) {
-                mol_minimize_ag(MOL_LBFGS, nsteps, __TOL__, ag, (void *) (&engpar), energy_func);
             }
         }
 
-        if (score_only == 0) {
-            fprintf(outfile, "REMARK\n");
-            fprint_energy_terms(outfile, &engpar, "REMARK FINAL ");
-        }
+        fprintf(outfile, "REMARK\n");
+        fprint_energy_terms(outfile, &engpar, "REMARK FINAL ");
 
         mol_fwrite_pdb(outfile, ag);
 
@@ -646,11 +679,19 @@ static lbfgsfloatval_t energy_func(
         aceeng(energy_prm->ag, &energy, energy_prm->ace_setup, energy_prm->ag_setup);
     }
 
-    vdweng(energy_prm->ag, &energy, energy_prm->ag_setup->nblst);
-    vdwengs03(1.0, energy_prm->ag_setup->nblst->nbcof, energy_prm->ag, &energy,
-              energy_prm->ag_setup->nf03, energy_prm->ag_setup->listf03);
-    beng(energy_prm->ag, &energy);
-    aeng(energy_prm->ag, &energy);
+    if (energy_prm->vdw) {
+        vdweng(energy_prm->ag, &energy, energy_prm->ag_setup->nblst);
+        vdwengs03(1.0, energy_prm->ag_setup->nblst->nbcof, energy_prm->ag, &energy,
+                  energy_prm->ag_setup->nf03, energy_prm->ag_setup->listf03);
+    }
+
+    if (energy_prm->bonds) {
+        beng(energy_prm->ag, &energy);
+    }
+
+    if (energy_prm->angles) {
+        aeng(energy_prm->ag, &energy);
+    }
 
     if (energy_prm->torsions) {
         teng(energy_prm->ag, &energy);
@@ -698,61 +739,69 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
     lbfgsfloatval_t total = 0.0;
     struct energy_prm *energy_prm = (struct energy_prm *) prm;
 
-    bool updated = check_clusterupdate(energy_prm->ag, energy_prm->ag_setup);
-    if (updated) {
-        if (energy_prm->ace_setup != NULL) {
-            ace_updatenblst(energy_prm->ag_setup, energy_prm->ace_setup);
-        }
-    }
-
     char fmt[1024];
     strcpy(fmt, prefix);
 
-    if (energy_prm->ace_setup != NULL) {
-        aceeng(energy_prm->ag, &energy, energy_prm->ace_setup, energy_prm->ag_setup);
-        strcpy(fmt, prefix);
-        fprintf(stream, strcat(fmt, "ACE: % .3f\n"), energy);
-        total += energy;
-        energy = 0.0;
-    }
+    if (!energy_prm->no_geom) {
+        bool updated = check_clusterupdate(energy_prm->ag, energy_prm->ag_setup);
+        if (updated) {
+            if (energy_prm->ace_setup != NULL) {
+                ace_updatenblst(energy_prm->ag_setup, energy_prm->ace_setup);
+            }
+        }
 
-    vdweng(energy_prm->ag, &energy, energy_prm->ag_setup->nblst);
-    strcpy(fmt, prefix);
-    fprintf(stream, strcat(fmt, "VWD: % .3f\n"), energy);
-    total += energy;
-    energy = 0.0;
+        if (energy_prm->ace_setup != NULL) {
+            aceeng(energy_prm->ag, &energy, energy_prm->ace_setup, energy_prm->ag_setup);
+            strcpy(fmt, prefix);
+            fprintf(stream, strcat(fmt, "ACE: % .3f\n"), energy);
+            total += energy;
+            energy = 0.0;
+        }
 
-    vdwengs03(1.0, energy_prm->ag_setup->nblst->nbcof, energy_prm->ag, &energy,
-              energy_prm->ag_setup->nf03, energy_prm->ag_setup->listf03);
-    strcpy(fmt, prefix);
-    fprintf(stream, strcat(fmt, "VWD03: % .3f\n"), energy);
-    total += energy;
-    energy = 0.0;
+        if (energy_prm->vdw) {
+            vdweng(energy_prm->ag, &energy, energy_prm->ag_setup->nblst);
+            strcpy(fmt, prefix);
+            fprintf(stream, strcat(fmt, "VWD: % .3f\n"), energy);
+            total += energy;
+            energy = 0.0;
 
-    beng(energy_prm->ag, &energy);
-    strcpy(fmt, prefix);
-    fprintf(stream, strcat(fmt, "Bonded: % .3f\n"), energy);
-    total += energy;
-    energy = 0.0;
+            vdwengs03(1.0, energy_prm->ag_setup->nblst->nbcof, energy_prm->ag, &energy,
+                      energy_prm->ag_setup->nf03, energy_prm->ag_setup->listf03);
+            strcpy(fmt, prefix);
+            fprintf(stream, strcat(fmt, "VWD03: % .3f\n"), energy);
+            total += energy;
+            energy = 0.0;
+        }
 
-    aeng(energy_prm->ag, &energy);
-    strcpy(fmt, prefix);
-    fprintf(stream, strcat(fmt, "Angles: % .3f\n"), energy);
-    total += energy;
-    energy = 0.0;
+        if (energy_prm->bonds) {
+            beng(energy_prm->ag, &energy);
+            strcpy(fmt, prefix);
+            fprintf(stream, strcat(fmt, "Bonded: % .3f\n"), energy);
+            total += energy;
+            energy = 0.0;
+        }
 
-    if (energy_prm->torsions) {
-        teng(energy_prm->ag, &energy);
-        strcpy(fmt, prefix);
-        fprintf(stream, strcat(fmt, "Torsions: % .3f\n"), energy);
-        total += energy;
-        energy = 0.0;
+        if (energy_prm->angles) {
+            aeng(energy_prm->ag, &energy);
+            strcpy(fmt, prefix);
+            fprintf(stream, strcat(fmt, "Angles: % .3f\n"), energy);
+            total += energy;
+            energy = 0.0;
+        }
 
-        ieng(energy_prm->ag, &energy);
-        strcpy(fmt, prefix);
-        fprintf(stream, strcat(fmt, "Impropers: % .3f\n"), energy);
-        total += energy;
-        energy = 0.0;
+        if (energy_prm->torsions) {
+            teng(energy_prm->ag, &energy);
+            strcpy(fmt, prefix);
+            fprintf(stream, strcat(fmt, "Torsions: % .3f\n"), energy);
+            total += energy;
+            energy = 0.0;
+
+            ieng(energy_prm->ag, &energy);
+            strcpy(fmt, prefix);
+            fprintf(stream, strcat(fmt, "Impropers: % .3f\n"), energy);
+            total += energy;
+            energy = 0.0;
+        }
     }
 
     if (energy_prm->sprst_pairs != NULL) {
@@ -881,7 +930,7 @@ struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfil
     if (strcmp(word, "on\0") == 0) {
         mask_on = true;
     } else if (strcmp(word, "off\0") != 0) {
-        ERR_MSG("Wrong value (on/off)")
+        ERR_MSG("Wrong value (on/off)");
     }
 
     READ_WORD(f, word, line);
