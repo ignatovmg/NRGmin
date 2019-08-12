@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <math.h>
-#include <jansson.h>
 #include <getopt.h>
 
 #include "mol2/json.h"
@@ -30,21 +28,8 @@
 } while(0)
 
 #define INFO_MSG(fmt, ...) do {                               \
-    fprintf(stderr,"[Info]: " fmt);                           \
+    fprintf(stderr,"[Info]: " fmt, ##__VA_ARGS__);            \
 } while(0)
-
-#define MYFOPEN(fp, path, spec)  fopen(path, spec); {         \
-    if (fp == NULL) {                                         \
-        ERR_MSG("ERROR opening file %s\n", path);              \
-    }                                                         \
-}
-
-#define MYCALLOC(ptr, n, size)  calloc(n, size); {            \
-    if (ptr == NULL) {                                        \
-        ERR_MSG("ERROR allocating %i bytes for variable %s\n",\
-            (int)((n))*(int)((size)), #ptr);                   \
-    }                                                         \
-}
 
 #define READ_WORD(f, word, line) do { \
     word = NULL; \
@@ -72,10 +57,10 @@ struct energy_prm {
     struct mol_atom_group *ag;
     struct agsetup *ag_setup;
     struct acesetup *ace_setup;
-    struct springset_pairs *sprst_pairs;
-    struct springset_points *sprst_points;
-    struct noesy_spectrum *nmr;
-    struct fitting_params *fit_prms;
+    struct pairsprings_setup *sprst_pairs;
+    struct pointsprings_setup *sprst_points;
+    struct noe_setup *nmr;
+    struct density_setup *fit_prms;
     bool no_geom;
     bool bonds;
     bool angles;
@@ -83,7 +68,7 @@ struct energy_prm {
     bool vdw;
 };
 
-struct pair_spring {
+struct pairspring {
     struct mol_atom_group *ag;  /**< affected atomgroup */
     int laspr[2];      /**< list of atoms */
     double lnspr;
@@ -91,7 +76,7 @@ struct pair_spring {
     double fkspr;      /**< force constant */
 };
 
-struct point_spring {
+struct pointspring {
     struct mol_atom_group *ag;  /**< affected atomgroup */
     int naspr;      /**< number of affected atoms */
     int *laspr;      /**< list of atoms */
@@ -99,50 +84,50 @@ struct point_spring {
     double X0, Y0, Z0; /**< anchor point */
 };
 
-struct springset_pairs {
+struct pairsprings_setup {
     int nsprings;       /**< number of springs */
-    struct pair_spring *springs;  /**< array of springs */
+    struct pairspring *springs;  /**< array of springs */
 };
 
-struct springset_points {
+struct pointsprings_setup {
     int nsprings;       /**< number of springs */
-    struct point_spring *springs;  /**< array of springs */
+    struct pointspring *springs;  /**< array of springs */
 };
 
-struct noesy_spectrum {
+struct noe_setup {
     struct nmr_noe *spec;
-    bool print_noe_matrix;
     double weight;
+    bool print_noe_matrix;
 };
 
-struct fitting_params {
+struct density_setup {
     struct mol_atom_group **ag_list;
     int ag_count;
     double weight;
     struct mol_fitting_params prms;
 };
 
-void read_fix(char *ffile, int *nfix, size_t **fix);
+void fixed_atoms_read(char *ffile, int *nfix, size_t **fix);
 
-struct springset_pairs *read_springset_pairs(struct mol_atom_group *ag, char *sfile);
+struct pairsprings_setup *pairsprings_setup_read(struct mol_atom_group *ag, char *sfile);
 
-struct springset_points *read_springset_points(struct mol_atom_group *ag, char *sfile);
+struct pointsprings_setup *pointsprings_setup_read(struct mol_atom_group *ag, char *sfile);
 
-struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfile);
+struct noe_setup *noe_setup_read(struct mol_atom_group *ag, char *sfile);
 
-struct fitting_params *make_fitting_prms(char *fitting_pdblist, double weight, double radius);
+struct density_setup *density_setup_create(char *fitting_pdblist, double weight, double radius);
 
-void free_fitting_prms(struct fitting_params *prms);
+void noe_setup_free(struct noe_setup *nmr);
 
-void free_noesy_spectrum(struct noesy_spectrum *nmr);
+void density_setup_free(struct density_setup *prms);
 
-void free_springset_pairs(struct springset_pairs **sprst);
+void pairsprings_setup_free(struct pairsprings_setup **sprst);
 
-void free_springset_points(struct springset_points **sprst);
+void pointsprings_setup_free(struct pointsprings_setup **sprst);
 
-void springeng_pair(struct springset_pairs *sprst, double *een);
+void _pairspring_energy(struct pairsprings_setup *sprst, double *een);
 
-void springeng_point(struct springset_points *sprst, double *een);
+void _pointspring_energy(struct pointsprings_setup *sprst, double *een);
 
 static lbfgsfloatval_t energy_func(
         void *restrict prm,
@@ -157,6 +142,10 @@ void usage_message(char **argv);
 
 void help_message(void);
 
+struct mol_atom_group_list *read_ag_list(char *prm, char *rtf, char *pdb, char *psf, char *json, int score_only);
+
+struct mol_atom_group_list* merge_ag_lists(struct mol_atom_group_list* ag1, struct mol_atom_group_list* ag2);
+
 int main(int argc, char **argv) {
     mol_enable_floating_point_exceptions();
 
@@ -166,7 +155,6 @@ int main(int argc, char **argv) {
     static int print_noe_matrix = 0;
     static int score_only = 0;
     static int fix_rec = 0;
-    static int nonpar_terms_only = 0; // if geometry is not provided
     double fitting_weight = 1.;
     char *protocol = NULL;
     char *pdb = NULL;
@@ -187,6 +175,7 @@ int main(int argc, char **argv) {
     char *fixed_pdb = NULL;
     char *fitting_pdblist = NULL;
     int nsteps = 1000;
+    static int nonpar_terms_only = 0; // if geometry is not provided
 
     static struct option long_options[] =
             {
@@ -210,7 +199,7 @@ int main(int argc, char **argv) {
                     {"pointsprings",     required_argument, 0,                 0},
                     {"fitting-pdblist",  required_argument, 0,                 0},
                     {"fitting-weight",   required_argument, 0,                 0},
-                    {"fixed-pdb",   required_argument, 0,                 0},
+                    {"fixed-pdb",        required_argument, 0,                 0},
                     {"gbsa",             no_argument,       &ace_flag,         1},
                     {"torsions-off",     no_argument,       &torsions_off,     1},
                     {"fix-rec",          no_argument,       &fix_rec,          1},
@@ -282,11 +271,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    struct mol_atom_group *ag = NULL;
-    struct mol_atom_group *ag_json = NULL;
     struct mol_atom_group_list *aglist = NULL;
-    struct mol_atom_group *rec_ag = NULL;
-    struct mol_atom_group *lig_ag = NULL;
 
     if (protocol != NULL && score_only != 0) {
         ERR_MSG("--protocol is not effective, when --score_only flag is provided\n");
@@ -309,147 +294,15 @@ int main(int argc, char **argv) {
         out = "min.pdb";
     }
 
-    if (json != NULL) {
-        INFO_MSG("Reading json file\n");
-        ag_json = mol_read_json(json);
-
-        if  (psf != NULL) {
-            WRN_MSG("Parameter --psf is not effective, since --json was provided\n");
-        }
-    }
-
-    if (rec_json != NULL) {
-        INFO_MSG("Reading rec json file\n");
-        rec_ag = mol_read_json(rec_json);
-
-        if  (rec_psf != NULL) {
-            WRN_MSG("Parameter --rec-psf is not effective, since --rec-json was provided\n");
-        }
-    }
-
-    if (lig_json != NULL) {
-        INFO_MSG("Reading lig json file\n");
-        lig_ag = mol_read_json(lig_json);
-
-        if  (lig_psf != NULL) {
-            WRN_MSG("Parameter --lig-psf is not effective, since --lig-json was provided\n");
-        }
-    }
-
-    if (rec_pdb != NULL) {
-        if (rec_json != NULL) {
-            INFO_MSG("Reading receptor coordinates from pdb file, using parameters from --rec-json\n");
-            struct mol_atom_group* rec_ag_crd = mol_read_pdb(rec_pdb);
-            if (rec_ag->natoms != rec_ag_crd->natoms) {
-                ERR_MSG("--rec-json and --rec-pdb have different atom numbers (%i, %i)", (int)rec_ag->natoms, (int)rec_ag_crd->natoms);
-            }
-            memcpy(rec_ag->coords, rec_ag_crd->coords, sizeof(struct mol_vector3) * rec_ag->natoms);
-            mol_atom_group_free(rec_ag_crd);
-
-        } else {
-            INFO_MSG("Reading rec pdb file\n");
-            rec_ag = mol_read_pdb(rec_pdb);
-
-            if  (rec_psf != NULL) {
-                INFO_MSG("Reading rec psf file\n");
-                mol_atom_group_read_geometry(rec_ag, rec_psf, prm, rtf);
-
-            } else if (score_only != 0 && nonpar_terms_only != 0) {
-                WRN_MSG("Geometry for the receptor is not provided, computing only non-parametric terms\n");
-            } else {
-                ERR_MSG("--rec-psf or --rec-json must be provided with --rec-pdb\n");
-            }
-        }
-    }
-
-    if (lig_pdb != NULL) {
-        if (lig_json != NULL) {
-            INFO_MSG("Reading ligand coordinates from pdb file, using parameters from json\n");
-            struct mol_atom_group* lig_ag_crd = mol_read_pdb(lig_pdb);
-            if (lig_ag->natoms != lig_ag_crd->natoms) {
-                ERR_MSG("--lig-json and --lig-pdb have different atom numbers (%i, %i)", (int)lig_ag->natoms, (int)lig_ag_crd->natoms);
-            }
-            memcpy(lig_ag->coords, lig_ag_crd->coords, sizeof(struct mol_vector3) * lig_ag->natoms);
-            mol_atom_group_free(lig_ag_crd);
-
-        } else {
-            INFO_MSG("Reading lig pdb file\n");
-            lig_ag = mol_read_pdb(lig_pdb);
-
-            if  (lig_psf != NULL) {
-                INFO_MSG("Reading lig psf file\n");
-                mol_atom_group_read_geometry(lig_ag, lig_psf, prm, rtf);
-            } else if (score_only != 0 && nonpar_terms_only != 0) {
-                WRN_MSG("Geometry for the ligand is not provided, computing only non-parametric terms\n");
-            } else {
-                ERR_MSG("--lig-psf or --lig-json must be provided with --lig-pdb\n");
-            }
-        }
-    }
-
-    if (pdb != NULL) {
-        INFO_MSG("Trying to read the pdb file as a multimodel one (with MODEL records)\n");
-        aglist = mol_read_pdb_models(pdb);
-        if (aglist == NULL) {
-            INFO_MSG("The pdb file doesn't have MODEL records. Reading as a regular pdb file\n");
-            ag = mol_read_pdb(pdb);
-            if (ag == NULL) {
-                ERR_MSG("Failed reading pdb file");
-            }
-            aglist = mol_atom_group_list_create(1);
-            aglist->members[0] = *ag;
-        }
-
-        if (ag_json != NULL) {
-            INFO_MSG("Reading coordinates from --pdb and geometry from --json\n");
-            // Copy geometry from json to aglist
-            struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(aglist->size);
-            for (size_t i = 0; i < fin_aglist->size; i++) {
-                fin_aglist->members[i] = *mol_atom_group_copy(ag_json);
-                if (ag_json->natoms != aglist->members[i].natoms) {
-                    ERR_MSG("Model %i in --pdb and --json have different atom numbers (%i, %i)", (int)i, (int)aglist->members[i].natoms, (int)ag_json->natoms);
-                }
-                memcpy(fin_aglist->members[i].coords,
-                       aglist->members[i].coords,
-                       sizeof(struct mol_vector3) * aglist->members[i].natoms);
-            }
-            mol_atom_group_list_free(aglist);
-            mol_atom_group_free(ag_json);
-            aglist = fin_aglist;
-            ag_json = NULL;
-
-        } else if (psf != NULL) {
-            INFO_MSG("Reading geometry from --psf\n");
-            for (size_t i = 0; i < aglist->size; i++) {
-                mol_atom_group_read_geometry(&aglist->members[i], psf, prm, rtf);
-            }
-        } else if (score_only != 0 && nonpar_terms_only != 0) {
-            WRN_MSG("Geometry for the molecule is not provided, computing only non-parametric terms\n");
-        } else {
-            ERR_MSG("--json or --psf must be provided with --pdb");
-        }
-    }
-
-    // If rec and lig were supplied separately
-    if (aglist == NULL) {
-        aglist = mol_atom_group_list_create(1);
-
-        if (ag_json != NULL) {
-            INFO_MSG("Using single model from file provided with --json\n");
-            aglist->members[0] = *ag_json;
-
-        } else if (rec_ag != NULL && lig_ag != NULL) {
-            INFO_MSG("Using single model assembled from receptor and ligand provided separately\n");
-            ag = mol_atom_group_join(rec_ag, lig_ag);
-            aglist->members[0] = *ag;
-            mol_atom_group_free(lig_ag);
-            mol_atom_group_free(rec_ag);
-
-        } else {
-            ERR_MSG("Couldn't create an atom group\n");
-        }
+    if (pdb != NULL || json != NULL) {
+        aglist = read_ag_list(prm, rtf, pdb, psf, json, score_only);
     } else {
-        INFO_MSG("Using model(s) from file provided with --pdb or --json\n");
+        struct mol_atom_group_list *rec_aglist, *lig_aglist;
+        rec_aglist = read_ag_list(prm, rtf, rec_pdb, rec_psf, rec_json, score_only);
+        lig_aglist = read_ag_list(prm, rtf, lig_pdb, lig_psf, lig_json, score_only);
+        aglist = merge_ag_lists(rec_aglist, lig_aglist);
+        mol_atom_group_list_free(rec_aglist);
+        mol_atom_group_list_free(lig_aglist);
     }
 
     // Fill minimization parameters
@@ -476,7 +329,7 @@ int main(int argc, char **argv) {
 
     // NMR 2D spectrum
     if (noe_params != NULL) {
-        engpar.nmr = read_noesy_spectrum(&aglist->members[0], noe_params);
+        engpar.nmr = noe_setup_read(&aglist->members[0], noe_params);
         engpar.nmr->print_noe_matrix = print_noe_matrix;
     } else {
         engpar.nmr = NULL;
@@ -484,21 +337,21 @@ int main(int argc, char **argv) {
 
     // Pairsprings
     if (pairsprings != NULL) {
-        engpar.sprst_pairs = read_springset_pairs(ag, pairsprings);
+        engpar.sprst_pairs = pairsprings_setup_read(&aglist->members[0], pairsprings);
     } else {
         engpar.sprst_pairs = NULL;
     }
 
     // Point springs
     if (pointsprings != NULL) {
-        engpar.sprst_points = read_springset_points(ag, pointsprings);
+        engpar.sprst_points = pointsprings_setup_read(&aglist->members[0], pointsprings);
     } else {
         engpar.sprst_points = NULL;
     };
 
     // Density fitting
     if (fitting_pdblist != NULL) {
-        engpar.fit_prms = make_fitting_prms(fitting_pdblist, fitting_weight, 2.0);
+        engpar.fit_prms = density_setup_create(fitting_pdblist, fitting_weight, 2.0);
     } else {
         engpar.fit_prms = NULL;
     }
@@ -507,23 +360,23 @@ int main(int argc, char **argv) {
     int nfix_glob = 0;
     size_t *fix_glob = NULL;
     if (fixed_pdb != NULL) {
-        read_fix(fixed_pdb, &nfix_glob, &fix_glob);
+        fixed_atoms_read(fixed_pdb, &nfix_glob, &fix_glob);
     }
 
-    FILE *outfile = MYFOPEN(outfile, out, "w");
+    FILE *outfile = fopen(out, "w");
     for (int modeli = 0; modeli < aglist->size; modeli++) {
         if (aglist->size > 1) {
             fprintf(outfile, "MODEL %i\n", (modeli + 1));
         }
 
-        ag = &aglist->members[modeli];
+        struct mol_atom_group *ag = &aglist->members[modeli];
         engpar.ag = ag;
 
         struct agsetup ags;
         struct acesetup ace_setup;
 
         if (!engpar.no_geom) {
-            ag->gradients = MYCALLOC(ag->gradients, ag->natoms, sizeof(struct mol_vector3))
+            ag->gradients = calloc(ag->natoms, sizeof(struct mol_vector3));
             mol_fixed_init(ag);
             mol_fixed_update(ag, nfix_glob, fix_glob);
 
@@ -540,7 +393,7 @@ int main(int argc, char **argv) {
 
         if (score_only == 0) {
             if (protocol != NULL) {
-                FILE *prot_file = MYFOPEN(prot_file, protocol, "r");
+                FILE *prot_file = fopen(protocol, "r");
                 int cur_nsteps;
                 char fix_path[1024];
                 char spr_pair_path[1024];
@@ -561,7 +414,7 @@ int main(int argc, char **argv) {
                     size_t *fix = NULL;
 
                     if (strcmp(fix_path, ".") != 0) {
-                        read_fix(fix_path, &nfix, &fix);
+                        fixed_atoms_read(fix_path, &nfix, &fix);
                         mol_fixed_update(ag, nfix, fix);
                         update_nblst(ag, &ags);
 
@@ -574,15 +427,15 @@ int main(int argc, char **argv) {
                         fix = NULL;
                     }
 
-                    struct springset_pairs *sprst_pairs = NULL;
-                    struct springset_points *sprst_points = NULL;
+                    struct pairsprings_setup *sprst_pairs = NULL;
+                    struct pointsprings_setup *sprst_points = NULL;
 
                     if (strcmp(spr_pair_path, ".") != 0) {
-                        sprst_pairs = read_springset_pairs(ag, spr_pair_path);
+                        sprst_pairs = pairsprings_setup_read(ag, spr_pair_path);
                     }
 
                     if (strcmp(spr_point_path, ".") != 0) {
-                        sprst_points = read_springset_points(ag, spr_point_path);
+                        sprst_points = pointsprings_setup_read(ag, spr_point_path);
                     }
 
                     engpar.ag_setup = &ags;
@@ -601,8 +454,8 @@ int main(int argc, char **argv) {
                         mol_minimize_ag(MOL_LBFGS, cur_nsteps, __TOL__, ag, (void *) (&engpar), energy_func);
                     }
 
-                    free_springset_pairs(&sprst_pairs);
-                    free_springset_points(&sprst_points);
+                    pairsprings_setup_free(&sprst_pairs);
+                    pointsprings_setup_free(&sprst_points);
                 }
             } else {
                 engpar.ag_setup = &ags;
@@ -630,18 +483,21 @@ int main(int argc, char **argv) {
             fprintf(outfile, "ENDMDL\n");
         }
         fflush(outfile);
+
+        if (ags.nblst != NULL) {
+            destroy_agsetup(&ags);
+        }
     }
 
-    free_noesy_spectrum(engpar.nmr);
-    free_fitting_prms(engpar.fit_prms);
+    noe_setup_free(engpar.nmr);
+    density_setup_free(engpar.fit_prms);
 
     if (engpar.sprst_points != NULL) {
-        free_springset_points(&engpar.sprst_points);
+        pointsprings_setup_free(&engpar.sprst_points);
     }
     if (engpar.sprst_pairs != NULL) {
-        free_springset_pairs(&engpar.sprst_pairs);
+        pairsprings_setup_free(&engpar.sprst_pairs);
     }
-
     if (fix_glob != NULL) {
         free(fix_glob);
     }
@@ -699,11 +555,11 @@ static lbfgsfloatval_t energy_func(
     }
 
     if (energy_prm->sprst_pairs != NULL) {
-        springeng_pair(energy_prm->sprst_pairs, &energy);
+        _pairspring_energy(energy_prm->sprst_pairs, &energy);
     }
 
     if (energy_prm->sprst_points != NULL) {
-        springeng_point(energy_prm->sprst_points, &energy);
+        _pointspring_energy(energy_prm->sprst_points, &energy);
     }
 
     if (energy_prm->nmr != NULL) {
@@ -805,7 +661,7 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
     }
 
     if (energy_prm->sprst_pairs != NULL) {
-        springeng_pair(energy_prm->sprst_pairs, &energy);
+        _pairspring_energy(energy_prm->sprst_pairs, &energy);
         strcpy(fmt, prefix);
         fprintf(stream, strcat(fmt, "Pairsprings: % .3f\n"), energy);
         total += energy;
@@ -813,7 +669,7 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
     }
 
     if (energy_prm->sprst_points != NULL) {
-        springeng_point(energy_prm->sprst_points, &energy);
+        _pointspring_energy(energy_prm->sprst_points, &energy);
         strcpy(fmt, prefix);
         fprintf(stream, strcat(fmt, "Pointsprings: % .3f\n"), energy);
         total += energy;
@@ -853,16 +709,106 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix) 
     fprintf(stream, strcat(fmt, "Total: % .3f\n"), total);
 }
 
+/*
+ * Create mol_atom_group_list with geometry (if score_only == 1 can be without)
+ */
+struct mol_atom_group_list *read_ag_list(char *prm, char *rtf, char *pdb, char *psf, char *json, int score_only) {
+    INFO_MSG("Started reading a new atom group\n");
+    struct mol_atom_group_list* ag_list = NULL;
+    struct mol_atom_group* ag_json = NULL;
 
-struct fitting_params *make_fitting_prms(char *fitting_pdblist, double weight, double radius) {
-    struct fitting_params *fit_prms = calloc(1, sizeof(struct fitting_params));
+    if (json != NULL) {
+        INFO_MSG("Reading json file %s\n", json);
+        ag_json = mol_read_json(json);
 
-    /*struct mol_atom_group_list* ag_list_fit = mol_read_pdb_models(fitting_pdb);
-    if (ag_list_fit == NULL) {
-        ag_list_fit = mol_atom_group_list_create(1);
-        mol_atom_group_free(ag_list_fit->members);
-        ag_list_fit->members = mol_read_pdb(fitting_pdb);
-    }*/
+        if (psf != NULL) {
+            WRN_MSG("Parameter --psf is not effective, since --json was provided\n");
+        }
+    }
+
+    if (pdb != NULL) {
+        INFO_MSG("Reading %s\n", pdb);
+        INFO_MSG("Trying to read %s as a multimodel one (with MODEL records)\n", pdb);
+        ag_list = mol_read_pdb_models(pdb);
+
+        if (ag_list == NULL) {
+            INFO_MSG("File %s doesn't have MODEL records. Reading as a regular pdb file\n", pdb);
+            struct mol_atom_group* ag = mol_read_pdb(pdb);
+            if (ag == NULL) {
+                ERR_MSG("Failed reading %s", pdb);
+            }
+
+            ag_list = mol_atom_group_list_create(1);
+            ag_list->members[0] = *ag;
+            free(ag);
+        }
+
+        if (ag_json != NULL) {
+            INFO_MSG("Reading coordinates from %s and geometry from %s\n", pdb, json);
+            // Copy geometry from json to aglist
+            struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(ag_list->size);
+
+            for (size_t i = 0; i < fin_aglist->size; i++) {
+                struct mol_atom_group* tmp_copy = mol_atom_group_copy(ag_json);
+                fin_aglist->members[i] = *tmp_copy;
+                free(tmp_copy); // Do I need this?
+
+                if (fin_aglist->members[i].natoms != ag_list->members[i].natoms) {
+                    ERR_MSG("Model %i in %s and %s have different atom numbers (%i, %i)",
+                            (int) i, pdb, json,
+                            (int) ag_list->members[i].natoms,
+                            (int) fin_aglist->members[i].natoms);
+                }
+                memcpy(fin_aglist->members[i].coords,
+                       ag_list->members[i].coords,
+                       sizeof(struct mol_vector3) * ag_list->members[i].natoms);
+            }
+            mol_atom_group_list_free(ag_list);
+            mol_atom_group_free(ag_json);
+            ag_list = fin_aglist;
+
+        } else if (psf != NULL) {
+            INFO_MSG("Reading geometry from %s\n", psf);
+            for (size_t i = 0; i < ag_list->size; i++) {
+                mol_atom_group_read_geometry(&ag_list->members[i], psf, prm, rtf);
+            }
+        } else if (score_only != 0) {
+            WRN_MSG("Geometry for the molecule is not provided, computing only non-parametric terms\n");
+        } else {
+            ERR_MSG("--json or --psf must be provided with --pdb");
+        }
+    } else if (ag_json != NULL) {
+        INFO_MSG("Using geometry and coordinates from %s\n", json);
+        ag_list = mol_atom_group_list_create(1);
+        ag_list->members[0] = *ag_json;
+        free(ag_json);
+
+    } else {
+        ERR_MSG("Json or pdb file must be provided");
+    }
+
+    return ag_list;
+}
+
+
+struct mol_atom_group_list* merge_ag_lists(struct mol_atom_group_list* ag1, struct mol_atom_group_list* ag2) {
+    if (ag1->size != ag2->size) {
+        ERR_MSG("Receptor and ligand have different numbers of models (%i, %i)", (int)ag1->size, (int)ag2->size);
+    }
+
+    INFO_MSG("Using models assembled from receptor and ligand models provided separately\n");
+    struct mol_atom_group_list *ag_list = mol_atom_group_list_create(ag1->size);
+    for (size_t i = 0; i < ag_list->size; i++) {
+        ag_list->members[0] = *mol_atom_group_join(mol_atom_group_copy(&ag1->members[i]), mol_atom_group_copy(&ag2->members[i]));
+    }
+
+    return ag_list;
+}
+
+
+struct density_setup *density_setup_create(char *fitting_pdblist, double weight, double radius) {
+    struct density_setup *fit_prms = calloc(1, sizeof(struct density_setup));
+
     FILE *f = fopen(fitting_pdblist, "r");
     char pdb_file[512];
     struct mol_atom_group **aglist = calloc(1, sizeof(struct mol_atom_group *));
@@ -888,21 +834,22 @@ struct fitting_params *make_fitting_prms(char *fitting_pdblist, double weight, d
 }
 
 
-void free_fitting_prms(struct fitting_params *prms) {
+void density_setup_free(struct density_setup *prms) {
     if (prms != NULL) {
         for (int i = 0; i < prms->ag_count; i++) {
             mol_atom_group_free(prms->ag_list[i]);
         }
+        free(prms->ag_list);
         free(prms);
     }
 }
 
 
-struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfile) {
-    struct noesy_spectrum *nmr = calloc(1, sizeof(struct noesy_spectrum));
+struct noe_setup *noe_setup_read(struct mol_atom_group *ag, char *sfile) {
+    struct noe_setup *nmr = calloc(1, sizeof(struct noe_setup));
 
     char line[512];
-    FILE *f = MYFOPEN(f, sfile, "r");
+    FILE *f = fopen(sfile, "r");
 
     char *word;
     READ_WORD(f, word, line);
@@ -961,27 +908,26 @@ struct noesy_spectrum *read_noesy_spectrum(struct mol_atom_group *ag, char *sfil
     return nmr;
 }
 
-void free_noesy_spectrum(struct noesy_spectrum *nmr) {
+void noe_setup_free(struct noe_setup *nmr) {
     if (nmr != NULL) {
         nmr_noe_free(nmr->spec);
         free(nmr);
     }
 }
 
-void read_fix(char *ffile, int *nfix, size_t **fix) {
+void fixed_atoms_read(char *ffile, int *nfix, size_t **fix) {
     int linesz = 91;
-    char *buffer = (char *) MYCALLOC(buffer, linesz, sizeof(char));
+    char *buffer = calloc(linesz, sizeof(char));
 
     *nfix = 0;
-    FILE *fp = MYFOPEN(fp, ffile, "r");
+    FILE *fp = fopen(ffile, "r");
 
     while (fgets(buffer, linesz - 1, fp) != NULL) {
         if (!strncmp(buffer, "ATOM", 4))(*nfix)++;
     }
 
     rewind(fp);
-    *fix = MYCALLOC(*fix, *nfix, sizeof(size_t));
-    //fp = MYFOPEN(fp, ffile, "r");
+    *fix = calloc(*nfix, sizeof(size_t));
     int na = 0;
 
     while (fgets(buffer, linesz - 1, fp) != NULL) {
@@ -995,19 +941,19 @@ void read_fix(char *ffile, int *nfix, size_t **fix) {
     fclose(fp);
 }
 
-struct springset_pairs *read_springset_pairs(struct mol_atom_group *ag, char *sfile) {
-    FILE *fp = MYFOPEN(fp, sfile, "r");
+struct pairsprings_setup *pairsprings_setup_read(struct mol_atom_group *ag, char *sfile) {
+    FILE *fp = fopen(sfile, "r");
 
-    struct springset_pairs *sprst;
-    sprst = MYCALLOC(sprst, 1, sizeof(struct springset_pairs));
+    struct pairsprings_setup *sprst;
+    sprst = calloc(1, sizeof(struct pairsprings_setup));
 
     int c;
     if (fscanf(fp, "%i", &sprst->nsprings) != 1) {
         ERR_MSG("Wrong spring file format\n");
     }
 
-    sprst->springs = MYCALLOC(sprst->springs, sprst->nsprings, sizeof(struct pair_spring));
-    struct pair_spring *sprs = sprst->springs;
+    sprst->springs = calloc(sprst->nsprings, sizeof(struct pairspring));
+    struct pairspring *sprs = sprst->springs;
 
     int id = 0;
     char name1[8], name2[8];
@@ -1038,19 +984,19 @@ struct springset_pairs *read_springset_pairs(struct mol_atom_group *ag, char *sf
     return sprst;
 }
 
-struct springset_points *read_springset_points(struct mol_atom_group *ag, char *sfile) {
-    FILE *fp = MYFOPEN(fp, sfile, "r");
+struct pointsprings_setup *pointsprings_setup_read(struct mol_atom_group *ag, char *sfile) {
+    FILE *fp = fopen(sfile, "r");
 
-    struct springset_points *sprst;
-    sprst = MYCALLOC(sprst, 1, sizeof(struct springset_points))
+    struct pointsprings_setup *sprst;
+    sprst = calloc(1, sizeof(struct pointsprings_setup));
 
     int c;
     if (fscanf(fp, "%i", &sprst->nsprings) != 1) {
         ERR_MSG("Wrong spring file format\n");
     }
 
-    sprst->springs = MYCALLOC(sprst->springs, sprst->nsprings, sizeof(struct point_spring));
-    struct point_spring *sprs = sprst->springs;
+    sprst->springs = calloc(sprst->nsprings, sizeof(struct pointspring));
+    struct pointspring *sprs = sprst->springs;
 
     int id = 0;
     char name[8];
@@ -1068,7 +1014,7 @@ struct springset_points *read_springset_points(struct mol_atom_group *ag, char *
         sprs[id].X0 = X0;
         sprs[id].Y0 = Y0;
         sprs[id].Z0 = Z0;
-        sprs[id].laspr = MYCALLOC(sprs[id].laspr, naspr, sizeof(int));
+        sprs[id].laspr = calloc(naspr, sizeof(int));
         sprs[id].ag = ag;
 
         for (int i = 0; i < naspr; i++) {
@@ -1093,7 +1039,7 @@ struct springset_points *read_springset_points(struct mol_atom_group *ag, char *
     return sprst;
 }
 
-void free_springset_pairs(struct springset_pairs **sprst) {
+void pairsprings_setup_free(struct pairsprings_setup **sprst) {
     if (*sprst != NULL) {
         free((*sprst)->springs);
         free(*sprst);
@@ -1101,7 +1047,7 @@ void free_springset_pairs(struct springset_pairs **sprst) {
     }
 }
 
-void free_springset_points(struct springset_points **sprst) {
+void pointsprings_setup_free(struct pointsprings_setup **sprst) {
     if (*sprst != NULL) {
         for (int i = 0; i < (*sprst)->nsprings; i++) {
             free((*sprst)->springs[i].laspr);
@@ -1112,7 +1058,7 @@ void free_springset_points(struct springset_points **sprst) {
     }
 }
 
-void springeng_point(struct springset_points *sprst, double *een) {
+void _pointspring_energy(struct pointsprings_setup *sprst, double *een) {
     int i, i1, i2, nat;
     double xtot, ytot, ztot, fk;
     struct mol_vector3 g;
@@ -1154,7 +1100,7 @@ void springeng_point(struct springset_points *sprst, double *een) {
     }
 }
 
-void springeng_pair(struct springset_pairs *sprst, double *een) {
+void _pairspring_energy(struct pairsprings_setup *sprst, double *een) {
     int i, i1, i2;
     double xtot, ytot, ztot, fk, d, d2, ln, er, coef, delta;
     struct mol_vector3 g;
@@ -1195,13 +1141,10 @@ void springeng_pair(struct springset_pairs *sprst, double *een) {
 }
 
 void usage_message(char **argv) {
-    printf("\nUsage %s [ prm ] [ rtf ] [ -pdb ] [ -psf ]\n"
-           "         [ -rec-pdb ] [ -rec-psf  ] [ -lig-pdb  ] [ -lig-psf ]\n"
-           "         [ -lig-json ] [ -protocol ] [ -gbsa     ] [ -verbose ]\n"
-           "         [ -help    ] [ -nsteps   ] [ -out      ]\n\n", argv[0]);
-
+    printf("\nUsage %s [ options ]\n\n", argv[0]);
     help_message();
 }
+
 
 void help_message(void) {
     printf("\t--prm ------------------ Parameter file (required)\n"
@@ -1228,10 +1171,6 @@ void help_message(void) {
            "\t--gbsa ----------------- Turn GBSA on (default: off)\n"
            "\t--help ----------------- This message\n\n"
 
-           "Prm and rft are required. One of the following must be provided:\n\n"
-           "\t * pdb and psf or json of the full molecule (--pdb --psf)\n"
-           "\t * OR ((rec-pdb + rec-psf) or rec-json) and ((lig-pdb + lig-psf) or lig-json)\n\n"
-
            "Protocol file format:\n\n"
            "\t> number_of_steps1 fixed_atoms_file1 pair_springs_file1 point_springs_file1\n"
            "\t> number_of_steps2 fixed_atoms_file2 pair_springs_file2 point_springs_file2\n"
@@ -1253,7 +1192,7 @@ void help_message(void) {
            "\tAtom group file path\n"
            "\tExperimental matrix file path\n"
            "\tFrequency (in GHz): ex. 0.00006\n"
-           "\tCorellation time (in nanoseconds): ex. 0.1\n"
+           "\tCorrelation time (in nanoseconds): ex. 0.1\n"
            "\tMixing time (in seconds): ex. 0.3\n"
            "\tDistance cutoff for atom groups (Angstroms): ex. 10\n"
            "\tMask everything except for the peaks on experimental matrix, when computing NMR energy (on/off)\n"
