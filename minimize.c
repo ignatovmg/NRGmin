@@ -70,7 +70,6 @@ struct energy_prm {
 };
 
 struct pairspring {
-    struct mol_atom_group *ag;  /**< affected atomgroup */
     int laspr[2];      /**< list of atoms */
     double lnspr;
     double erspr;
@@ -78,7 +77,6 @@ struct pairspring {
 };
 
 struct pointspring {
-    struct mol_atom_group *ag;  /**< affected atomgroup */
     int naspr;      /**< number of affected atoms */
     int *laspr;      /**< list of atoms */
     double fkspr;      /**< force constant */
@@ -108,7 +106,7 @@ struct density_setup {
     struct mol_fitting_params prms;
 };
 
-void fixed_atoms_read(char *ffile, int *nfix, size_t **fix);
+void fixed_atoms_read(char *ffile, size_t *nfix, size_t **fix);
 
 struct pairsprings_setup *pairsprings_setup_read(struct mol_atom_group *ag, char *sfile);
 
@@ -126,9 +124,9 @@ void pairsprings_setup_free(struct pairsprings_setup **sprst);
 
 void pointsprings_setup_free(struct pointsprings_setup **sprst);
 
-void _pairspring_energy(struct pairsprings_setup *sprst, double *een);
+void _pairspring_energy(struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een);
 
-void _pointspring_energy(struct pointsprings_setup *sprst, double *een);
+void _pointspring_energy(struct pointsprings_setup *sprst, struct mol_atom_group *ag, double *een);
 
 static lbfgsfloatval_t energy_func(
         void *restrict prm,
@@ -319,6 +317,7 @@ int main(int argc, char **argv) {
     INFO_MSG("Finished creating atom group\n");
 
     // Fill minimization parameters
+    INFO_MSG("Filling energy parameters\n");
     struct energy_prm engpar;
     engpar.no_geom = false;
     engpar.bonds = true;
@@ -328,11 +327,13 @@ int main(int argc, char **argv) {
 
     // Torsions
     if (torsions_off == 1) {
+        INFO_MSG("Torsions OFF\n");
         engpar.torsions = false;
     }
 
     // If geometry is not provided
     if (nonpar_terms_only != 0) {
+        INFO_MSG("Geometry OFF\n");
         engpar.no_geom = true;
         engpar.bonds = false;
         engpar.angles = false;
@@ -342,6 +343,7 @@ int main(int argc, char **argv) {
 
     // NMR 2D spectrum
     if (noe_params != NULL) {
+        INFO_MSG("NMR ON\n");
         engpar.nmr = noe_setup_read(&aglist->members[0], noe_params);
         engpar.nmr->print_noe_matrix = print_noe_matrix;
     } else {
@@ -350,6 +352,7 @@ int main(int argc, char **argv) {
 
     // Pairsprings
     if (pairsprings != NULL) {
+        INFO_MSG("Pairsprings ON\n");
         engpar.sprst_pairs = pairsprings_setup_read(&aglist->members[0], pairsprings);
     } else {
         engpar.sprst_pairs = NULL;
@@ -357,6 +360,7 @@ int main(int argc, char **argv) {
 
     // Point springs
     if (pointsprings != NULL) {
+        INFO_MSG("Pointsprings ON\n");
         engpar.sprst_points = pointsprings_setup_read(&aglist->members[0], pointsprings);
     } else {
         engpar.sprst_points = NULL;
@@ -364,29 +368,41 @@ int main(int argc, char **argv) {
 
     // Density fitting
     if (fitting_pdblist != NULL) {
+        INFO_MSG("Density ON\n");
         engpar.fit_prms = density_setup_create(fitting_pdblist, fitting_weight, 2.0);
     } else {
         engpar.fit_prms = NULL;
     }
 
     // Fixed part
-    int nfix_glob = 0;
+    size_t nfix_glob = 0;
     size_t *fix_glob = NULL;
     if (fixed_pdb != NULL) {
+        INFO_MSG("Fixed atoms ON\n");
         fixed_atoms_read(fixed_pdb, &nfix_glob, &fix_glob);
     }
 
     // Init json array to record energy terms fro each model
     json_t *json_log_root = NULL;
     if (json_log != NULL) {
+        INFO_MSG("Energy terms to JSON file ON\n");
         json_log_root = json_array();
     }
 
     // Start main loop
-    FILE *outfile = _fopen_err(out, "w");
+    FILE *outfile = NULL;
+    if (score_only == 0) {
+        outfile = _fopen_err(out, "w");
+    }
+
+    INFO_MSG("Started the main loop\n");
     for (int modeli = 0; modeli < aglist->size; modeli++) {
+        INFO_MSG("Started model %i\n", modeli);
+
         if (aglist->size > 1) {
-            fprintf(outfile, "MODEL %i\n", (modeli + 1));
+            if (outfile != NULL) {
+                fprintf(outfile, "MODEL %i\n", (modeli + 1));
+            }
         }
 
         struct mol_atom_group *ag = &aglist->members[modeli];
@@ -449,7 +465,7 @@ int main(int argc, char **argv) {
                         ERR_MSG("Wrong protocol file format (number of steps must be non-negative)\n");
                     }
 
-                    int nfix = 0;
+                    size_t nfix = 0;
                     size_t *fix = NULL;
 
                     // Setup fixed atoms
@@ -525,21 +541,25 @@ int main(int argc, char **argv) {
             json_final_dict = json_object();
             json_object_set(json_model_dict, "FINAL", json_final_dict);
         }
-        fprintf(outfile, "REMARK\n");
+        if (outfile != NULL) {
+            fprintf(outfile, "REMARK\n");
+        }
         fprint_energy_terms(outfile, &engpar, "REMARK FINAL ", json_final_dict);
 
         // Write final model
-        mol_fwrite_pdb(outfile, ag);
-
-        if (aglist->size > 1) {
-            fprintf(outfile, "ENDMDL\n");
+        if (outfile != NULL) {
+            mol_fwrite_pdb(outfile, ag);
+            if (aglist->size > 1) {
+                fprintf(outfile, "ENDMDL\n");
+            }
+            fflush(outfile);
         }
-        fflush(outfile);
 
         if (ags.nblst != NULL) {
             destroy_agsetup(&ags);
         }
     }
+    INFO_MSG("Finished minimization loop\n");
 
     // Free everything
     noe_setup_free(engpar.nmr);
@@ -559,9 +579,12 @@ int main(int argc, char **argv) {
         json_decref(json_log_root);
     }
 
-    fclose(outfile);
+    if (outfile != NULL) {
+        fclose(outfile);
+    }
     mol_atom_group_list_free(aglist);
 
+    INFO_MSG("Completed\n");
     return EXIT_SUCCESS;
 }
 
@@ -612,11 +635,11 @@ static lbfgsfloatval_t energy_func(
     }
 
     if (energy_prm->sprst_pairs != NULL) {
-        _pairspring_energy(energy_prm->sprst_pairs, &energy);
+        _pairspring_energy(energy_prm->sprst_pairs, energy_prm->ag, &energy);
     }
 
     if (energy_prm->sprst_points != NULL) {
-        _pointspring_energy(energy_prm->sprst_points, &energy);
+        _pointspring_energy(energy_prm->sprst_points, energy_prm->ag, &energy);
     }
 
     if (energy_prm->nmr != NULL) {
@@ -666,7 +689,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
         if (energy_prm->ace_setup != NULL) {
             aceeng(energy_prm->ag, &energy, energy_prm->ace_setup, energy_prm->ag_setup);
             strcpy(fmt, prefix);
-            fprintf(stream, strcat(fmt, "ACE: % .3f\n"), energy);
+            if (stream != NULL) {
+                fprintf(stream, strcat(fmt, "ACE: % .3f\n"), energy);
+            }
             if (json_model_dict != NULL) {
                 json_object_set_new(json_model_dict, "ACE", json_real(energy));
             }
@@ -677,7 +702,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
         if (energy_prm->vdw) {
             vdweng(energy_prm->ag, &energy, energy_prm->ag_setup->nblst);
             strcpy(fmt, prefix);
-            fprintf(stream, strcat(fmt, "VDW: % .3f\n"), energy);
+            if (stream != NULL) {
+                fprintf(stream, strcat(fmt, "VDW: % .3f\n"), energy);
+            }
             if (json_model_dict != NULL) {
                 json_object_set_new(json_model_dict, "VDW", json_real(energy));
             }
@@ -687,7 +714,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
             vdwengs03(1.0, energy_prm->ag_setup->nblst->nbcof, energy_prm->ag, &energy,
                       energy_prm->ag_setup->nf03, energy_prm->ag_setup->listf03);
             strcpy(fmt, prefix);
-            fprintf(stream, strcat(fmt, "VDW03: % .3f\n"), energy);
+            if (stream != NULL) {
+                fprintf(stream, strcat(fmt, "VDW03: % .3f\n"), energy);
+            }
             if (json_model_dict != NULL) {
                 json_object_set_new(json_model_dict, "VDW03", json_real(energy));
             }
@@ -698,7 +727,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
         if (energy_prm->bonds) {
             beng(energy_prm->ag, &energy);
             strcpy(fmt, prefix);
-            fprintf(stream, strcat(fmt, "Bonds % .3f\n"), energy);
+            if (stream != NULL) {
+                fprintf(stream, strcat(fmt, "Bonds % .3f\n"), energy);
+            }
             if (json_model_dict != NULL) {
                 json_object_set_new(json_model_dict, "Bonds", json_real(energy));
             }
@@ -709,7 +740,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
         if (energy_prm->angles) {
             aeng(energy_prm->ag, &energy);
             strcpy(fmt, prefix);
-            fprintf(stream, strcat(fmt, "Angles: % .3f\n"), energy);
+            if (stream != NULL) {
+                fprintf(stream, strcat(fmt, "Angles: % .3f\n"), energy);
+            }
             if (json_model_dict != NULL) {
                 json_object_set_new(json_model_dict, "Angles", json_real(energy));
             }
@@ -720,7 +753,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
         if (energy_prm->torsions) {
             teng(energy_prm->ag, &energy);
             strcpy(fmt, prefix);
-            fprintf(stream, strcat(fmt, "Torsions: % .3f\n"), energy);
+            if (stream != NULL) {
+                fprintf(stream, strcat(fmt, "Torsions: % .3f\n"), energy);
+            }
             if (json_model_dict != NULL) {
                 json_object_set_new(json_model_dict, "Torsions", json_real(energy));
             }
@@ -729,7 +764,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
 
             ieng(energy_prm->ag, &energy);
             strcpy(fmt, prefix);
-            fprintf(stream, strcat(fmt, "Impropers: % .3f\n"), energy);
+            if (stream != NULL) {
+                fprintf(stream, strcat(fmt, "Impropers: % .3f\n"), energy);
+            }
             if (json_model_dict != NULL) {
                 json_object_set_new(json_model_dict, "Impropers", json_real(energy));
             }
@@ -739,9 +776,11 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
     }
 
     if (energy_prm->sprst_pairs != NULL) {
-        _pairspring_energy(energy_prm->sprst_pairs, &energy);
+        _pairspring_energy(energy_prm->sprst_pairs, energy_prm->ag, &energy);
         strcpy(fmt, prefix);
-        fprintf(stream, strcat(fmt, "Pairsprings: % .3f\n"), energy);
+        if (stream != NULL) {
+            fprintf(stream, strcat(fmt, "Pairsprings: % .3f\n"), energy);
+        }
         if (json_model_dict != NULL) {
             json_object_set_new(json_model_dict, "Pairsprings", json_real(energy));
         }
@@ -750,9 +789,11 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
     }
 
     if (energy_prm->sprst_points != NULL) {
-        _pointspring_energy(energy_prm->sprst_points, &energy);
+        _pointspring_energy(energy_prm->sprst_points, energy_prm->ag, &energy);
         strcpy(fmt, prefix);
-        fprintf(stream, strcat(fmt, "Pointsprings: % .3f\n"), energy);
+        if (stream != NULL) {
+            fprintf(stream, strcat(fmt, "Pointsprings: % .3f\n"), energy);
+        }
         if (json_model_dict != NULL) {
             json_object_set_new(json_model_dict, "Pointsprings", json_real(energy));
         }
@@ -772,7 +813,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
         }
 
         strcpy(fmt, prefix);
-        fprintf(stream, strcat(fmt, "NOE: % .6f\n"), energy);
+        if (stream != NULL) {
+            fprintf(stream, strcat(fmt, "NOE: % .6f\n"), energy);
+        }
         if (json_model_dict != NULL) {
             json_object_set_new(json_model_dict, "NOE", json_real(energy));
         }
@@ -787,7 +830,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
                                           &energy_prm->fit_prms->prms,
                                           energy_prm->fit_prms->weight);
         strcpy(fmt, prefix);
-        fprintf(stream, strcat(fmt, "Density: % .4f\n"), energy);
+        if (stream != NULL) {
+            fprintf(stream, strcat(fmt, "Density: % .4f\n"), energy);
+        }
         if (json_model_dict != NULL) {
             json_object_set_new(json_model_dict, "Density", json_real(energy));
         }
@@ -796,7 +841,9 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
     }
 
     strcpy(fmt, prefix);
-    fprintf(stream, strcat(fmt, "Total: % .3f\n"), total);
+    if (stream != NULL) {
+        fprintf(stream, strcat(fmt, "Total: % .3f\n"), total);
+    }
     if (json_model_dict != NULL) {
         json_object_set_new(json_model_dict, "Total", json_real(total));
     }
@@ -895,7 +942,10 @@ struct mol_atom_group_list* merge_ag_lists(struct mol_atom_group_list* ag1, stru
     INFO_MSG("Using models assembled from receptor and ligand models provided separately\n");
     struct mol_atom_group_list *ag_list = mol_atom_group_list_create(ag1->size);
     for (size_t i = 0; i < ag_list->size; i++) {
-        ag_list->members[0] = *mol_atom_group_join(mol_atom_group_copy(&ag1->members[i]), mol_atom_group_copy(&ag2->members[i]));
+        struct mol_atom_group* _join = mol_atom_group_join(&ag1->members[i], &ag2->members[i]);
+        ag_list->members[i] = *_join;
+        free(_join);
+        //ag_list->members[i] = *mol_atom_group_join(&ag1->members[i], &ag2->members[i]);
     }
 
     return ag_list;
@@ -1019,7 +1069,7 @@ void noe_setup_free(struct noe_setup *nmr) {
     }
 }
 
-void fixed_atoms_read(char *ffile, int *nfix, size_t **fix) {
+void fixed_atoms_read(char *ffile, size_t *nfix, size_t **fix) {
     int linesz = 91;
     char *buffer = calloc(linesz, sizeof(char));
 
@@ -1072,10 +1122,15 @@ struct pairsprings_setup *pairsprings_setup_read(struct mol_atom_group *ag, char
             ERR_MSG("Wrong spring file format\n");
         }
 
-        sprs[id].ag = ag;
-        //printf("%s %s\n", ag->atom_name[aid1-1], ag->atom_name[aid2-1]);
-        if (strstr(ag->atom_name[aid1 - 1], name1) == NULL || strstr(ag->atom_name[aid2 - 1], name2) == NULL) {
-            ERR_MSG("Inconsistent numbering in file %s\n", sfile);
+        if (strstr(ag->atom_name[aid1-1], name1) == NULL) {
+            ERR_MSG("Inconsistent numbering in file %s\n"
+                    "Provided atom %i has name (%i, %s, %s) instead of %s\n",
+                    sfile, aid1, ag->residue_id[aid1-1].residue_seq, ag->residue_name[aid1-1], ag->atom_name[aid1-1], name1);
+        }
+        if (strstr(ag->atom_name[aid2 - 1], name2) == NULL) {
+            ERR_MSG("Inconsistent numbering in file %s\n"
+                    "Provided atom %i has name (%i, %s, %s) instead of %s\n",
+                    sfile, aid2, ag->residue_id[aid2-1].residue_seq, ag->residue_name[aid2-1], ag->atom_name[aid2-1], name2);
         }
 
         sprs[id].laspr[0] = aid1 - 1;
@@ -1119,7 +1174,6 @@ struct pointsprings_setup *pointsprings_setup_read(struct mol_atom_group *ag, ch
         sprs[id].Y0 = Y0;
         sprs[id].Z0 = Z0;
         sprs[id].laspr = calloc(naspr, sizeof(int));
-        sprs[id].ag = ag;
 
         for (int i = 0; i < naspr; i++) {
             c = fscanf(fp, "%i %s", &aid, name);
@@ -1129,8 +1183,8 @@ struct pointsprings_setup *pointsprings_setup_read(struct mol_atom_group *ag, ch
 
             if (strstr(ag->atom_name[aid - 1], name) == NULL) {
                 ERR_MSG("Inconsistent numbering in file %s\n"
-                        "Provided atom id %i has name %s instead of %s\n",
-                        sfile, aid, ag->atom_name[aid - 1], name);
+                        "Provided atom %i has name (%i, %s, %s) instead of %s\n",
+                        sfile, aid, ag->residue_id[aid-1].residue_seq, ag->residue_name[aid-1], ag->atom_name[aid-1], name);
             }
 
             sprs[id].laspr[i] = aid - 1;
@@ -1162,11 +1216,10 @@ void pointsprings_setup_free(struct pointsprings_setup **sprst) {
     }
 }
 
-void _pointspring_energy(struct pointsprings_setup *sprst, double *een) {
+void _pointspring_energy(struct pointsprings_setup *sprst, struct mol_atom_group* ag, double *een) {
     int i, i1, i2, nat;
     double xtot, ytot, ztot, fk;
     struct mol_vector3 g;
-    struct mol_atom_group *ag;
 
     for (i = 0; i < sprst->nsprings; i++) {
         nat = sprst->springs[i].naspr;
@@ -1175,7 +1228,6 @@ void _pointspring_energy(struct pointsprings_setup *sprst, double *een) {
             xtot = 0.0;
             ytot = 0.0;
             ztot = 0.0;
-            ag = sprst->springs[i].ag;
 
             for (i1 = 0; i1 < nat; i1++) {
                 i2 = sprst->springs[i].laspr[i1];
@@ -1204,15 +1256,12 @@ void _pointspring_energy(struct pointsprings_setup *sprst, double *een) {
     }
 }
 
-void _pairspring_energy(struct pairsprings_setup *sprst, double *een) {
+void _pairspring_energy(struct pairsprings_setup *sprst, struct mol_atom_group* ag, double *een) {
     int i, i1, i2;
     double xtot, ytot, ztot, fk, d, d2, ln, er, coef, delta;
     struct mol_vector3 g;
-    struct mol_atom_group *ag;
 
     for (i = 0; i < sprst->nsprings; i++) {
-        ag = sprst->springs[i].ag;
-
         ln = sprst->springs[i].lnspr;
         er = sprst->springs[i].erspr;
         fk = sprst->springs[i].fkspr / 2.0;
