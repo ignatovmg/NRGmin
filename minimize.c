@@ -5,6 +5,8 @@
 #include <jansson.h>
 
 #include "mol2/json.h"
+#include "mol2/atom_group.h"
+#include "mol2/utils.h"
 #include "mol2/benergy.h"
 #include "mol2/gbsa.h"
 #include "mol2/icharmm.h"
@@ -13,7 +15,7 @@
 #include "mol2/pdb.h"
 #include "mol2/fitting.h"
 
-#include "nmrgrad/noe.h"
+//#include "nmrgrad/noe.h"
 
 #define __TOL__ 5E-4
 
@@ -59,8 +61,9 @@ struct energy_prm {
     struct agsetup *ag_setup;
     struct acesetup *ace_setup;
     struct pairsprings_setup *sprst_pairs;
+    struct pairsprings_js_setup *sprst_js_pairs; ////////////////////////////
     struct pointsprings_setup *sprst_points;
-    struct noe_setup *nmr;
+    //struct noe_setup *nmr;
     struct density_setup *fit_prms;
     bool no_geom;
     bool bonds;
@@ -76,6 +79,17 @@ struct pairspring {
     double fkspr;      /**< force constant */
 };
 
+struct pairspring_js {  //// but not applied later ///////////////
+    json_t *potential;
+    json_t *average;
+    json_t *group1;      /**< list of atoms */
+    json_t *group2;      /**< list of atoms */
+    json_t *lnspr;
+    json_t *lerror;
+    json_t *rerror;
+    json_t *fkspr;      /**< force constant */
+};
+
 struct pointspring {
     int naspr;      /**< number of affected atoms */
     int *laspr;      /**< list of atoms */
@@ -88,16 +102,21 @@ struct pairsprings_setup {
     struct pairspring *springs;  /**< array of springs */
 };
 
+struct pairsprings_js_setup {   ////////////////////////////////
+    int nsprings;       /**< number of springs */
+    json_t *springs;  /**< array of springs */
+};
+
 struct pointsprings_setup {
     int nsprings;       /**< number of springs */
     struct pointspring *springs;  /**< array of springs */
 };
 
-struct noe_setup {
-    struct nmr_noe *spec;
-    double weight;
-    bool print_noe_matrix;
-};
+//struct noe_setup {
+//    struct nmr_noe *spec;
+//    double weight;
+//    bool print_noe_matrix;
+//};
 
 struct density_setup {
     struct mol_atom_group **ag_list;
@@ -110,13 +129,19 @@ void fixed_atoms_read(char *ffile, size_t *nfix, size_t **fix);
 
 struct pairsprings_setup *pairsprings_setup_read(struct mol_atom_group *ag, char *sfile);
 
+////////////////////////////////////////////////////////////
+struct pairsprings_js_setup *pairsprings_js_setup_read(struct mol_atom_group *ag, char *sfile);
+void _pairspring_js_energy(struct pairsprings_js_setup *sprst, struct mol_atom_group *ag, double *een);
+void pairsprings_js_setup_free(struct pairsprings_js_setup **sprst);
+////////////////////////////////////////////////////////////
+
 struct pointsprings_setup *pointsprings_setup_read(struct mol_atom_group *ag, char *sfile);
 
-struct noe_setup *noe_setup_read(struct mol_atom_group *ag, char *sfile);
+//struct noe_setup *noe_setup_read(struct mol_atom_group *ag, char *sfile);
 
 struct density_setup *density_setup_create(char *fitting_pdblist, double weight, double radius);
 
-void noe_setup_free(struct noe_setup *nmr);
+//void noe_setup_free(struct noe_setup *nmr);
 
 void density_setup_free(struct density_setup *prms);
 
@@ -178,6 +203,7 @@ int main(int argc, char **argv) {
     char *lig_json = NULL;
     char *noe_params = NULL;
     char *pairsprings = NULL;
+    char *pairspring_js = NULL;////////////////////////////////////////////////
     char *pointsprings = NULL;
     char *fixed_pdb = NULL;
     char *fitting_pdblist = NULL;
@@ -204,6 +230,7 @@ int main(int argc, char **argv) {
                     {"nsteps",           required_argument, 0,                 0},
                     {"noe-params",       required_argument, 0,                 0},
                     {"pairsprings",      required_argument, 0,                 0},
+                    {"pairsprings-json", required_argument, 0,                 0}, ////////////////////////////////////////////////
                     {"pointsprings",     required_argument, 0,                 0},
                     {"fitting-pdblist",  required_argument, 0,                 0},
                     {"fitting-weight",   required_argument, 0,                 0},
@@ -268,6 +295,7 @@ int main(int argc, char **argv) {
         MAGIC_ARGS(lig_json);
         MAGIC_ARGS(noe_params);
         MAGIC_ARGS(pairsprings);
+        MAGIC_ARGS(pairspring_js);
         MAGIC_ARGS(pointsprings);
         MAGIC_ARGS(fitting_pdblist);
         MAGIC_ARGS(fixed_pdb);
@@ -342,13 +370,13 @@ int main(int argc, char **argv) {
     }
 
     // NMR 2D spectrum
-    if (noe_params != NULL) {
-        INFO_MSG("NMR ON\n");
-        engpar.nmr = noe_setup_read(&aglist->members[0], noe_params);
-        engpar.nmr->print_noe_matrix = print_noe_matrix;
-    } else {
-        engpar.nmr = NULL;
-    }
+    //if (noe_params != NULL) {
+    //    INFO_MSG("NMR ON\n");
+    //    engpar.nmr = noe_setup_read(&aglist->members[0], noe_params);
+    //    engpar.nmr->print_noe_matrix = print_noe_matrix;
+    //} else {
+    //    engpar.nmr = NULL;
+    //}
 
     // Pairsprings
     if (pairsprings != NULL) {
@@ -356,6 +384,14 @@ int main(int argc, char **argv) {
         engpar.sprst_pairs = pairsprings_setup_read(&aglist->members[0], pairsprings);
     } else {
         engpar.sprst_pairs = NULL;
+    }
+    
+    // pairsprings_js
+    if (pairspring_js != NULL) {
+        INFO_MSG("Pairsprings-Json ON\n");
+        engpar.sprst_js_pairs = pairsprings_js_setup_read(&aglist->members[0], pairspring_js);
+    } else {
+        engpar.sprst_js_pairs = NULL;
     }
 
     // Point springs
@@ -453,6 +489,7 @@ int main(int argc, char **argv) {
                 char fix_path[1024];
                 char spr_pair_path[1024];
                 char spr_point_path[1024];
+                char spr_js_pair_path[1024];
 
                 int c;
                 while ((c = fscanf(prot_file, "%i %s %s %s", &cur_nsteps, fix_path,
@@ -493,6 +530,12 @@ int main(int argc, char **argv) {
 
                     if (strcmp(spr_point_path, ".") != 0) {
                         sprst_points = pointsprings_setup_read(ag, spr_point_path);
+                    }
+                    
+                    /////////////////////////////
+                    struct pairsprings_js_setup *sprst_js_pairs=NULL;
+                    if (strcmp(spr_js_pair_path, ".") != 0) {
+                        sprst_js_pairs = pairsprings_js_setup_read(ag, spr_js_pair_path);
                     }
 
                     engpar.ag_setup = &ags;
@@ -562,7 +605,7 @@ int main(int argc, char **argv) {
     INFO_MSG("Finished minimization loop\n");
 
     // Free everything
-    noe_setup_free(engpar.nmr);
+    //noe_setup_free(engpar.nmr);
     density_setup_free(engpar.fit_prms);
 
     if (engpar.sprst_points != NULL) {
@@ -637,18 +680,24 @@ static lbfgsfloatval_t energy_func(
     if (energy_prm->sprst_pairs != NULL) {
         _pairspring_energy(energy_prm->sprst_pairs, energy_prm->ag, &energy);
     }
+    
+    //////////////////////////////////////////////////////////////////////
+    if (energy_prm->sprst_js_pairs != NULL) {
+        _pairspring_js_energy(energy_prm->sprst_js_pairs, energy_prm->ag, &energy);
+    }
+    //////////////////////////////////////////////////////////////////////
 
     if (energy_prm->sprst_points != NULL) {
         _pointspring_energy(energy_prm->sprst_points, energy_prm->ag, &energy);
     }
 
-    if (energy_prm->nmr != NULL) {
-        struct nmr_noe *spec = energy_prm->nmr->spec;
-        nmr_r2_mat(spec->r2, energy_prm->ag, spec->grps);
-        nmr_compute_peaks(spec, energy_prm->ag);
-        nmr_energy(spec, energy_prm->ag->gradients, energy_prm->nmr->weight);
-        energy += spec->energy;
-    }
+    //if (energy_prm->nmr != NULL) {
+    //    struct nmr_noe *spec = energy_prm->nmr->spec;
+    //    nmr_r2_mat(spec->r2, energy_prm->ag, spec->grps);
+    //    nmr_compute_peaks(spec, energy_prm->ag);
+    //    nmr_energy(spec, energy_prm->ag->gradients, energy_prm->nmr->weight);
+    //    energy += spec->energy;
+    //}
 
     if (energy_prm->fit_prms != NULL) {
         energy += mol_fitting_score_aglist(energy_prm->ag,
@@ -787,7 +836,23 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
         total += energy;
         energy = 0.0;
     }
-
+    
+    //////////////////////////////////////////////////////////////////////
+    if (energy_prm->sprst_js_pairs != NULL) {
+        _pairspring_js_energy(energy_prm->sprst_js_pairs, energy_prm->ag, &energy);
+        strcpy(fmt, prefix);
+        if (stream != NULL) {
+            fprintf(stream, strcat(fmt, "Pairsprings-Json: % .3f\n"), energy);
+        }
+        if (json_model_dict != NULL) {
+            json_object_set_new(json_model_dict, "Pairsprings-Json", json_real(energy));
+        }
+        total += energy;
+        energy = 0.0;
+    }
+    //////////////////////////////////////////////////////////////////////
+ 
+    
     if (energy_prm->sprst_points != NULL) {
         _pointspring_energy(energy_prm->sprst_points, energy_prm->ag, &energy);
         strcpy(fmt, prefix);
@@ -801,27 +866,27 @@ static void fprint_energy_terms(FILE *stream, void *restrict prm, char *prefix, 
         energy = 0.0;
     }
 
-    if (energy_prm->nmr != NULL) {
-        nmr_r2_mat(energy_prm->nmr->spec->r2, energy_prm->ag, energy_prm->nmr->spec->grps);
-        nmr_compute_peaks_no_grad(energy_prm->nmr->spec, energy_prm->ag);
-        energy = nmr_energy(energy_prm->nmr->spec, NULL, energy_prm->nmr->weight);
+    //if (energy_prm->nmr != NULL) {
+    //    nmr_r2_mat(energy_prm->nmr->spec->r2, energy_prm->ag, energy_prm->nmr->spec->grps);
+    //    nmr_compute_peaks_no_grad(energy_prm->nmr->spec, energy_prm->ag);
+    //    energy = nmr_energy(energy_prm->nmr->spec, NULL, energy_prm->nmr->weight);
 
-        if (energy_prm->nmr->print_noe_matrix) {
-            strcpy(fmt, prefix);
-            fprintf(stdout, strcat(fmt, "NOESY_MATRIX_SCALE: %e\n"), energy_prm->nmr->spec->scale);
-            nmr_matrix_fwrite(stdout, energy_prm->nmr->spec->in, energy_prm->nmr->spec->size);
-        }
+    //    if (energy_prm->nmr->print_noe_matrix) {
+    //        strcpy(fmt, prefix);
+    //        fprintf(stdout, strcat(fmt, "NOESY_MATRIX_SCALE: %e\n"), energy_prm->nmr->spec->scale);
+    //        nmr_matrix_fwrite(stdout, energy_prm->nmr->spec->in, energy_prm->nmr->spec->size);
+    //    }
 
-        strcpy(fmt, prefix);
-        if (stream != NULL) {
-            fprintf(stream, strcat(fmt, "NOE: % .6f\n"), energy);
-        }
-        if (json_model_dict != NULL) {
-            json_object_set_new(json_model_dict, "NOE", json_real(energy));
-        }
-        total += energy;
-        energy = 0.0;
-    }
+    //    strcpy(fmt, prefix);
+    //    if (stream != NULL) {
+    //        fprintf(stream, strcat(fmt, "NOE: % .6f\n"), energy);
+    //    }
+    //    if (json_model_dict != NULL) {
+    //        json_object_set_new(json_model_dict, "NOE", json_real(energy));
+    //    }
+    //    total += energy;
+    //    energy = 0.0;
+    //}
 
     if (energy_prm->fit_prms != NULL) {
         energy = mol_fitting_score_aglist(energy_prm->ag,
@@ -999,75 +1064,75 @@ void density_setup_free(struct density_setup *prms) {
 }
 
 
-struct noe_setup *noe_setup_read(struct mol_atom_group *ag, char *sfile) {
-    struct noe_setup *nmr = calloc(1, sizeof(struct noe_setup));
+//struct noe_setup *noe_setup_read(struct mol_atom_group *ag, char *sfile) {
+//    struct noe_setup *nmr = calloc(1, sizeof(struct noe_setup));
 
-    char line[512];
-    FILE *f = _fopen_err(sfile, "r");
+ //   char line[512];
+ //   FILE *f = _fopen_err(sfile, "r");
 
-    char *word;
-    READ_WORD(f, word, line);
-    char groups_path[512];
-    strcpy(groups_path, word);
+ //   char *word;
+ //   READ_WORD(f, word, line);
+ //   char groups_path[512];
+ //   strcpy(groups_path, word);
 
-    READ_WORD(f, word, line);
-    char matrix_path[512];
-    strcpy(matrix_path, word);
+  //  READ_WORD(f, word, line);
+  //  char matrix_path[512];
+  //  strcpy(matrix_path, word);
 
-    READ_WORD(f, word, line);
-    double freq = atof(word);
+  //  READ_WORD(f, word, line);
+  //  double freq = atof(word);
 
-    READ_WORD(f, word, line);
-    double corr_time = atof(word);
+  //  READ_WORD(f, word, line);
+  //  double corr_time = atof(word);
 
-    READ_WORD(f, word, line);
-    double mix_time = atof(word);
+  //  READ_WORD(f, word, line);
+  //  double mix_time = atof(word);
 
-    READ_WORD(f, word, line);
-    double dist_cutoff = atof(word);
+  //  READ_WORD(f, word, line);
+  //  double dist_cutoff = atof(word);
 
-    READ_WORD(f, word, line);
-    bool mask_on = false;
-    if (strcmp(word, "on\0") == 0) {
-        mask_on = true;
-    } else if (strcmp(word, "off\0") != 0) {
-        ERR_MSG("Wrong value (on/off)");
-    }
+  //  READ_WORD(f, word, line);
+  //  bool mask_on = false;
+  //  if (strcmp(word, "on\0") == 0) {
+  //      mask_on = true;
+  //  } else if (strcmp(word, "off\0") != 0) {
+  //      ERR_MSG("Wrong value (on/off)");
+  //  }
 
-    READ_WORD(f, word, line);
-    double weight = atof(word);
+  //  READ_WORD(f, word, line);
+  //  double weight = atof(word);
 
-    fclose(f);
+  //  fclose(f);
 
-    struct nmr_group_list *groups = nmr_group_list_read(groups_path);
-    nmr->spec = nmr_noe_create(groups, freq, corr_time, mix_time, dist_cutoff);
-    nmr->spec->in_grad = nmr_grad_create(ag->natoms, groups->ngroups);
-    nmr->spec->rx_grad = nmr_grad_create(ag->natoms, groups->ngroups);
+  //  struct nmr_group_list *groups = nmr_group_list_read(groups_path);
+  //  nmr->spec = nmr_noe_create(groups, freq, corr_time, mix_time, dist_cutoff);
+  //  nmr->spec->in_grad = nmr_grad_create(ag->natoms, groups->ngroups);
+  //  nmr->spec->rx_grad = nmr_grad_create(ag->natoms, groups->ngroups);
 
-    nmr->spec->omega = freq;
-    nmr->spec->t_mix = mix_time;
-    nmr->spec->t_cor = corr_time;
-    nmr->spec->cutoff = dist_cutoff;
+  //  nmr->spec->omega = freq;
+  //  nmr->spec->t_mix = mix_time;
+  //  nmr->spec->t_cor = corr_time;
+  //  nmr->spec->cutoff = dist_cutoff;
 
-    int *mask = NULL;
-    if (mask_on) {
-        mask = calloc(groups->ngroups * groups->ngroups, sizeof(int));
-    }
-    nmr->spec->exp = nmr_matrix_read(matrix_path, groups->ngroups, mask);
+  //  int *mask = NULL;
+  //  if (mask_on) {
+  //      mask = calloc(groups->ngroups * groups->ngroups, sizeof(int));
+  //  }
+  //  nmr->spec->exp = nmr_matrix_read(matrix_path, groups->ngroups, mask);
 
-    nmr->weight = weight;
+  //  nmr->weight = weight;
 
-    nmr->print_noe_matrix = false;
+  //  nmr->print_noe_matrix = false;
 
-    return nmr;
-}
+  //  return nmr;
+//}
 
-void noe_setup_free(struct noe_setup *nmr) {
-    if (nmr != NULL) {
-        nmr_noe_free(nmr->spec);
-        free(nmr);
-    }
-}
+//void noe_setup_free(struct noe_setup *nmr) {
+//    if (nmr != NULL) {
+//        nmr_noe_free(nmr->spec);
+//        free(nmr);
+//    }
+//}
 
 void fixed_atoms_read(char *ffile, size_t *nfix, size_t **fix) {
     int linesz = 91;
@@ -1293,6 +1358,172 @@ void _pairspring_energy(struct pairsprings_setup *sprst, struct mol_atom_group* 
     }
 }
 
+
+//////////////--new functions for the pairspring json--///////////////////////////////////////////
+void _pairspring_js_energy(struct pairsprings_js_setup *sprst, struct mol_atom_group* ag, double *een) {
+    int i, j, k, idx2, idx1;
+    size_t lni1, lni2;
+    double xtot, ytot, ztot, coef, delta, d2, d, ln, ler, rer, fk, hk;
+    json_t *i1, *i2;
+    const char *potential, *averaging;
+    struct mol_vector3 g;
+    
+    for (i = 0; i< sprst -> nsprings; i++) {
+        json_t *line_1 = json_array_get(sprst->springs, i); // take out one restraint
+        ln = json_number_value(json_object_get(line_1, "distance"));
+        ler = json_number_value(json_object_get(line_1, "lerror"));
+        rer = json_number_value(json_object_get(line_1, "rerror"));
+        fk = json_number_value(json_object_get(line_1, "weight"));
+
+        
+        // start to calculate the average distance over two groups
+        i1 = json_object_get(line_1, "group1");
+        i2 = json_object_get(line_1, "group2");
+        
+        lni1 = json_array_size(i1);
+        lni2 = json_array_size(i2);
+        double aved = 0;
+        for(j = 0; j < lni1; j++) {
+            idx1 = json_integer_value(json_array_get(i1,j));
+            for (k = 0; k < lni2; k++) {
+                idx2 = json_integer_value(json_array_get(i2,k));
+                xtot = ag->coords[idx2].X - ag->coords[idx1].X;
+                ytot = ag->coords[idx2].Y - ag->coords[idx1].Y;
+                ztot = ag->coords[idx2].Z - ag->coords[idx1].Z;
+                d2 = xtot*xtot + ytot*ytot + ztot*ztot;
+                d = sqrt(d2);
+                aved += 1/(d*d*d*d*d*d);
+            }
+        }
+        averaging = json_string_value(json_object_get( line_1, "average"));
+        if (!(strcmp(averaging, "SUM"))) {
+            aved = 1/pow(aved,1.0/6);
+        } else {
+            aved = 1/pow(aved/lni1/lni2,1.0/6);
+        }
+        delta = fabs(aved - ln);
+        potential = json_string_value(json_object_get( line_1, "potential"));
+
+        if (!(strncmp(potential, "SQUARE-WELL", 4))) {
+            delta = (delta > ler) ? ((delta-ler) * delta/(d-ln)) : 0.0;
+            (*een) += fk * delta * delta;
+            coef = fk * 2.0 * delta / d;
+        }
+        else if (!(strncmp(potential, "BIHARMONIC", 4))) {
+            hk = fk * 300*0.0019872041/(2*ler*ler);
+            hk = fmin(1000, hk);
+            (*een) += hk * delta * delta;
+            coef = hk*2.0*delta/d;
+        }
+        else {  // soft-square
+            delta = (delta > ler) ? ((delta-ler) * delta/(d-ln)) : 0.0;
+            if (delta <= 0.5) {
+                (*een) += fk* delta*delta;
+                coef = fk*2.0*delta/d;
+            }
+            else {
+                (*een) += fk*(delta-0.25);
+                coef = fk;
+            }
+        }
+        g.X = -coef * xtot;
+        g.Y = -coef * ytot;
+        g.Z = -coef * ztot;
+        
+        // how to add gradients to all the atoms
+        for(j = 0; j < lni1; j++) {
+            idx1 = json_integer_value(json_array_get(i1,j));
+            MOL_VEC_SUB(ag->gradients[idx1], ag->gradients[idx1], g);
+        }
+        for(j = 0; j < lni2; j++) {
+            idx2 = json_integer_value(json_array_get(i2,j));
+            MOL_VEC_ADD(ag->gradients[idx2], ag->gradients[idx2], g);
+        }
+    }
+}
+
+struct pairsprings_js_setup *pairsprings_js_setup_read(struct mol_atom_group *ag, char *sfile) {
+    FILE *fp = _fopen_err(sfile, "r");
+    
+    struct pairsprings_js_setup *sprst;
+    //sprst = calloc(1, sizeof(struct pairsprings_js_setup));
+    
+    if (fscanf(fp, "%i", &sprst->nsprings) != 1) {
+        ERR_MSG("Wrong spring file format\n");
+    }
+    
+    //sprst->springs = calloc(sprst->nsprings, sizeof(struct pairspring_js));
+    //struct pairspring_js *sprs = sprst->springs;
+    
+    json_t *jsprings = json_array();
+    char c[200];
+    json_error_t error;
+    int id = 0;
+    char name1[8], name2[8];
+    int aid1, aid2;
+    json_t *jsp = json_object();
+    json_t *js_group1 = json_array();
+    json_t *js_group2 = json_array();
+    json_t *spr_line;
+    size_t gan1, gan2;
+    while (id < sprst->nsprings) {
+        fgets(c, 200, fp);
+        spr_line = json_loads(c, 0, &error);
+        if (spr_line) {
+            json_object_set_new(jsp, "potential", json_string( json_string_value(json_object_get(spr_line, "potential")) ) );
+            json_object_set_new(jsp, "average", json_string( json_string_value(json_object_get(spr_line, "average")) ) );
+            json_object_set_new(jsp, "weight", json_real(json_number_value(json_object_get(spr_line, "weight")) ) );
+            json_object_set_new(jsp, "distance", json_real(json_number_value(json_object_get(spr_line, "distance")) ) );
+            json_object_set_new(jsp, "lerror", json_real(json_number_value(json_object_get(spr_line, "lerror")) ) );
+            json_object_set_new(jsp, "rerror", json_real(json_number_value(json_object_get(spr_line, "rerror")) ) );
+            json_object_set_new(jsp, "group1", js_group1);
+            json_object_set_new(jsp, "group2", js_group2);
+            
+            // get out the atom groups
+            gan1 = json_array_size( json_object_get(spr_line, "group1") );
+            gan2 = json_array_size( json_object_get(spr_line, "group2") );
+            for (int i=0; i < gan1; i++) {
+                json_array_append(js_group1, json_integer( json_integer_value(json_array_get( json_object_get(spr_line, "group1"), i)) ) );
+            }
+            for (int i=0; i < gan2; i++) {
+                json_array_append(js_group2, json_integer( json_integer_value(json_array_get( json_object_get(spr_line, "group2"), i)) ) );
+            }
+        }
+        json_array_append(jsprings, jsp);
+        json_decref(jsp);
+        
+        // need one message to say the file format is wrong.
+        if (json_array_get( json_object_get(spr_line, "group1"), 0)==NULL) {
+            ERR_MSG("Wrong spring file format\n");
+        }
+        
+        //if (strstr(ag->atom_name[aid1-1], name1) == NULL) {
+        //    ERR_MSG("Inconsistent numbering in file %s\n"
+        //            "Provided atom %i has name (%i, %s, %s) instead of %s\n",
+        //            sfile, aid1, ag->residue_id[aid1-1].residue_seq, ag->residue_name[aid1-1], ag->atom_name[aid1-1], name1);
+        //}
+        //if (strstr(ag->atom_name[aid2 - 1], name2) == NULL) {
+        //    ERR_MSG("Inconsistent numbering in file %s\n"
+        //            "Provided atom %i has name (%i, %s, %s) instead of %s\n",
+        //            sfile, aid2, ag->residue_id[aid2-1].residue_seq, ag->residue_name[aid2-1], ag->atom_name[aid2-1], name2);
+        //}
+        id++;
+    }
+    sprst->springs = jsprings;
+    fclose(fp);
+    return sprst;
+}
+
+void pairsprings_js_setup_free(struct pairsprings_js_setup **sprst) {
+    if (*sprst != NULL) {
+        free((*sprst)->springs);
+        free(*sprst);
+        *sprst = NULL;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+
 void usage_message(char **argv) {
     printf("\nUsage %s [ options ]\n\n", argv[0]);
     help_message();
@@ -1318,6 +1549,7 @@ void help_message(void) {
            "\t--fitting-weight ------- Weight of atomic density fit in energy function\n"
            "\t--noe-params ----------- File with 2D NOE spectrum params\n"
            "\t--pairsprings ---------- File with pairwise distance restraints\n"
+           "\t--pairsprings-json ----- Json File with pairwise distance restraints\n"
            "\t--pointsprings --------- File with point distance restraints\n"
            "\t--score_only ----------- Don't run minimization, just score the models\n"
            "\t--nsteps --------------- Number of minimization steps (default: 1000)\n"
@@ -1334,7 +1566,7 @@ void help_message(void) {
            "\t> number_of_springs\n"
            "\t> length absolute_error force_constant atom1_id(PDB) atom1_name atom2_id(PDB) atom2_name\n"
            "\t> ...\n\n"
-
+           
            "Point springs (attached to a single point) file format:\n\n"
            "\t> number_of_springs\n"
            "\t> number_of_atoms_attached force_constant X0 Y0 Z0\n"
