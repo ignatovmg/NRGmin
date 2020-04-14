@@ -89,6 +89,17 @@ struct pairsprings_setup {
     struct pairspring *springs;  /**< array of springs */
 };
 
+struct pairspring_json { // may not be used later, just to specify space
+    int group1[3];      /**< list of first atoms */
+    int group2[3];      /**< list of second atoms */
+    double weight;      /**< force constant */
+    double distance;
+    double lerror;
+    double rerror;
+    char potential[10];
+    char average[4];
+};
+
 struct pairsprings_js_setup {
     int nsprings;       /**< number of springs */
     json_t *springs;  /**< json array of springs */
@@ -1345,9 +1356,13 @@ void _pairspring_energy(struct pairsprings_setup *sprst, struct mol_atom_group* 
 }
 
 void _pairspring_js_energy(struct pairsprings_js_setup *sprst, struct mol_atom_group* ag, double *een) {
+    
     int i, j, k, idx2, idx1, m, n;
-    size_t lni1, lni2;
-    double xtot, ytot, ztot, coef, delta, d2, d, ln, ler, rer, fk, hk;
+    size_t lni1, lni2, nm;
+    double *xtot_a, *ytot_a, *ztot_a; // store gradients direction for each atom
+    double *d_a;
+    double xtot, ytot, ztot, d, delta, d2, coef, ln, ler, rer, fk, hk;
+    double gradx, grady, gradz;
     json_t *i1, *i2;
     const char *potential, *averaging;
     struct mol_vector3 g;
@@ -1358,13 +1373,17 @@ void _pairspring_js_energy(struct pairsprings_js_setup *sprst, struct mol_atom_g
         ler = json_number_value(json_object_get(line_1, "lerror"));
         rer = json_number_value(json_object_get(line_1, "rerror"));
         fk = json_number_value(json_object_get(line_1, "weight"));
-
+        
         // start to calculate the average distance over two groups
         i1 = json_object_get(line_1, "group1");
         i2 = json_object_get(line_1, "group2");
         
         lni1 = json_array_size(i1);
         lni2 = json_array_size(i2);
+        xtot_a = calloc(lni1*lni2, sizeof(double));
+        ytot_a = calloc(lni1*lni2, sizeof(double));
+        ztot_a = calloc(lni1*lni2, sizeof(double));
+        d_a = calloc(lni1*lni2, sizeof(double));
         double aved = 0;
         for(j = 0; j < lni1; j++) {
             idx1 = json_integer_value(json_array_get(i1,j));
@@ -1374,19 +1393,30 @@ void _pairspring_js_energy(struct pairsprings_js_setup *sprst, struct mol_atom_g
                 ytot = ag->coords[idx2].Y - ag->coords[idx1].Y;
                 ztot = ag->coords[idx2].Z - ag->coords[idx1].Z;
                 d2 = xtot*xtot + ytot*ytot + ztot*ztot;
+                xtot_a[lni2*j + k] = xtot;
                 d = sqrt(d2);
                 aved += 1/(pow(d, 6));
+                xtot_a[lni2*j + k] = xtot;
+                ytot_a[lni2*j + k] = ytot;
+                ztot_a[lni2*j + k] = ztot;
+                d_a[lni2*j + k] = d;
             }
         }
+        double sumd = aved;
         averaging = json_string_value(json_object_get( line_1, "average"));
         if (!(strcmp(averaging, "SUM"))) {
             aved = 1/pow(aved,1.0/6);
-        } else {  // R6 average
+            nm = 1;
+        } else if (!(strcmp(averaging, "R-6"))){  // R6 average
             aved = 1/pow(aved/lni1/lni2,1.0/6);
+            nm =lni1*lni2;
+        }
+        else {
+            ERR_MSG("The average should be one of SUM, R-6.\n");
         }
         delta = aved - ln;
+        
         potential = json_string_value(json_object_get( line_1, "potential"));
-
         if (!(strncmp(potential, "SQUARE-WELL", 4))) {  // square-well
             if (delta < 0) {
                 delta = (delta < -ler) ? (delta+ler) : 0.0;
@@ -1394,7 +1424,35 @@ void _pairspring_js_energy(struct pairsprings_js_setup *sprst, struct mol_atom_g
                 delta = (delta > rer) ? (delta-rer) : 0.0;
             }
             (*een) += fk * delta * delta;
-            coef = fk * 2.0 * delta / d;
+            coef = fk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+            // calculate and update gradients first groups
+            for (j = 0; j < lni1; j++) {
+                idx1 = json_integer_value(json_array_get(i1,j));
+                gradx = 0; grady = 0; gradz = 0;
+                for (k = 0; k < lni2; k++) {
+                    gradx += coef * xtot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                    grady += coef * ytot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                    gradz += coef * ztot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                }
+                g.X = -gradx;
+                g.Y = -grady;
+                g.Z = -gradz;
+                MOL_VEC_SUB(ag->gradients[idx1], ag->gradients[idx1], g);
+            }
+            // calculate and update gradients second groups
+            for (k = 0; k < lni2; k++) {
+                idx2 = json_integer_value(json_array_get(i2,k));
+                gradx = 0; grady = 0; gradz = 0;
+                for (j = 0; j < lni1; j++) {
+                    gradx += coef * xtot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                    grady += coef * ytot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                    gradz += coef * ztot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                }
+                g.X = -gradx;
+                g.Y = -grady;
+                g.Z = -gradz;
+                MOL_VEC_ADD(ag->gradients[idx2], ag->gradients[idx2], g);
+            }
         }
         else if (!(strncmp(potential, "BIHARMONIC", 4))) {  // biharmonic, temperature=300
             if (delta < 0) {
@@ -1402,10 +1460,37 @@ void _pairspring_js_energy(struct pairsprings_js_setup *sprst, struct mol_atom_g
             } else {
                 hk = fk * 300*0.0019872041/(2*rer*rer);
             }
-            
             hk = fmin(1000, hk);
             (*een) += hk * delta * delta;
-            coef = hk*2.0*delta/d;
+            coef = hk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+            // calculate and update gradients first groups
+            for (j = 0; j < lni1; j++) {
+                idx1 = json_integer_value(json_array_get(i1,j));
+                gradx = 0; grady = 0; gradz = 0;
+                for (k = 0; k < lni2; k++) {
+                    gradx += coef* pow(d_a[j*lni2+k], -8.0) * xtot_a[j*lni2+k];
+                    grady += coef* pow(d_a[j*lni2+k], -8.0) * ytot_a[j*lni2+k];
+                    gradz += coef* pow(d_a[j*lni2+k], -8.0) * ztot_a[j*lni2+k];
+                }
+                g.X = -gradx;
+                g.Y = -grady;
+                g.Z = -gradz;
+                MOL_VEC_SUB(ag->gradients[idx1], ag->gradients[idx1], g);
+            }
+            // calculate and update gradients second groups
+            for (k = 0; k < lni2; k++) {
+                idx2 = json_integer_value(json_array_get(i2,k));
+                gradx = 0; grady = 0; gradz = 0;
+                for (j = 0; j < lni1; j++) {
+                    gradx += coef* pow(d_a[j*lni2+k], -8.0) * xtot_a[j*lni2+k];
+                    grady += coef* pow(d_a[j*lni2+k], -8.0) * ytot_a[j*lni2+k];
+                    gradz += coef* pow(d_a[j*lni2+k], -8.0) * ztot_a[j*lni2+k];
+                }
+                g.X = -gradx;
+                g.Y = -grady;
+                g.Z = -gradz;
+                MOL_VEC_ADD(ag->gradients[idx2], ag->gradients[idx2], g);
+            }
         }
         else if (!(strncmp(potential, "SOFT-SQUARE", 4))) {  // soft-square
             if (delta < 0) {
@@ -1416,29 +1501,75 @@ void _pairspring_js_energy(struct pairsprings_js_setup *sprst, struct mol_atom_g
             
             if (delta <= 0.5) {  // here the switch bound is 0.5
                 (*een) += fk* delta*delta;
-                coef = fk*2.0*delta/d;
-            }
-            else {  //delta > 0.5
+                coef = fk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+                // calculate and update gradients first groups
+                for (j = 0; j < lni1; j++) {
+                    idx1 = json_integer_value(json_array_get(i1,j));
+                    gradx = 0; grady = 0; gradz = 0;
+                    for (k = 0; k < lni2; k++) {
+                        gradx += coef* pow(d_a[j*lni2+k], -8.0) * xtot_a[j*lni2+k];
+                        grady += coef* pow(d_a[j*lni2+k], -8.0) * ytot_a[j*lni2+k];
+                        gradz += coef* pow(d_a[j*lni2+k], -8.0) * ztot_a[j*lni2+k];
+                    }
+                    g.X = -gradx;
+                    g.Y = -grady;
+                    g.Z = -gradz;
+                    MOL_VEC_SUB(ag->gradients[idx1], ag->gradients[idx1], g);
+                }
+                // calculate and update gradients second groups
+                for (k = 0; k < lni2; k++) {
+                    idx2 = json_integer_value(json_array_get(i2,k));
+                    gradx = 0; grady = 0; gradz = 0;
+                    for (j = 0; j < lni1; j++) {
+                        gradx += coef* pow(d_a[j*lni2+k], -8.0) * xtot_a[j*lni2+k];
+                        grady += coef* pow(d_a[j*lni2+k], -8.0) * ytot_a[j*lni2+k];
+                        gradz += coef* pow(d_a[j*lni2+k], -8.0) * ztot_a[j*lni2+k];
+                    }
+                    g.X = -gradx;
+                    g.Y = -grady;
+                    g.Z = -gradz;
+                    MOL_VEC_ADD(ag->gradients[idx2], ag->gradients[idx2], g);
+                }
+            } else {  //delta > 0.5
                 (*een) += fk*(delta-0.25);
-                coef = fk;
+                coef = fk * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+                // calculate and update gradients first groups
+                for (j = 0; j < lni1; j++) {
+                    idx1 = json_integer_value(json_array_get(i1,j));
+                    gradx = 0; grady = 0; gradz = 0;
+                    for (k = 0; k < lni2; k++) {
+                        gradx += coef* pow(d_a[j*lni2+k], -8.0) * xtot_a[j*lni2+k];
+                        grady += coef* pow(d_a[j*lni2+k], -8.0) * ytot_a[j*lni2+k];
+                        gradz += coef* pow(d_a[j*lni2+k], -8.0) * ztot_a[j*lni2+k];
+                    }
+                    g.X = -gradx;
+                    g.Y = -grady;
+                    g.Z = -gradz;
+                    MOL_VEC_SUB(ag->gradients[idx1], ag->gradients[idx1], g);
+                }
+                // calculate and update gradients second groups
+                for (k = 0; k < lni2; k++) {
+                    idx2 = json_integer_value(json_array_get(i2,k));
+                    gradx = 0; grady = 0; gradz = 0;
+                    for (j = 0; j < lni1; j++) {
+                        gradx += coef* pow(d_a[j*lni2+k], -8.0) * xtot_a[j*lni2+k];
+                        grady += coef* pow(d_a[j*lni2+k], -8.0) * ytot_a[j*lni2+k];
+                        gradz += coef* pow(d_a[j*lni2+k], -8.0) * ztot_a[j*lni2+k];
+                    }
+                    g.X = -gradx;
+                    g.Y = -grady;
+                    g.Z = -gradz;
+                    MOL_VEC_ADD(ag->gradients[idx2], ag->gradients[idx2], g);
+                }
             }
         }
         else {
             ERR_MSG("The potential should be one of SQUARE-WEll, BIHARMONIC, SOFT-SQUARE.\n");
         }
-        g.X = -coef * xtot;
-        g.Y = -coef * ytot;
-        g.Z = -coef * ztot;
-        
-        // how to add gradients to all the atoms
-        for(m = 0; m < lni1; m++) {
-            idx1 = json_integer_value(json_array_get(i1,m));
-            MOL_VEC_SUB(ag->gradients[idx1], ag->gradients[idx1], g);
-        }
-        for(n = 0; n < lni2; n++) {
-            idx2 = json_integer_value(json_array_get(i2,n));
-            MOL_VEC_ADD(ag->gradients[idx2], ag->gradients[idx2], g);
-        }
+        free(xtot_a);
+        free(ytot_a);
+        free(ztot_a);
+        free(d_a);
     }
 }
 
@@ -1447,7 +1578,7 @@ struct pairsprings_js_setup *pairsprings_js_setup_read(struct mol_atom_group *ag
     
     struct pairsprings_js_setup *sprst;
     sprst = calloc(1, sizeof(struct pairsprings_js_setup));
-    sprst->springs = calloc(300, sizeof(struct pairspring));
+    sprst->springs = calloc(200, sizeof(struct pairspring_json));
     
     char c[200];
     json_error_t error;
