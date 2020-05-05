@@ -1,18 +1,47 @@
-cmake_minimum_required(VERSION 3.5)
-project(energymin LANGUAGES C)
-set(energymin_version_major 0)
-set(energymin_version_minor 0)
-set(energymin_version "${energymin_version_major}.${energymin_version_minor}")
+cmake_minimum_required(VERSION 3.1...3.15)
+
+if(${CMAKE_VERSION} VERSION_LESS 3.12)
+    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
+endif()
+
+project(EnergyMin VERSION 0.0
+        DESCRIPTION "Energy minimization tool"
+        LANGUAGES C)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(LTO "Link Time Optimization" ON)
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
-set(CMAKE_C_FLAGS "-std=c11 -fPIC ${CMAKE_C_FLAGS}")
-set(CMAKE_C_FLAGS_DEBUG "-Wall ${CMAKE_C_FLAGS_DEBUG}")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+#add_compile_options(-Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
 
-include_directories($ENV{HOME}/include)
-link_directories($ENV{HOME}/lib)
+include(CMakePrintHelpers)
+
+cmake_print_variables(CMAKE_MODULE_PATH CMAKE_MODULE_PATH)
+
+find_package(Jansson REQUIRED)
 
 find_package(GSL REQUIRED)
 
-add_executable(minimize minimize.c)
-target_link_libraries(minimize mol2 nmrgrad ${GSL_LIBRARIES} jansson m)
+find_package(mol2 REQUIRED)
+
+add_executable(minimize src/minimize.c src/potentials.c src/potentials.h src/parse_options.c src/parse_options.h src/utils.h)
+
+if (LTO)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT result)
+    if(result)
+        set_target_properties(minimize PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
+endif()
+
+target_include_directories(minimize
+        PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+        "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
+        PRIVATE "${MOL2_INCLUDE_DIRS} ${JANSSON_INCLUDE_DIRS} ${GSL_INCLUDE_DIRS} ${GSL_INCLUDE_DIR}")
+
+target_link_libraries(minimize ${MOL2_LIBRARIES} ${GSL_LIBRARIES} ${JANSSON_LIBRARIES} m)
