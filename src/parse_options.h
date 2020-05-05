@@ -16,6 +16,8 @@ struct options {
     char* out_json;
 
     bool separate;
+    size_t rec_natoms;
+    size_t lig_natoms;
 
     char* psf;
     char* prm;
@@ -59,6 +61,7 @@ struct options {
 
     int verbose;
     int fix_receptor;
+    int fix_ligand;
     int score_only;
     int help;
 };

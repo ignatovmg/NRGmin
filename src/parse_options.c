@@ -1,6 +1,5 @@
 #include <string.h>
 
-
 #include "parse_options.h"
 #include "utils.h"
 
@@ -71,6 +70,7 @@ static struct options _get_defaut_options()
 
             .verbose = 0,
             .fix_receptor = 0,
+            .fix_ligand = 0,
             .score_only = 0,
             .help = 0
     };
@@ -87,6 +87,17 @@ static int _check_prms(struct options prms)
 
     } else if (prms.pdb && prms.psf && prms.prm && prms.rtf) {
         prms.separate = false;
+
+        if (prms.fix_receptor) {
+            ERR_MSG("Can't fix receptor when provided as a single file");
+            return 1;
+        }
+
+        if (prms.fix_ligand) {
+            ERR_MSG("Can't fix ligand when provided as a single file");
+            return 1;
+        }
+
         INFO_MSG("Using prm %s", prms.prm);
 
     } else if (prms.rec_pdb || prms.rec_psf || prms.rec_prm || prms.rec_rtf || prms.rec_json) {
@@ -183,6 +194,7 @@ struct options parse_args(const int argc, const char** argv, bool *error)
                     {"gbsa-off", no_argument,       &prms.gbsa, 0},
 
                     {"fix-receptor",           no_argument,        &prms.fix_receptor,                 1},
+                    {"fix-ligand",           no_argument,        &prms.fix_ligand,                 1},
                     {"score-only",           no_argument,        &prms.score_only,                 1},
                     {"verbose",             no_argument,       &prms.verbose,                 1},
                     {"help",             no_argument,       0,                 'h'},

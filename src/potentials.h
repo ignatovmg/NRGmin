@@ -23,6 +23,8 @@ struct energy_prm {
     struct mol_atom_group *ag;
     struct agsetup *ag_setup;
     struct acesetup *ace_setup;
+    json_t* json_log;
+
     struct pairsprings_setup *sprst_pairs;
     struct pointsprings_setup *sprst_points;
     struct noe_setup *nmr;
@@ -39,10 +41,12 @@ struct energy_prm {
     bool gbsa;
 
     bool score_only;
+    bool verbose;
 };
 
 struct noe_setup {
     double weight;
+    double power;
     struct mol_noe *spec;
 };
 
@@ -86,12 +90,11 @@ struct fixed_setup {
 bool energy_prm_read(
         struct energy_prm** result_energy_prm,
         size_t* result_nstages,
-        struct options prms,
-        struct mol_atom_group_list* ag_list);
+        struct options prms);
 
 void energy_prm_free(struct energy_prm** prm, size_t nstages);
 
-struct mol_atom_group_list* mol_atom_group_list_from_options(struct options prms);
+struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *prms);
 
 void pointspring_energy(struct pointsprings_setup *sprst, struct mol_atom_group* ag, double *een);
 

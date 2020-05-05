@@ -20,25 +20,6 @@
 } while(0)
 
 
-static struct mol_atom_group_list* _merge_ag_lists(struct mol_atom_group_list* ag1, struct mol_atom_group_list* ag2) {
-    if (ag1->size != ag2->size) {
-        ERR_MSG("Receptor and ligand have different numbers of models (%i, %i)", (int)ag1->size, (int)ag2->size);
-        return NULL;
-    }
-
-    INFO_MSG("Using models assembled from receptor and ligand models provided separately\n");
-    struct mol_atom_group_list *ag_list = mol_atom_group_list_create(ag1->size);
-
-    for (size_t i = 0; i < ag_list->size; i++) {
-        struct mol_atom_group* _join = mol_atom_group_join(&ag1->members[i], &ag2->members[i]);
-        ag_list->members[i] = *_join;
-        free(_join);
-    }
-
-    return ag_list;
-}
-
-
 /*
  * Create mol_atom_group_list with geometry (if score_only == 1 can be without)
  */
@@ -131,25 +112,44 @@ static struct mol_atom_group_list *_read_ag_list(
 }
 
 
-struct mol_atom_group_list* mol_atom_group_list_from_options(struct options prms)
+static struct mol_atom_group_list* _merge_ag_lists(struct mol_atom_group_list* ag1, struct mol_atom_group_list* ag2) {
+    if (ag1->size != ag2->size) {
+        ERR_MSG("Receptor and ligand have different numbers of models (%i, %i)", (int)ag1->size, (int)ag2->size);
+        return NULL;
+    }
+
+    INFO_MSG("Using models assembled from receptor and ligand models provided separately\n");
+    struct mol_atom_group_list *ag_list = mol_atom_group_list_create(ag1->size);
+
+    for (size_t i = 0; i < ag_list->size; i++) {
+        struct mol_atom_group* _join = mol_atom_group_join(&ag1->members[i], &ag2->members[i]);
+        ag_list->members[i] = *_join;
+        free(_join);
+    }
+
+    return ag_list;
+}
+
+
+struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *prms)
 {
     struct mol_atom_group_list* ag_list;
 
-    if (prms.separate) {
+    if (prms->separate) {
         struct mol_atom_group_list* rec_list = _read_ag_list(
-                prms.rec_prm,
-                prms.rec_rtf,
-                prms.rec_pdb,
-                prms.rec_psf,
-                prms.rec_json,
-                prms.score_only);
+                prms->rec_prm,
+                prms->rec_rtf,
+                prms->rec_pdb,
+                prms->rec_psf,
+                prms->rec_json,
+                prms->score_only);
         struct mol_atom_group_list* lig_list = _read_ag_list(
-                prms.lig_prm,
-                prms.lig_rtf,
-                prms.lig_pdb,
-                prms.lig_psf,
-                prms.lig_json,
-                prms.score_only);
+                prms->lig_prm,
+                prms->lig_rtf,
+                prms->lig_pdb,
+                prms->lig_psf,
+                prms->lig_json,
+                prms->score_only);
 
         if (!rec_list || !lig_list) {
             if (rec_list) {
@@ -161,16 +161,22 @@ struct mol_atom_group_list* mol_atom_group_list_from_options(struct options prms
             return NULL;
         }
 
+        prms->rec_natoms = rec_list->members[0].natoms;
+        prms->lig_natoms = lig_list->members[0].natoms;
+
         ag_list = _merge_ag_lists(rec_list, lig_list);
 
     } else {
         ag_list = _read_ag_list(
-                prms.prm,
-                prms.rtf,
-                prms.pdb,
-                prms.psf,
-                prms.json,
-                prms.score_only);
+                prms->prm,
+                prms->rtf,
+                prms->pdb,
+                prms->psf,
+                prms->json,
+                prms->score_only);
+
+        prms->rec_natoms = 0;
+        prms->lig_natoms = 0;
     }
     return ag_list;
 }
@@ -191,11 +197,13 @@ static json_t* _read_json_file(char *path)
 
 void fixed_setup_free(struct fixed_setup** fixed)
 {
-    if ((*fixed)->atoms) {
-        free((*fixed)->atoms);
+    if (*fixed != NULL) {
+        if ((*fixed)->atoms) {
+            free((*fixed)->atoms);
+        }
+        free(*fixed);
+        *fixed = NULL;
     }
-    free(*fixed);
-    *fixed = NULL;
 }
 
 
@@ -268,6 +276,18 @@ void pairsprings_setup_free(struct pairsprings_setup **sprst) {
         free(*sprst);
         *sprst = NULL;
     }
+}
+
+
+struct fixed_setup* fixed_setup_atom_range(size_t start_atom, size_t end_atom)
+{
+    struct fixed_setup* fixed = calloc(1, sizeof(struct fixed_setup));
+    fixed->natoms = end_atom - start_atom;
+    fixed->atoms = calloc(fixed->natoms, sizeof(size_t));
+    for (size_t i = 0; i < fixed->natoms; i++) {
+        fixed->atoms[i] = start_atom;
+    }
+    return fixed;
 }
 
 
@@ -589,9 +609,9 @@ void density_setup_free(struct density_setup **prms) {
 void noe_setup_free(struct noe_setup **nmr) {
     if (*nmr != NULL) {
         mol_noe_free((*nmr)->spec);
+        free(*nmr);
+        *nmr = NULL;
     }
-    free(*nmr);
-    *nmr = NULL;
 }
 
 
@@ -649,6 +669,7 @@ struct noe_setup *noe_setup_read_txt(char *sfile) {
     }
     nmr->spec->exp = mol_noe_matrix_read_txt_stacked(matrix_path, groups->ngroups, mask);
     nmr->weight = weight;
+    nmr->power = 1./ 6.;
 
     return nmr;
 }
@@ -661,16 +682,15 @@ struct noe_setup *noe_setup_read_json(json_t* root) {
         return NULL;
     }
 
-    json_t* w = json_object_get(root, "weight");
-    if (!w || !json_is_number(w)) {
-        ERR_MSG("NOE setup doesn't have weight");
-        mol_noe_free(noe);
+    struct noe_setup* result = calloc(1, sizeof(struct noe_setup));
+    result->spec = noe;
+
+    int code = json_unpack(root, "{s:f, s:f}", "weight", &result->weight, "power", &result->power);
+    if (code != 0) {
+        ERR_MSG("Couldn't parse NOE weight and power");
+        noe_setup_free(&result);
         return NULL;
     }
-
-    struct noe_setup* result = calloc(1, sizeof(struct noe_setup));
-    result->weight = json_number_value(w);
-    result->spec = noe;
 
     return result;
 }
@@ -687,16 +707,17 @@ struct noe_setup *noe_setup_read_json_file(char* file) {
 
 void energy_prm_free(struct energy_prm** prm, size_t nstages)
 {
-    for (size_t i = 0; i < nstages; i++) {
-        pairsprings_setup_free(&((*prm)->sprst_pairs));
-        pointsprings_setup_free(&((*prm)->sprst_points));
-        //density_setup_free(&((*prm)->fit_prms));
-        noe_setup_free(&((*prm)->nmr));
-        fixed_setup_free(&((*prm)->fixed));
+    if (*prm != NULL) {
+        for (size_t i = 0; i < nstages; i++) {
+            pairsprings_setup_free(&((*prm)->sprst_pairs));
+            pointsprings_setup_free(&((*prm)->sprst_points));
+            //density_setup_free(&((*prm)->fit_prms));
+            noe_setup_free(&((*prm)->nmr));
+            fixed_setup_free(&((*prm)->fixed));
+        }
+        free(*prm);
+        *prm = NULL;
     }
-
-    free(*prm);
-    *prm = NULL;
 }
 
 
@@ -717,8 +738,7 @@ static bool _get_bool_field(bool* result, json_t* root, char* field)
 bool energy_prm_read(
         struct energy_prm** result_energy_prm,
         size_t* result_nstages,
-        struct options prms,
-        struct mol_atom_group_list* ag_list)
+        struct options prms)
 {
     struct energy_prm* all_stage_prms = calloc(1, sizeof(struct energy_prm));
     size_t nstages = 1;
@@ -729,6 +749,8 @@ bool energy_prm_read(
     all_stage_prms->ag = NULL;
     all_stage_prms->ag_setup = NULL;
     all_stage_prms->ace_setup = NULL;
+    all_stage_prms->json_log = NULL;
+
     all_stage_prms->sprst_pairs = NULL;
     all_stage_prms->sprst_points = NULL;
     all_stage_prms->nmr = NULL;
@@ -746,28 +768,36 @@ bool energy_prm_read(
     all_stage_prms->gbsa = prms.gbsa;
 
     all_stage_prms->score_only = prms.score_only;
+    all_stage_prms->verbose = prms.verbose;
 
     // setup default fixed
+    if ((int)(prms.fixed_pdb != NULL) + (int)(prms.fix_receptor) + (int)(prms.fix_ligand) > 1) {
+        ERR_MSG("Fixes can't be combined");
+        energy_prm_free(&all_stage_prms, nstages);
+        return false;
+    }
+
     if (prms.fixed_pdb) {
         all_stage_prms->fixed = fixed_setup_read_txt(prms.fixed_pdb);
-
         if (!all_stage_prms->fixed) {
             ERR_MSG("SDF");
             energy_prm_free(&all_stage_prms, nstages);
             return false;
         }
-    }
-
-    if (prms.fix_receptor) {
+    } else if (prms.fix_receptor) {
         if (all_stage_prms->fixed) {
             ERR_MSG("Cannot use");
             energy_prm_free(&all_stage_prms, nstages);
             return false;
         }
-
-        all_stage_prms->fixed = calloc(1, sizeof(struct fixed_setup));
-        all_stage_prms->fixed->natoms = ag_list->members[0].natoms;
-        all_stage_prms->fixed->atoms = calloc(all_stage_prms->fixed->natoms, sizeof(size_t));
+        all_stage_prms->fixed = fixed_setup_atom_range(0, prms.rec_natoms);
+    } else if (prms.fix_ligand) {
+        if (all_stage_prms->fixed) {
+            ERR_MSG("Cannot use");
+            energy_prm_free(&all_stage_prms, nstages);
+            return false;
+        }
+        all_stage_prms->fixed = fixed_setup_atom_range(prms.rec_natoms, prms.rec_natoms + prms.lig_natoms);
     }
 
     if (prms.pair_springs_txt) {
@@ -830,8 +860,6 @@ bool energy_prm_read(
     // read json
     if (prms.setup_json) {
         json_t* setup = _read_json_file(prms.setup_json);
-        size_t stage_id;
-        bool error = false;
 
         if (!setup) {
             ERR_MSG("sd");
@@ -851,48 +879,90 @@ bool energy_prm_read(
         // copy default params to each stage
         struct energy_prm* buffer = calloc(nstages, sizeof(struct energy_prm));
         for (size_t i = 0; i < nstages; i++) {
+            // TODO: need to recursive copy of setups, because later on the
+            //       pointers can be overwritten and never be freed
             memcpy(buffer + i, all_stage_prms, sizeof(struct energy_prm));
         }
         free(all_stage_prms);
         all_stage_prms = buffer;
 
         json_t* stage_desc;
+        size_t stage_id;
+        bool error = false;
 
         json_array_foreach(setup, stage_id, stage_desc) {
             struct energy_prm* stage_prms = &all_stage_prms[stage_id];
 
-            json_t* stage_nsteps = json_object_get(stage_desc, "nsteps");
-            if (!stage_nsteps || !json_is_integer(stage_nsteps)) {
-                ERR_MSG("Must contain nsteps");
+            bool stage_fix_rec = false;
+            bool stage_fix_lig = false;
+
+            int unpack_result = json_unpack(
+                    stage_desc,
+                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
+                    "bonds", &stage_prms->bonds,
+                    "angles", &stage_prms->angles,
+                    "dihedrals", &stage_prms->dihedrals,
+                    "impropers", &stage_prms->impropers,
+                    "vdw", &stage_prms->vdw,
+                    "vdw03", &stage_prms->vdw03,
+                    "gbsa", &stage_prms->gbsa,
+                    "fix_receptor", &stage_fix_rec,
+                    "fix_ligand", &stage_fix_lig,
+                    "score_only", &stage_prms->score_only,
+                    "verbose", &stage_prms->verbose,
+                    "nsteps", &stage_prms->nsteps);
+
+            if (unpack_result != 0) {
+                ERR_MSG("Flags unpacking");
                 error = true;
                 break;
             }
-            stage_prms->nsteps = json_integer_value(stage_nsteps);
+
+            if ((stage_fix_rec || stage_fix_lig) && !prms.separate) {
+                ERR_MSG("Is not separate");
+                error = true;
+                break;
+            }
 
             json_t* stage_fixed = json_object_get(stage_desc, "fixed");
+            if ((int)(stage_fixed != NULL) + (int)(stage_fix_rec) + (int)(stage_fix_lig) > 1) {
+                ERR_MSG("Fix can't be combined");
+                error = true;
+                break;
+            }
+
+            // Read fixed atoms
             if (stage_fixed) {
+                fixed_setup_free(&stage_prms->fixed);
                 stage_prms->fixed = fixed_setup_read_json(stage_fixed);
-                json_decref(stage_fixed);
                 if (!stage_prms->fixed) {
+                    ERR_MSG("Can't read fix from json");
                     error = true;
                     break;
                 }
+            } else if (stage_fix_rec) {
+                fixed_setup_free(&stage_prms->fixed);
+                stage_prms->fixed = fixed_setup_atom_range(0, prms.rec_natoms);
+            } else if (stage_fix_lig) {
+                fixed_setup_free(&stage_prms->fixed);
+                stage_prms->fixed = fixed_setup_atom_range(prms.rec_natoms, prms.rec_natoms + prms.lig_natoms);
             }
 
+            // Pairsprings
             json_t* stage_pairsprings = json_object_get(stage_desc, "pairsprings");
             if (stage_pairsprings) {
                 stage_prms->sprst_pairs = pairsprings_setup_read_json(stage_pairsprings);
-                json_decref(stage_pairsprings);
                 if (!stage_prms->sprst_pairs) {
+                    ERR_MSG("");
                     error = true;
                     break;
                 }
             }
 
+            // Pointsprings
             json_t* stage_pointsprings = json_object_get(stage_desc, "pointsprings");
             if (stage_pointsprings) {
                 stage_prms->sprst_points = pointsprings_setup_read_json(stage_pointsprings);
-                json_decref(stage_pointsprings);
                 if (!stage_prms->sprst_points) {
                     error = true;
                     break;
@@ -909,36 +979,20 @@ bool energy_prm_read(
                 }
             }*/
 
+            // NOE
             json_t* stage_noe = json_object_get(stage_desc, "noe");
             if (stage_noe) {
                 stage_prms->nmr = noe_setup_read_json(stage_noe);
-                json_decref(stage_noe);
                 if (!stage_prms->nmr) {
                     error = true;
                     break;
                 }
             }
-
-            int unpack_result = json_unpack(
-                    stage_desc,
-                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b}",
-                    "bonds", &stage_prms->bonds,
-                    "angles", &stage_prms->angles,
-                    "dihedrals", &stage_prms->dihedrals,
-                    "impropers", &stage_prms->impropers,
-                    "vdw", &stage_prms->vdw,
-                    "vdw03", &stage_prms->vdw03,
-                    "gbsa", &stage_prms->gbsa);
-
-            if (unpack_result != 0) {
-                ERR_MSG("Flags unpacking");
-                error = true;
-                break;
-            }
         }
 
-        if (!error) {
-            json_decref(setup);
+        json_decref(setup);
+
+        if (error) {
             energy_prm_free(&all_stage_prms, nstages);
             return false;
         }
