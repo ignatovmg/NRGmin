@@ -4,6 +4,16 @@
 #include <getopt.h>
 #include <jansson.h>
 
+#include "mol2/json.h"
+#include "mol2/benergy.h"
+#include "mol2/gbsa.h"
+#include "mol2/icharmm.h"
+#include "mol2/minimize.h"
+#include "mol2/nbenergy.h"
+#include "mol2/pdb.h"
+#include "mol2/fitting.h"
+#include "mol2/noe.h"
+
 #include "utils.h"
 #include "potentials.h"
 #include "parse_options.h"
@@ -28,18 +38,20 @@ int main(int argc, char **argv) {
         ERR_MSG("Parse error");
         exit(EXIT_FAILURE);
     }
-
-    struct mol_atom_group_list* ag_list = mol_atom_group_list_from_options(&parsed);
-    if (!ag_list) {
-        ERR_MSG("Couldn't read atom groups");
-        exit(EXIT_FAILURE);
+    if (parsed.help) {
+        exit(EXIT_SUCCESS);
     }
 
     struct energy_prm* min_prms;
     size_t nstages;
     if (!energy_prm_read(&min_prms, &nstages, parsed)) {
         ERR_MSG("Couldn't fill params");
-        mol_atom_group_list_free(ag_list);
+        exit(EXIT_FAILURE);
+    }
+
+    struct mol_atom_group_list* ag_list = mol_atom_group_list_from_options(&parsed);
+    if (!ag_list) {
+        ERR_MSG("Couldn't read atom groups");
         exit(EXIT_FAILURE);
     }
 

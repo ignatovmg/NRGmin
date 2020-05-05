@@ -6,8 +6,6 @@
 #define ENERGYMIN_PARSE_OPTIONS_H
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <getopt.h>
 #include <stdbool.h>
 
 
@@ -67,9 +65,11 @@ struct options {
 };
 
 
-struct options parse_args(const int argc, const char** argv, bool *error);
+struct options get_defaut_options();
 
-void usage_message(const char **argv);
+struct options parse_args(const int argc, char *const *argv, bool *error);
+
+void usage_message(char *const *argv);
 
 
 #endif //ENERGYMIN_PARSE_OPTIONS_H

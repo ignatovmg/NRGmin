@@ -1,10 +1,12 @@
 #include <string.h>
+#include <stdlib.h>
+#include <getopt.h>
 
 #include "parse_options.h"
 #include "utils.h"
 
 
-#define _FILL_PARAM(arg, value) do {                       \
+#define _FILL_PARAM(arg, value) do {      \
     char str_arg[] = #arg;  \
     char* dot_pos; \
     if ((dot_pos = strchr(str_arg, '.')) != NULL) { \
@@ -15,12 +17,13 @@
         *dash_pos = '-'; \
     };  \
     if (strcmp(dot_pos, long_options[option_index].name) == 0) { \
-            arg = value;                               \
-    }                                                         \
+            arg = value;  \
+            break; \
+    }      \
 } while (0)
 
 
-static struct options _get_defaut_options()
+struct options get_defaut_options()
 {
     struct options prms = {
             .out_pdb = "out.pdb",
@@ -79,58 +82,63 @@ static struct options _get_defaut_options()
 }
 
 
-static int _check_prms(struct options prms)
+static int _check_prms(struct options *prms)
 {
-    if (prms.json) {
-        prms.separate = false;
-        INFO_MSG("Using json %s", prms.json);
+    bool full = false;
+    bool rec_sep = false;
+    bool lig_sep = false;
 
-    } else if (prms.pdb && prms.psf && prms.prm && prms.rtf) {
-        prms.separate = false;
+    if (prms->json || prms->pdb || prms->psf || prms->prm || prms->rtf) {
+        full = true;
+        prms->separate = false;
 
-        if (prms.fix_receptor) {
+        if (!(prms->json || (prms->pdb && prms->psf && prms->prm && prms->rtf))) {
+            ERR_MSG("Wrong sfds");
+            return 1;
+        }
+
+        if (prms->fix_receptor) {
             ERR_MSG("Can't fix receptor when provided as a single file");
             return 1;
         }
 
-        if (prms.fix_ligand) {
+        if (prms->fix_ligand) {
             ERR_MSG("Can't fix ligand when provided as a single file");
             return 1;
         }
 
-        INFO_MSG("Using prm %s", prms.prm);
+        INFO_MSG("Using prm %s", prms->prm);
+    }
 
-    } else if (prms.rec_pdb || prms.rec_psf || prms.rec_prm || prms.rec_rtf || prms.rec_json) {
-        prms.separate = true;
-
-        if (prms.rec_json) {
-            INFO_MSG("Using json %s", prms.rec_json);
-
-        } else if (prms.rec_pdb && prms.rec_psf && prms.rec_prm && prms.rec_rtf) {
-            INFO_MSG("Using prm %s", prms.rec_prm);
-
-        } else {
-            ERR_MSG("kjhlkjh");
+    if (prms->rec_pdb || prms->rec_psf || prms->rec_prm || prms->rec_rtf || prms->rec_json) {
+        if (full) {
+            ERR_MSG("Cant sep and full at the same time");
             return 1;
         }
 
-        if (prms.lig_json) {
-            INFO_MSG("Using json %s", prms.lig_json);
-
-        } else if (prms.lig_pdb && prms.lig_psf && prms.lig_prm && prms.lig_rtf) {
-            INFO_MSG("Using prm %s", prms.lig_prm);
-
-        } else {
-            ERR_MSG("sgsg");
+        if (!(prms->rec_json || (prms->rec_pdb && prms->rec_psf && prms->rec_prm && prms->rec_rtf))) {
+            ERR_MSG("Rec error");
             return 1;
         }
-    } else {
-        ERR_MSG("kljh");
+
+        rec_sep = true;
+
+        if (!(prms->lig_json || (prms->lig_pdb && prms->lig_psf && prms->lig_prm && prms->lig_rtf))) {
+            ERR_MSG("Lig error");
+            return 1;
+        }
+
+        lig_sep = true;
+        prms->separate = true;
+    }
+
+    if (!(full || (rec_sep && lig_sep))) {
+        ERR_MSG("Nothing provided");
         return 1;
     }
 
-    if (prms.nsteps < 0) {
-        ERR_MSG("sdf");
+    if (prms->nsteps < 0) {
+        ERR_MSG("nsteps < 0");
         return 1;
     }
 
@@ -138,9 +146,9 @@ static int _check_prms(struct options prms)
 }
 
 
-struct options parse_args(const int argc, const char** argv, bool *error)
+struct options parse_args(const int argc, char *const *argv, bool *error)
 {
-    struct options prms = _get_defaut_options();
+    struct options prms = get_defaut_options();
 
     struct option long_options[] =
             {
@@ -223,21 +231,19 @@ struct options parse_args(const int argc, const char** argv, bool *error)
 
             case 'h':
                 usage_message(argv);
-                printf("ASDF");
-                exit(EXIT_SUCCESS);
-                break;
+                *error = false;
+                prms.help = true;
+                return prms;
 
             case '?':
                 usage_message(argv);
-                printf("ASDF");
-                exit(EXIT_FAILURE);
-                break;
+                *error = true;
+                return prms;
 
             default:
                 usage_message(argv);
-                printf("ASDF");
-                exit(EXIT_FAILURE);
-                break;
+                *error = true;
+                return prms;
         }
 
         _FILL_PARAM(prms.out_pdb, optarg);
@@ -270,15 +276,21 @@ struct options parse_args(const int argc, const char** argv, bool *error)
         }
     }
 
-    if (_check_prms(prms) != 0) {
+    if (_check_prms(&prms) != 0) {
+        usage_message(argv);
         *error = true;
+        return prms;
     }
 
+    *error = false;
     return prms;
 }
 
 
-void usage_message(const char **argv) {
+void usage_message(char *const *argv) {
+    printf("Usage msg\n");
+    return;
+
     printf("\nUsage %s [ options ]\n\n", argv[0]);
     printf("\t--prm ------------------ Parameter file (required)\n"
            "\t--rtf ------------------ Topology file (required)\n"

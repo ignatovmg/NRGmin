@@ -36,11 +36,13 @@ static struct mol_atom_group_list *_read_ag_list(
     struct mol_atom_group* ag_json = NULL;
 
     if (json != NULL) {
+
         INFO_MSG("Reading json file %s\n", json);
         ag_json = mol_read_json(json);
     }
 
     if (pdb != NULL) {
+
         INFO_MSG("Reading %s\n", pdb);
         INFO_MSG("Trying to read %s as a multimodel one (with MODEL records)\n", pdb);
         ag_list = mol_read_pdb_models(pdb);
@@ -59,6 +61,7 @@ static struct mol_atom_group_list *_read_ag_list(
         }
 
         if (ag_json != NULL) {
+
             INFO_MSG("Reading coordinates from %s and geometry from %s\n", pdb, json);
             // Copy geometry from json to aglist
             struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(ag_list->size);

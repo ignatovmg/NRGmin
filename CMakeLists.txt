@@ -13,6 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(LTO "Link Time Optimization" ON)
+option(BUILD_TESTS "Build tests" ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
@@ -28,7 +29,23 @@ find_package(GSL REQUIRED)
 
 find_package(mol2 REQUIRED)
 
-add_executable(minimize src/minimize.c src/potentials.c src/potentials.h src/parse_options.c src/parse_options.h src/utils.h)
+set(LIBRARY_LIST
+        "${MOL2_LIBRARIES}"
+        "${GSL_LIBRARIES}"
+        "${JANSSON_LIBRARIES}"
+        m)
+
+set(INCLUDE_LIST
+        "${MOL2_INCLUDE_DIRS}"
+        "${JANSSON_INCLUDE_DIRS}"
+        "${GSL_INCLUDE_DIRS}"
+        "${GSL_INCLUDE_DIR}")
+
+set(SRC_LIST
+        ${PROJECT_SOURCE_DIR}/src/potentials.c
+        ${PROJECT_SOURCE_DIR}/src/parse_options.c)
+
+add_executable(minimize ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
 
 if (LTO)
     include(CheckIPOSupported)
@@ -42,6 +59,12 @@ target_include_directories(minimize
         PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
         "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
-        PRIVATE "${MOL2_INCLUDE_DIRS} ${JANSSON_INCLUDE_DIRS} ${GSL_INCLUDE_DIRS} ${GSL_INCLUDE_DIR}")
+        PRIVATE ${INCLUDE_LIST})
 
-target_link_libraries(minimize ${MOL2_LIBRARIES} ${GSL_LIBRARIES} ${JANSSON_LIBRARIES} m)
+target_link_libraries(minimize ${LIBRARY_LIST})
+
+if (BUILD_TESTS)
+    find_package(Check REQUIRED)
+    enable_testing()
+    add_subdirectory("test")
+endif()

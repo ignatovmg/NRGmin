@@ -4,9 +4,8 @@
 #include <stdio.h>
 
 #define ERR_MSG(fmt, ...) do {                                              \
-    fprintf(stderr,"[Error] (file %s, %s, line %i):\n" fmt "\n"             \
-            "Exiting ...\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__);  \
-    exit(EXIT_FAILURE);                                                     \
+    fprintf(stderr,"[Error] (file %s, %s, line %i):\n" fmt "\n",            \
+            __FILE__, __func__, __LINE__, ##__VA_ARGS__);                   \
 } while(0)
 
 #define WRN_MSG(fmt, ...) do {                                         \
@@ -15,7 +14,7 @@
 } while(0)
 
 #define INFO_MSG(fmt, ...) do {                               \
-    fprintf(stderr,"[Info]: " fmt, ##__VA_ARGS__);            \
+    fprintf(stderr,"[Info]: " fmt "\n", ##__VA_ARGS__);            \
 } while(0)
 
 #define FOPEN_ELSE(handle, path, mode) \

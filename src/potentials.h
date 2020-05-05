@@ -3,16 +3,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include <getopt.h>
 #include <jansson.h>
 
-#include "mol2/json.h"
 #include "mol2/benergy.h"
-#include "mol2/gbsa.h"
 #include "mol2/icharmm.h"
-#include "mol2/minimize.h"
-#include "mol2/nbenergy.h"
 #include "mol2/pdb.h"
 #include "mol2/fitting.h"
 #include "mol2/noe.h"
