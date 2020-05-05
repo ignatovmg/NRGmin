@@ -64,10 +64,9 @@ struct options {
 };
 
 
-struct options parse_args(const int argc, const char** argv);
+struct options parse_args(const int argc, const char** argv, bool *error);
 
-
-void usage_message(char **argv);
+void usage_message(const char **argv);
 
 
 #endif //ENERGYMIN_PARSE_OPTIONS_H

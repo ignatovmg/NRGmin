@@ -176,12 +176,12 @@ struct mol_atom_group_list* mol_atom_group_list_from_options(struct options prms
 }
 
 
-static json_t* _load_file(char* file)
+static json_t* _read_json_file(char *path)
 {
-    json_error_t* error;
-    json_t* root = json_load_file(file, 0, error);
+    json_error_t error;
+    json_t* root = json_load_file(path, 0, &error);
     if (root == NULL) {
-        ERR_MSG("%s", error);
+        ERR_MSG("Can't load file %s", path);
         return NULL;
     }
     return root;
@@ -200,9 +200,8 @@ void fixed_setup_free(struct fixed_setup** fixed)
 
 
 struct fixed_setup* fixed_setup_read_txt(char *file) {
-    FILE *fp;
-    if (!(fp = fopen(file, "r"))) {
-        ERR_MSG("jhkjh");
+    FILE* fp;
+    FOPEN_ELSE(fp, file, "r") {
         return NULL;
     }
 
@@ -252,7 +251,7 @@ struct fixed_setup* fixed_setup_read_json(json_t* root)
     json_t* atom_id;
     json_array_foreach(root, counter, atom_id) {
         if (!json_is_integer(atom_id)) {
-            fixed_setup_free(result);
+            fixed_setup_free(&result);
             json_decref(atom_id);
             return NULL;
         }
@@ -272,10 +271,9 @@ void pairsprings_setup_free(struct pairsprings_setup **sprst) {
 }
 
 
-struct pairsprings_setup *pairsprings_setup_read_txt(char *sfile) {
+struct pairsprings_setup *pairsprings_setup_read_txt(char *path) {
     FILE *fp;
-    if (!(fp = fopen(sfile, "r"))) {
-        ERR_MSG("jhkjh");
+    FOPEN_ELSE(fp, path, "r") {
         return NULL;
     }
 
@@ -283,7 +281,7 @@ struct pairsprings_setup *pairsprings_setup_read_txt(char *sfile) {
     sprst = calloc(1, sizeof(struct pairsprings_setup));
 
     int c;
-    if (fscanf(fp, "%i", &sprst->nsprings) != 1) {
+    if (fscanf(fp, "%zu", &sprst->nsprings) != 1) {
         ERR_MSG("Wrong spring file format\n");
         free(sprst);
         fclose(fp);
@@ -328,7 +326,7 @@ struct pairsprings_setup *pairsprings_setup_read_txt(char *sfile) {
 
 struct pairsprings_setup *pairsprings_setup_read_json(json_t* root) {
     if (!json_is_array(root)) {
-        ERR_MSG("sdf");
+        ERR_MSG("Pairsprings must be an array");
         return NULL;
     }
 
@@ -340,7 +338,22 @@ struct pairsprings_setup *pairsprings_setup_read_json(json_t* root) {
     json_t* spring;
 
     json_array_foreach(root, counter, spring) {
-        double dv;
+        int result = json_unpack(
+                spring,
+                "{s:f, s:f, s:f, s:i, s:i}",
+                "length", &spring_set[counter].lnspr,
+                "error", &spring_set[counter].erspr,
+                "weight", &spring_set[counter].fkspr,
+                "atom1", &spring_set[counter].laspr[0],
+                "atom2", &spring_set[counter].laspr[1]);
+
+        if (result != 0) {
+            ERR_MSG("Wrong pairspring format");
+            error = true;
+            break;
+        }
+
+        /*double dv;
         size_t iv;
 
         json_t* value = json_object_get(spring, "length");
@@ -381,7 +394,7 @@ struct pairsprings_setup *pairsprings_setup_read_json(json_t* root) {
             error = true;
             break;
         }
-        spring_set[counter].laspr[1] = iv - 1;
+        spring_set[counter].laspr[1] = iv - 1;*/
     }
 
     if (error) {
@@ -412,10 +425,9 @@ void pointsprings_setup_free(struct pointsprings_setup **sprst) {
 }
 
 
-struct pointsprings_setup *pointsprings_setup_read_txt(char *sfile) {
+struct pointsprings_setup *pointsprings_setup_read_txt(char *path) {
     FILE *fp;
-    if (!(fp = fopen(sfile, "r"))) {
-        ERR_MSG("jhkjh");
+    FOPEN_ELSE(fp, path, "r") {
         return NULL;
     }
 
@@ -423,7 +435,7 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *sfile) {
     sprst = calloc(1, sizeof(struct pointsprings_setup));
 
     int c;
-    if (fscanf(fp, "%i", &sprst->nsprings) != 1) {
+    if (fscanf(fp, "%zu", &sprst->nsprings) != 1) {
         ERR_MSG("Wrong spring file format\n");
         free(sprst);
         fclose(fp);
@@ -433,12 +445,11 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *sfile) {
     sprst->springs = calloc(sprst->nsprings, sizeof(struct pointspring));
     struct pointspring *sprs = sprst->springs;
 
-    int id = 0;
     char name[8];
     int aid, naspr;
     double fkspr, X0, Y0, Z0;
 
-    while (id < sprst->nsprings) {
+    for (size_t id = 0; id < sprst->nsprings; id++) {
         c = fscanf(fp, "%i %lf %lf %lf %lf", &naspr, &fkspr, &X0, &Y0, &Z0);
         if (c != 5) {
             ERR_MSG("Wrong spring file format\n");
@@ -466,12 +477,65 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *sfile) {
 
             sprs[id].laspr[i] = aid - 1;
         }
-
-        id++;
     }
 
     fclose(fp);
     return sprst;
+}
+
+
+struct pointsprings_setup *pointsprings_setup_read_json(json_t* root)
+{
+    if (!json_is_array(root)) {
+        ERR_MSG("Pointsprings must be an array");
+        return NULL;
+    }
+
+    size_t nsprings = json_array_size(root);
+    struct pointspring *sprs = calloc(nsprings, sizeof(struct pointspring));
+
+    size_t counter;
+    json_t* spring;
+    json_array_foreach(root, counter, spring) {
+        int result = json_unpack(
+                spring,
+                "{s:f, s:[fff], s:f}",
+                "weight", &sprs[counter].fkspr,
+                "coords", &sprs[counter].X0, &sprs[counter].Y0, &sprs[counter].Z0);
+        if (result != 0) {
+            ERR_MSG("lj");
+            free(sprs);
+            return NULL;
+        }
+
+        json_t* atoms = json_object_get(root, "atoms");
+        if (!atoms || !json_is_array(atoms)) {
+            ERR_MSG("lj");
+            free(sprs);
+            return NULL;
+        }
+
+        sprs[counter].naspr = json_array_size(atoms);
+        sprs[counter].laspr = calloc(sprs[counter].naspr, sizeof(int));
+        size_t atom_counter;
+        json_t* atom_id;
+        json_array_foreach(atoms, atom_counter, atom_id) {
+            if (!json_is_integer(atom_id)) {
+                ERR_MSG("ASDFSD");
+                for (size_t i = 0; i < nsprings; i++) {
+                    free(sprs[i].laspr);
+                }
+                free(sprs);
+                return NULL;
+            }
+            sprs[counter].laspr[atom_counter] = json_integer_value(atom_id);
+        }
+    }
+
+    struct pointsprings_setup* output = calloc(1, sizeof(struct pointsprings_setup));
+    output->nsprings = nsprings;
+    output->springs = sprs;
+    return output;
 }
 
 
@@ -593,11 +657,13 @@ struct noe_setup *noe_setup_read_txt(char *sfile) {
 struct noe_setup *noe_setup_read_json(json_t* root) {
     struct mol_noe* noe = mol_noe_from_json_object(root);
     if (!noe) {
+        ERR_MSG("Couldn't parse NOE setup");
         return NULL;
     }
 
     json_t* w = json_object_get(root, "weight");
     if (!w || !json_is_number(w)) {
+        ERR_MSG("NOE setup doesn't have weight");
         mol_noe_free(noe);
         return NULL;
     }
@@ -611,11 +677,11 @@ struct noe_setup *noe_setup_read_json(json_t* root) {
 
 
 struct noe_setup *noe_setup_read_json_file(char* file) {
-    json_t* root = _load_file(file);
+    json_t* root = _read_json_file(file);
     if (!root) {
         return NULL;
     }
-    return noe_setup_read_json_file(root);
+    return noe_setup_read_json(root);
 }
 
 
@@ -763,7 +829,7 @@ bool energy_prm_read(
 
     // read json
     if (prms.setup_json) {
-        json_t* setup = _load_file(prms.setup_json);
+        json_t* setup = _read_json_file(prms.setup_json);
         size_t stage_id;
         bool error = false;
 
@@ -823,7 +889,7 @@ bool energy_prm_read(
                 }
             }
 
-            /*json_t* stage_pointsprings = json_object_get(stage_desc, "pointsprings");
+            json_t* stage_pointsprings = json_object_get(stage_desc, "pointsprings");
             if (stage_pointsprings) {
                 stage_prms->sprst_points = pointsprings_setup_read_json(stage_pointsprings);
                 json_decref(stage_pointsprings);
@@ -833,7 +899,7 @@ bool energy_prm_read(
                 }
             }
 
-            json_t* stage_density = json_object_get(stage_desc, "density");
+            /*json_t* stage_density = json_object_get(stage_desc, "density");
             if (stage_density) {
                 stage_prms->fit_prms = density_setup_read_json(stage_density);
                 json_decref(stage_density);
@@ -853,13 +919,22 @@ bool energy_prm_read(
                 }
             }
 
-            if ((error = !_get_bool_field(&stage_prms->bonds, stage_desc, "bonds"))) { break; }
-            if ((error = !_get_bool_field(&stage_prms->angles, stage_desc, "angles"))) { break; }
-            if ((error = !_get_bool_field(&stage_prms->dihedrals, stage_desc, "dihedrals"))) { break; }
-            if ((error = !_get_bool_field(&stage_prms->impropers, stage_desc, "impropers"))) { break; }
-            if ((error = !_get_bool_field(&stage_prms->vdw, stage_desc, "vdw"))) { break; }
-            if ((error = !_get_bool_field(&stage_prms->vdw03, stage_desc, "vdw03"))) { break; }
-            if ((error = !_get_bool_field(&stage_prms->gbsa, stage_desc, "gbsa"))) { break; }
+            int unpack_result = json_unpack(
+                    stage_desc,
+                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b}",
+                    "bonds", &stage_prms->bonds,
+                    "angles", &stage_prms->angles,
+                    "dihedrals", &stage_prms->dihedrals,
+                    "impropers", &stage_prms->impropers,
+                    "vdw", &stage_prms->vdw,
+                    "vdw03", &stage_prms->vdw03,
+                    "gbsa", &stage_prms->gbsa);
+
+            if (unpack_result != 0) {
+                ERR_MSG("Flags unpacking");
+                error = true;
+                break;
+            }
         }
 
         if (!error) {

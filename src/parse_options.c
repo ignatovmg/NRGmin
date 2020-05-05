@@ -6,16 +6,16 @@
 
 
 #define _FILL_PARAM(arg, value) do {                       \
-    char* str_arg = #arg;  \
-    char* dash_pos = str_arg; \
+    char str_arg[] = #arg;  \
     char* dot_pos; \
     if ((dot_pos = strchr(str_arg, '.')) != NULL) { \
-        str_arg = dot_pos; \
+        dot_pos = dot_pos + 1; \
     }  \
+    char* dash_pos = dot_pos; \
     while ((dash_pos = strchr(dash_pos, '_')) != NULL) { \
-        *dash_pos = '-';        \
-    };         \
-    if (strcmp(str_arg, long_options[option_index].name) == 0) { \
+        *dash_pos = '-'; \
+    };  \
+    if (strcmp(dot_pos, long_options[option_index].name) == 0) { \
             arg = value;                               \
     }                                                         \
 } while (0)
@@ -99,7 +99,7 @@ static int _check_prms(struct options prms)
             INFO_MSG("Using prm %s", prms.rec_prm);
 
         } else {
-            ERR_MSG("");
+            ERR_MSG("kjhlkjh");
             return 1;
         }
 
@@ -110,11 +110,11 @@ static int _check_prms(struct options prms)
             INFO_MSG("Using prm %s", prms.lig_prm);
 
         } else {
-            ERR_MSG("");
+            ERR_MSG("sgsg");
             return 1;
         }
     } else {
-        ERR_MSG("");
+        ERR_MSG("kljh");
         return 1;
     }
 
@@ -122,10 +122,12 @@ static int _check_prms(struct options prms)
         ERR_MSG("sdf");
         return 1;
     }
+
+    return 0;
 }
 
 
-struct options parse_args(const int argc, const char** argv)
+struct options parse_args(const int argc, const char** argv, bool *error)
 {
     struct options prms = _get_defaut_options();
 
@@ -153,8 +155,10 @@ struct options parse_args(const int argc, const char** argv)
                     {"lig-json",             required_argument, 0,                 0},
 
                     {"fixed-pdb",             required_argument, 0,                 0},
+
                     {"pair-springs-txt",             required_argument, 0,                 0},
                     {"point-springs-txt",             required_argument, 0,                 0},
+
                     {"noe-txt",             required_argument, 0,                 0},
                     {"noe-json",             required_argument, 0,                 0},
 
@@ -177,9 +181,9 @@ struct options parse_args(const int argc, const char** argv)
                     {"vdw03-off", no_argument,       &prms.vdw03, 0},
                     {"gbsa-on", no_argument,       &prms.gbsa, 1},
                     {"gbsa-off", no_argument,       &prms.gbsa, 0},
+
                     {"fix-receptor",           no_argument,        &prms.fix_receptor,                 1},
                     {"score-only",           no_argument,        &prms.score_only,                 1},
-
                     {"verbose",             no_argument,       &prms.verbose,                 1},
                     {"help",             no_argument,       0,                 'h'},
 
@@ -207,16 +211,19 @@ struct options parse_args(const int argc, const char** argv)
 
             case 'h':
                 usage_message(argv);
+                printf("ASDF");
                 exit(EXIT_SUCCESS);
                 break;
 
             case '?':
                 usage_message(argv);
+                printf("ASDF");
                 exit(EXIT_FAILURE);
                 break;
 
             default:
                 usage_message(argv);
+                printf("ASDF");
                 exit(EXIT_FAILURE);
                 break;
         }
@@ -251,13 +258,15 @@ struct options parse_args(const int argc, const char** argv)
         }
     }
 
-    _check_prms(prms);
+    if (_check_prms(prms) != 0) {
+        *error = true;
+    }
 
     return prms;
 }
 
 
-void usage_message(char **argv) {
+void usage_message(const char **argv) {
     printf("\nUsage %s [ options ]\n\n", argv[0]);
     printf("\t--prm ------------------ Parameter file (required)\n"
            "\t--rtf ------------------ Topology file (required)\n"

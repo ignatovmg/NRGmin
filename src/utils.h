@@ -18,11 +18,11 @@
     fprintf(stderr,"[Info]: " fmt, ##__VA_ARGS__);            \
 } while(0)
 
-#define FOPEN(handle, file, mode) do { \
-    handle = fopen(file, mode); \
-    if (handle == NULL) { \
-        ERR_MSG("Can't open %s", file); \
+#define FOPEN_ELSE(handle, path, mode) \
+    handle = fopen((path), (mode)); \
+    if ((handle) == NULL) { \
+        ERR_MSG("Can't open %s", (path)); \
     } \
-} while (0);
+    if ((handle) == NULL) \
 
 #endif //ENERGYMIN_UTILS_H

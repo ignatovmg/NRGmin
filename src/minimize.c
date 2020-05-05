@@ -21,7 +21,12 @@ static lbfgsfloatval_t energy_func(
 int main(int argc, char **argv) {
     mol_enable_floating_point_exceptions();
 
-    struct options parsed = parse_args(argc, argv);
+    bool parse_error;
+    struct options parsed = parse_args(argc, argv, &parse_error);
+    if (parse_error) {
+        ERR_MSG("Parse error");
+        exit(EXIT_FAILURE);
+    }
 
     struct mol_atom_group_list* ag_list = mol_atom_group_list_from_options(parsed);
     if (!ag_list) {
@@ -38,8 +43,9 @@ int main(int argc, char **argv) {
     }
 
     INFO_MSG("Started the main loop\n");
-    FILE* out_pdb = fopen(parsed.out_pdb, "w");
-    if (!out_pdb) {
+
+    FILE* out_pdb;
+    FOPEN_ELSE(out_pdb, parsed.out_pdb, "w") {
         ERR_MSG("Can't open %s", parsed.out_pdb);
         mol_atom_group_list_free(ag_list);
         exit(EXIT_FAILURE);
@@ -49,15 +55,13 @@ int main(int argc, char **argv) {
         INFO_MSG("Started model %i\n", modeli);
 
         if (ag_list->size > 1) {
-            if (out_pdb != NULL) {
-                fprintf(out_pdb, "MODEL %i\n", (modeli + 1));
-            }
+            fprintf(out_pdb, "MODEL %i\n", (modeli + 1));
         }
 
         struct mol_atom_group *ag = &ag_list->members[modeli];
         ag->gradients = calloc(ag->natoms, sizeof(struct mol_vector3));
 
-        for (size_t stage_id; stage_id < nstages; stage_id++) {
+        for (size_t stage_id = 0; stage_id < nstages; stage_id++) {
             struct energy_prm *stage_prms = &min_prms[stage_id];
 
             stage_prms->ag = ag;
