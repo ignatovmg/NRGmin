@@ -28,12 +28,12 @@
 #endif
 
 
-static void _compare_arrays_int(const int* x, const int* y, const size_t len)
+/*static void _compare_arrays_int(const int* x, const int* y, const size_t len)
 {
     for (size_t i = 0; i < len; i++) {
 	    ck_assert_int_eq(x[i], y[i]);
 	}
-}
+}*/
 
 static void _compare_arrays_size_t(const size_t* x, const size_t* y, const size_t len)
 {
@@ -42,12 +42,12 @@ static void _compare_arrays_size_t(const size_t* x, const size_t* y, const size_
     }
 }
 
-static void _compare_arrays_double(const double* x, const double* y, const size_t len, const double tol)
+/*static void _compare_arrays_double(const double* x, const double* y, const size_t len, const double tol)
 {
     for (size_t i = 0; i < len; i++) {
         ck_assert_double_eq_tol(x[i], y[i], tol);
     }
-}
+}*/
 
 
 START_TEST(test_check_getopt_success)
@@ -141,34 +141,33 @@ END_TEST
 START_TEST(test_check_getopt_failure)
 {
     bool error;
-    struct options opts;
 
     switch (_i) {
         case 0:
-            opts = parse_args(3, (char *[]) {"sham", "sham", "-a"}, &error);
+            parse_args(3, (char *[]) {"sham", "sham", "-a"}, &error);
             ck_assert(error);
             break;
         case 1:
-            opts = parse_args(8, (char *[]) {"sham", "sham",
+            parse_args(8, (char *[]) {"sham", "sham",
                                               "--pdb", "test.pdb",
                                               "--rtf", "test.rtf",
                                               "--prm", "test.prm"}, &error);
             ck_assert(error);
             break;
         case 2:
-            opts = parse_args(6, (char *[]) {"sham", "sham",
+            parse_args(6, (char *[]) {"sham", "sham",
                                              "--json", "test.json",
                                              "--rec-pdb", "test"}, &error);
             ck_assert(error);
             break;
         case 3:
-            opts = parse_args(6, (char *[]) {"sham", "sham",
+            parse_args(6, (char *[]) {"sham", "sham",
                                               "--json", "test.json",
                                               "--nsteps", "-1"}, &error);
             ck_assert(error);
             break;
         case 4:
-            opts = parse_args(10, (char *[]) {"sham", "sham",
+            parse_args(10, (char *[]) {"sham", "sham",
                                               "--rec-pdb", "test.pdb",
                                               "--rec-rtf", "test.rtf",
                                               "--rec-prm", "test.prm",
@@ -176,7 +175,7 @@ START_TEST(test_check_getopt_failure)
             ck_assert(error);
             break;
         case 5:
-            opts = parse_args(10, (char *[]) {"sham", "sham",
+            parse_args(10, (char *[]) {"sham", "sham",
                                               "--rec-json", "test.json",
                                               "--lig-pdb", "test.pdb",
                                               "--lig-psf", "test.psf",
@@ -184,7 +183,7 @@ START_TEST(test_check_getopt_failure)
             ck_assert(error);
             break;
         case 6:
-            opts = parse_args(5, (char *[]) {"sham", "sham",
+            parse_args(5, (char *[]) {"sham", "sham",
                                               "--json", "test.json",
                                               "--fix-receptor"}, &error);
             ck_assert(error);

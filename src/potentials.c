@@ -320,7 +320,6 @@ struct pairsprings_setup *pairsprings_setup_read_txt(char *path) {
     struct pairsprings_setup *sprst;
     sprst = calloc(1, sizeof(struct pairsprings_setup));
 
-    int c;
     if (fscanf(fp, "%zu", &sprst->nsprings) != 1) {
         ERR_MSG("Wrong spring file format\n");
         free(sprst);
@@ -331,12 +330,12 @@ struct pairsprings_setup *pairsprings_setup_read_txt(char *path) {
     sprst->springs = calloc(sprst->nsprings, sizeof(struct pairspring));
     struct pairspring *sprs = sprst->springs;
 
-    int id = 0;
+    size_t id = 0;
     char name1[8], name2[8];
-    int aid1, aid2;
+    size_t aid1, aid2;
     while (id < sprst->nsprings) {
-        c = fscanf(fp,
-                "%lf %lf %lf %i %s %i %s",
+        size_t c = fscanf(fp,
+                "%lf %lf %lf %zu %s %zu %s",
                 &sprs[id].lnspr,
                 &sprs[id].erspr,
                 &sprs[id].fkspr,
@@ -453,7 +452,7 @@ struct pairsprings_setup *pairsprings_setup_read_json(json_t* root) {
 
 void pointsprings_setup_free(struct pointsprings_setup **sprst) {
     if (*sprst != NULL) {
-        for (int i = 0; i < (*sprst)->nsprings; i++) {
+        for (size_t i = 0; i < (*sprst)->nsprings; i++) {
             if ((*sprst)->springs[i].laspr != NULL) {
                 free((*sprst)->springs[i].laspr);
             }
@@ -474,7 +473,6 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *path) {
     struct pointsprings_setup *sprst;
     sprst = calloc(1, sizeof(struct pointsprings_setup));
 
-    int c;
     if (fscanf(fp, "%zu", &sprst->nsprings) != 1) {
         ERR_MSG("Wrong spring file format\n");
         free(sprst);
@@ -490,7 +488,7 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *path) {
     double fkspr, X0, Y0, Z0;
 
     for (size_t id = 0; id < sprst->nsprings; id++) {
-        c = fscanf(fp, "%zu %lf %lf %lf %lf", &naspr, &fkspr, &X0, &Y0, &Z0);
+        size_t c = fscanf(fp, "%zu %lf %lf %lf %lf", &naspr, &fkspr, &X0, &Y0, &Z0);
         if (c != 5) {
             ERR_MSG("Wrong spring file format\n");
             fclose(fp);
@@ -505,7 +503,7 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *path) {
         sprs[id].Z0 = Z0;
         sprs[id].laspr = calloc(naspr, sizeof(size_t));
 
-        for (int i = 0; i < naspr; i++) {
+        for (size_t i = 0; i < naspr; i++) {
             c = fscanf(fp, "%zu %s", &aid, name);
 
             if (c != 2) {
@@ -748,20 +746,6 @@ void energy_prm_free(struct energy_prm** prm, size_t nstages)
         free(*prm);
         *prm = NULL;
     }
-}
-
-
-static bool _get_bool_field(bool* result, json_t* root, char* field)
-{
-    json_t* val = json_object_get(root, field);
-    if (val) {
-        if (!json_is_boolean(val)) {
-            json_decref(val);
-            return false;
-        }
-    }
-    *result = json_boolean_value(val);
-    return true;
 }
 
 
@@ -1036,7 +1020,7 @@ bool energy_prm_read(
 
 
 void pointspring_energy(struct pointsprings_setup *sprst, struct mol_atom_group* ag, double *een) {
-    int i, i1, i2, nat;
+    size_t i, i1, i2, nat;
     double xtot, ytot, ztot, fk;
     struct mol_vector3 g;
 
@@ -1077,7 +1061,7 @@ void pointspring_energy(struct pointsprings_setup *sprst, struct mol_atom_group*
 
 
 void pairspring_energy(struct pairsprings_setup *sprst, struct mol_atom_group* ag, double *een) {
-    int i, i1, i2;
+    size_t i, i1, i2;
     double xtot, ytot, ztot, fk, d, d2, ln, er, coef, delta;
     struct mol_vector3 g;
 

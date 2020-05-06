@@ -17,7 +17,9 @@ option(BUILD_TESTS "Build tests" ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
-#add_compile_options(-Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
+endif()
 
 include(CMakePrintHelpers)
 

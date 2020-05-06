@@ -152,7 +152,7 @@ static lbfgsfloatval_t energy_func(
         const double *restrict array,
         double *restrict gradient,
         const int array_size,
-        __attribute__((unused)) lbfgsfloatval_t step) {
+        __attribute__((unused)) const lbfgsfloatval_t step) {
 
     lbfgsfloatval_t total_energy = 0.0;
     lbfgsfloatval_t term_energy = 0.0;
