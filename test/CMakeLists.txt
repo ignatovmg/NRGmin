@@ -1,6 +1,7 @@
 link_directories(${CHECK_LIBRARY_DIRS})
 
-set(tests_list test1)
+set(tests_list
+        test_all)
 
 # Configure data files
 file(GLOB test_files "${CMAKE_CURRENT_SOURCE_DIR}/data/*")

@@ -66,11 +66,11 @@ int main(int argc, char **argv) {
 
     json_t* json_log_total = json_array();
 
-    for (int modeli = 0; modeli < ag_list->size; modeli++) {
-        INFO_MSG("Started model %i\n", modeli);
+    for (size_t modeli = 0; modeli < ag_list->size; modeli++) {
+        INFO_MSG("Started model %zu\n", modeli);
 
         if (ag_list->size > 1) {
-            fprintf(out_pdb, "MODEL %i\n", (modeli + 1));
+            fprintf(out_pdb, "MODEL %zu\n", (modeli + 1));
         }
 
         json_t* json_log_model = json_object();
@@ -152,7 +152,7 @@ static lbfgsfloatval_t energy_func(
         const double *restrict array,
         double *restrict gradient,
         const int array_size,
-        const lbfgsfloatval_t step) {
+        __attribute__((unused)) lbfgsfloatval_t step) {
 
     lbfgsfloatval_t total_energy = 0.0;
     lbfgsfloatval_t term_energy = 0.0;
@@ -165,7 +165,7 @@ static lbfgsfloatval_t energy_func(
     json_t* energy_dict = json_object();
 
     if (array != NULL) {
-        assert(array_size == energy_prm->ag->active_atoms->size * 3);
+        assert((size_t)array_size == energy_prm->ag->active_atoms->size * 3);
         mol_atom_group_set_actives(energy_prm->ag, array);
     }
 

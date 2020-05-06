@@ -17,7 +17,7 @@
         *dash_pos = '-'; \
     };  \
     if (strcmp(dot_pos, long_options[option_index].name) == 0) { \
-            arg = value;  \
+            (arg) = (value);  \
             break; \
     }      \
 } while (0)
@@ -30,6 +30,8 @@ struct options get_defaut_options()
             .out_json = "out.json",
 
             .separate = false,
+            .rec_natoms = 0,
+            .lig_natoms = 0,
 
             .psf = NULL,
             .prm = NULL,

@@ -1,0 +1,40 @@
+[
+  {
+    "nsteps": 500,
+    "noe": {
+      "weight": 1000,
+      "power": 0.1666,
+      "groups": [
+        [0],
+        [1]
+      ],
+      "frequency": 0.00006,
+      "t_cor": 0.1,
+      "t_mix": 0.2,
+      "cutoff": 10,
+      "experiment": [
+        {
+          "group1":  0,
+          "group2":  0,
+          "value":  0.840252
+        },
+        {
+          "group1":  0,
+          "group2":  1,
+          "value":  -0.074589
+        },
+        {
+          "group1":  1,
+          "group2":  0,
+          "value":  -0.074589
+        },
+        {
+          "group1":  1,
+          "group2":  1,
+          "value":  0.840252
+        }
+      ],
+      "mask": [[0, 1]]
+    }
+  }
+]

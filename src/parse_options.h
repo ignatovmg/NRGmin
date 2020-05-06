@@ -65,7 +65,7 @@ struct options {
 };
 
 
-struct options get_defaut_options();
+struct options get_defaut_options(void);
 
 struct options parse_args(const int argc, char *const *argv, bool *error);
 

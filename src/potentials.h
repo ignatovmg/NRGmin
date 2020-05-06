@@ -13,6 +13,7 @@
 
 #include "parse_options.h"
 
+
 struct energy_prm {
     struct mol_atom_group *ag;
     struct agsetup *ag_setup;

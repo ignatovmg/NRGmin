@@ -7,11 +7,11 @@
 
 
 #define READ_WORD(f, word, line) do { \
-    word = NULL; \
+    (word) = NULL; \
     while (fgets(line, 512, f) != NULL) { \
-        if (line[0] != '#') { \
-            word = strtok(line, " \t\n"); \
-            if (word == NULL || word[0] == '#') { \
+        if ((line)[0] != '#') { \
+            (word) = strtok((line), " \t\n"); \
+            if ((word) == NULL || (word)[0] == '#') { \
                 ERR_MSG("Line cannot be empty\n"); \
             } \
             break; \
@@ -20,9 +20,6 @@
 } while(0)
 
 
-/*
- * Create mol_atom_group_list with geometry (if score_only == 1 can be without)
- */
 static struct mol_atom_group_list *_read_ag_list(
         char *prm,
         char *rtf,
@@ -35,35 +32,44 @@ static struct mol_atom_group_list *_read_ag_list(
     struct mol_atom_group_list* ag_list = NULL;
     struct mol_atom_group* ag_json = NULL;
 
+    // Read molecule form json
     if (json != NULL) {
-
         INFO_MSG("Reading json file %s\n", json);
         ag_json = mol_read_json(json);
+
+        if (ag_json == NULL) {
+            ERR_MSG("Failed reading %s", json);
+            return NULL;
+        }
     }
 
+    // Read molecule from pdb
     if (pdb != NULL) {
-
         INFO_MSG("Reading %s\n", pdb);
         INFO_MSG("Trying to read %s as a multimodel one (with MODEL records)\n", pdb);
         ag_list = mol_read_pdb_models(pdb);
 
+        // If not multimodel, try to read as a single model
         if (ag_list == NULL) {
             INFO_MSG("File %s doesn't have MODEL records. Reading as a regular pdb file\n", pdb);
-            struct mol_atom_group* ag = mol_read_pdb(pdb);
-            if (ag == NULL) {
+            struct mol_atom_group* ag_single = mol_read_pdb(pdb);
+
+            // If both single and multi-model failed - give up
+            if (ag_single == NULL) {
                 ERR_MSG("Failed reading %s", pdb);
+                mol_atom_group_free(ag_json);
                 return NULL;
             }
 
             ag_list = mol_atom_group_list_create(1);
-            ag_list->members[0] = *ag;
-            free(ag);
+            ag_list->members[0] = *ag_single;
+            free(ag_single);
         }
 
+        // If json was provied too then merge geometry from json and coords from pdb
         if (ag_json != NULL) {
-
             INFO_MSG("Reading coordinates from %s and geometry from %s\n", pdb, json);
-            // Copy geometry from json to aglist
+
             struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(ag_list->size);
 
             for (size_t i = 0; i < fin_aglist->size; i++) {
@@ -76,27 +82,38 @@ static struct mol_atom_group_list *_read_ag_list(
                             (int) i, pdb, json,
                             (int) ag_list->members[i].natoms,
                             (int) fin_aglist->members[i].natoms);
+                    mol_atom_group_list_free(fin_aglist);
+                    mol_atom_group_list_free(ag_list);
+                    mol_atom_group_free(ag_json);
+                    return NULL;
                 }
                 memcpy(fin_aglist->members[i].coords,
                         ag_list->members[i].coords,
                         sizeof(struct mol_vector3) * ag_list->members[i].natoms);
             }
+
             mol_atom_group_list_free(ag_list);
             mol_atom_group_free(ag_json);
             ag_list = fin_aglist;
 
-        } else if (psf != NULL) {
-
+        } else if (psf && prm && rtf) {
+            // If json wasn't provided read geometry from prm rtf psf
             INFO_MSG("Reading geometry from %s\n", psf);
             for (size_t i = 0; i < ag_list->size; i++) {
-                mol_atom_group_read_geometry(&ag_list->members[i], psf, prm, rtf);
+                if (!mol_atom_group_read_geometry(&ag_list->members[i], psf, prm, rtf)) {
+                    ERR_MSG("Couldn't fill geometry from psf rtf and prm");
+                    mol_atom_group_list_free(ag_list);
+                }
             }
+
         } else if (score_only != 0) {
-
+            // if they weren't provided, check the score_only flag
             WRN_MSG("Geometry for the molecule is not provided, computing only non-parametric terms\n");
-        } else {
 
+        } else {
+            // Give up if nothing worked
             ERR_MSG("--json or --psf must be provided with --pdb");
+            mol_atom_group_list_free(ag_list);
             return NULL;
         }
 
@@ -363,7 +380,7 @@ struct pairsprings_setup *pairsprings_setup_read_json(json_t* root) {
     json_array_foreach(root, counter, spring) {
         int result = json_unpack(
                 spring,
-                "{s:f, s:f, s:f, s:i, s:i}",
+                "{s:F, s:F, s:F, s:i, s:i}",
                 "length", &spring_set[counter].lnspr,
                 "error", &spring_set[counter].erspr,
                 "weight", &spring_set[counter].fkspr,
@@ -469,11 +486,11 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *path) {
     struct pointspring *sprs = sprst->springs;
 
     char name[8];
-    int aid, naspr;
+    size_t aid, naspr;
     double fkspr, X0, Y0, Z0;
 
     for (size_t id = 0; id < sprst->nsprings; id++) {
-        c = fscanf(fp, "%i %lf %lf %lf %lf", &naspr, &fkspr, &X0, &Y0, &Z0);
+        c = fscanf(fp, "%zu %lf %lf %lf %lf", &naspr, &fkspr, &X0, &Y0, &Z0);
         if (c != 5) {
             ERR_MSG("Wrong spring file format\n");
             fclose(fp);
@@ -486,10 +503,10 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *path) {
         sprs[id].X0 = X0;
         sprs[id].Y0 = Y0;
         sprs[id].Z0 = Z0;
-        sprs[id].laspr = calloc(naspr, sizeof(int));
+        sprs[id].laspr = calloc(naspr, sizeof(size_t));
 
         for (int i = 0; i < naspr; i++) {
-            c = fscanf(fp, "%i %s", &aid, name);
+            c = fscanf(fp, "%zu %s", &aid, name);
 
             if (c != 2) {
                 ERR_MSG("Wrong spring file format\n");
@@ -517,41 +534,43 @@ struct pointsprings_setup *pointsprings_setup_read_json(json_t* root)
     size_t nsprings = json_array_size(root);
     struct pointspring *sprs = calloc(nsprings, sizeof(struct pointspring));
 
-    size_t counter;
+    size_t spring_counter;
     json_t* spring;
-    json_array_foreach(root, counter, spring) {
-        int result = json_unpack(
+    json_array_foreach(root, spring_counter, spring) {
+        struct pointspring* cur_spring = &sprs[spring_counter];
+
+        int code = json_unpack(
                 spring,
-                "{s:f, s:[fff], s:f}",
-                "weight", &sprs[counter].fkspr,
-                "coords", &sprs[counter].X0, &sprs[counter].Y0, &sprs[counter].Z0);
-        if (result != 0) {
-            ERR_MSG("lj");
+                "{s:F, s:[F,F,F]}",
+                "weight", &cur_spring->fkspr,
+                "coords", &cur_spring->X0, &cur_spring->Y0,  &cur_spring->Z0);
+        if (code != 0) {
+            ERR_MSG("Spring");
             free(sprs);
             return NULL;
         }
 
-        json_t* atoms = json_object_get(root, "atoms");
+        json_t* atoms = json_object_get(spring, "atoms");
         if (!atoms || !json_is_array(atoms)) {
-            ERR_MSG("lj");
+            ERR_MSG("Can't read atoms");
             free(sprs);
             return NULL;
         }
 
-        sprs[counter].naspr = json_array_size(atoms);
-        sprs[counter].laspr = calloc(sprs[counter].naspr, sizeof(int));
+        cur_spring->naspr = json_array_size(atoms);
+        cur_spring->laspr = calloc(cur_spring->naspr, sizeof(size_t));
         size_t atom_counter;
         json_t* atom_id;
+
         json_array_foreach(atoms, atom_counter, atom_id) {
             if (!json_is_integer(atom_id)) {
-                ERR_MSG("ASDFSD");
                 for (size_t i = 0; i < nsprings; i++) {
                     free(sprs[i].laspr);
                 }
                 free(sprs);
                 return NULL;
             }
-            sprs[counter].laspr[atom_counter] = json_integer_value(atom_id);
+            cur_spring->laspr[atom_counter] = json_integer_value(atom_id);
         }
     }
 
@@ -672,7 +691,6 @@ struct noe_setup *noe_setup_read_txt(char *sfile) {
     }
     nmr->spec->exp = mol_noe_matrix_read_txt_stacked(matrix_path, groups->ngroups, mask);
     nmr->weight = weight;
-    nmr->power = 1./ 6.;
 
     return nmr;
 }
@@ -688,7 +706,9 @@ struct noe_setup *noe_setup_read_json(json_t* root) {
     struct noe_setup* result = calloc(1, sizeof(struct noe_setup));
     result->spec = noe;
 
-    int code = json_unpack(root, "{s:f, s:f}", "weight", &result->weight, "power", &result->power);
+    mol_noe_alloc_grad(noe);
+
+    int code = json_unpack(root, "{s:F, s:F}", "weight", &result->weight, "power", &result->power);
     if (code != 0) {
         ERR_MSG("Couldn't parse NOE weight and power");
         noe_setup_free(&result);
@@ -704,7 +724,14 @@ struct noe_setup *noe_setup_read_json_file(char* file) {
     if (!root) {
         return NULL;
     }
-    return noe_setup_read_json(root);
+
+    struct noe_setup* result = noe_setup_read_json(root);
+    if (!result) {
+        json_decref(root);
+        return NULL;
+    }
+
+    return result;
 }
 
 
