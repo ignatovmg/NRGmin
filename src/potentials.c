@@ -305,7 +305,7 @@ struct fixed_setup* fixed_setup_atom_range(size_t start_atom, size_t end_atom)
     fixed->natoms = end_atom - start_atom;
     fixed->atoms = calloc(fixed->natoms, sizeof(size_t));
     for (size_t i = 0; i < fixed->natoms; i++) {
-        fixed->atoms[i] = start_atom;
+        fixed->atoms[i] = start_atom + i;
     }
     return fixed;
 }
@@ -787,6 +787,12 @@ bool energy_prm_read(
     // setup default fixed
     if ((int)(prms.fixed_pdb != NULL) + (int)(prms.fix_receptor) + (int)(prms.fix_ligand) > 1) {
         ERR_MSG("Fixes can't be combined");
+        energy_prm_free(&all_stage_prms, nstages);
+        return false;
+    }
+
+    if (prms.rec_natoms == 0 && prms.lig_natoms == 0 && prms.separate) {
+        ERR_MSG("Natoms can't be zero in separate mode, populate them first");
         energy_prm_free(&all_stage_prms, nstages);
         return false;
     }

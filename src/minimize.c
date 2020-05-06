@@ -42,16 +42,16 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
+    struct mol_atom_group_list* ag_list = mol_atom_group_list_from_options(&parsed);
+    if (!ag_list) {
+        ERR_MSG("Couldn't read atom groups");
+        exit(EXIT_FAILURE);
+    }
+
     struct energy_prm* min_prms;
     size_t nstages;
     if (!energy_prm_read(&min_prms, &nstages, parsed)) {
         ERR_MSG("Couldn't fill params");
-        exit(EXIT_FAILURE);
-    }
-
-    struct mol_atom_group_list* ag_list = mol_atom_group_list_from_options(&parsed);
-    if (!ag_list) {
-        ERR_MSG("Couldn't read atom groups");
         exit(EXIT_FAILURE);
     }
 
@@ -73,14 +73,16 @@ int main(int argc, char **argv) {
             fprintf(out_pdb, "MODEL %zu\n", (modeli + 1));
         }
 
-        json_t* json_log_model = json_object();
+        json_t* json_log_model = json_array();
 
         struct mol_atom_group *ag = &ag_list->members[modeli];
         ag->gradients = calloc(ag->natoms, sizeof(struct mol_vector3));
 
         for (size_t stage_id = 0; stage_id < nstages; stage_id++) {
-            struct energy_prm *stage_prms = min_prms + stage_id;
+            INFO_MSG("Stage %zu\n", stage_id);
+            json_t* json_log_stage = json_object();
 
+            struct energy_prm *stage_prms = &min_prms[stage_id];
             stage_prms->ag = ag;
 
             struct agsetup ag_setup;
@@ -118,15 +120,17 @@ int main(int argc, char **argv) {
             //}
 
             // Record energy every time it was evaluated
-            json_object_set_new(json_log_model, "steps", stage_prms->json_log);
+            json_object_set_new(json_log_stage, "steps", stage_prms->json_log);
             stage_prms->json_log = NULL;
 
             // Record final energy
             energy_func((void *) stage_prms, NULL, NULL, 0, 0);
             json_t* final_energy = json_deep_copy(json_array_get(stage_prms->json_log, 0));
-            json_object_set_new(json_log_model, "final", final_energy);
+            json_object_set_new(json_log_stage, "final", final_energy);
             json_decref(stage_prms->json_log);
             stage_prms->json_log = NULL;
+
+            json_array_append_new(json_log_model, json_log_stage);
         }
 
         mol_fwrite_pdb(out_pdb, ag);
@@ -155,7 +159,7 @@ static lbfgsfloatval_t energy_func(
         __attribute__((unused)) const lbfgsfloatval_t step) {
 
     lbfgsfloatval_t total_energy = 0.0;
-    lbfgsfloatval_t term_energy = 0.0;
+    lbfgsfloatval_t term_energy;
 
     struct energy_prm *energy_prm = (struct energy_prm *) prm;
     if (energy_prm->json_log == NULL) {

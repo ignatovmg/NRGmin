@@ -322,10 +322,15 @@ START_TEST(test_energy_prm_from_flags)
             // Pass fix rec
             opts = get_defaut_options();
             opts.separate = true;
+            opts.rec_natoms = 1000;
+            opts.lig_natoms = 100;
             opts.fix_receptor = true;
 
             ck_assert(energy_prm_read(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
+            ck_assert_int_eq(prms[0].fixed->natoms, 1000);
+            _compare_arrays_size_t(prms[0].fixed->atoms, (size_t[]){0, 1, 2, 3, 4}, 5);
+
             energy_prm_free(&prms, nstages);
             break;
 
@@ -333,10 +338,15 @@ START_TEST(test_energy_prm_from_flags)
             // Pass fix lig
             opts = get_defaut_options();
             opts.separate = true;
+            opts.rec_natoms = 1000;
+            opts.lig_natoms = 100;
             opts.fix_ligand = true;
 
             ck_assert(energy_prm_read(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
+            ck_assert_int_eq(prms[0].fixed->natoms, 100);
+            _compare_arrays_size_t(prms[0].fixed->atoms, (size_t[]){1000, 1001, 1002, 1003, 1004}, 5);
+
             energy_prm_free(&prms, nstages);
             break;
 
@@ -344,6 +354,8 @@ START_TEST(test_energy_prm_from_flags)
             // Fail fix lig and rec
             opts = get_defaut_options();
             opts.separate = true;
+            opts.rec_natoms = 1000;
+            opts.lig_natoms = 100;
             opts.fix_ligand = true;
             opts.fix_receptor = true;
 
