@@ -6,29 +6,15 @@
 #include "mol2/icharmm.h"
 
 
-#define READ_WORD(f, word, line) do { \
-    (word) = NULL; \
-    while (fgets(line, 512, f) != NULL) { \
-        if ((line)[0] != '#') { \
-            (word) = strtok((line), " \t\n"); \
-            if ((word) == NULL || (word)[0] == '#') { \
-                ERR_MSG("Line cannot be empty\n"); \
-            } \
-            break; \
-        } \
-    } \
-} while(0)
-
-
 static struct mol_atom_group_list *_read_ag_list(
-        char *prm,
-        char *rtf,
-        char *pdb,
-        char *psf,
-        char *json,
-        int score_only) {
+        const char *prm,
+        const char *rtf,
+        const char *pdb,
+        const char *psf,
+        const char *json,
+        const int score_only) {
 
-    INFO_MSG("Started reading a new atom group\n");
+    DEBUG_MSG("Started reading a new atom group\n");
     struct mol_atom_group_list* ag_list = NULL;
     struct mol_atom_group* ag_json = NULL;
 
@@ -45,13 +31,13 @@ static struct mol_atom_group_list *_read_ag_list(
 
     // Read molecule from pdb
     if (pdb != NULL) {
-        INFO_MSG("Reading %s\n", pdb);
-        INFO_MSG("Trying to read %s as a multimodel one (with MODEL records)\n", pdb);
+        DEBUG_MSG("Reading %s\n", pdb);
+        DEBUG_MSG("Trying to read %s as a multimodel one (with MODEL records)\n", pdb);
         ag_list = mol_read_pdb_models(pdb);
 
         // If not multimodel, try to read as a single model
         if (ag_list == NULL) {
-            INFO_MSG("File %s doesn't have MODEL records. Reading as a regular pdb file\n", pdb);
+            DEBUG_MSG("File %s doesn't have MODEL records. Reading as a regular pdb file\n", pdb);
             struct mol_atom_group* ag_single = mol_read_pdb(pdb);
 
             // If both single and multi-model failed - give up
@@ -68,7 +54,7 @@ static struct mol_atom_group_list *_read_ag_list(
 
         // If json was provied too then merge geometry from json and coords from pdb
         if (ag_json != NULL) {
-            INFO_MSG("Reading coordinates from %s and geometry from %s\n", pdb, json);
+            DEBUG_MSG("Reading coordinates from %s and geometry from %s\n", pdb, json);
 
             struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(ag_list->size);
 
@@ -78,7 +64,7 @@ static struct mol_atom_group_list *_read_ag_list(
                 free(tmp_copy); // Do I need this?
 
                 if (fin_aglist->members[i].natoms != ag_list->members[i].natoms) {
-                    ERR_MSG("Model %i in %s and %s have different atom numbers (%i, %i)",
+                    DEBUG_MSG("Model %i in %s and %s have different atom numbers (%i, %i)",
                             (int) i, pdb, json,
                             (int) ag_list->members[i].natoms,
                             (int) fin_aglist->members[i].natoms);
@@ -98,7 +84,7 @@ static struct mol_atom_group_list *_read_ag_list(
 
         } else if (psf && prm && rtf) {
             // If json wasn't provided read geometry from prm rtf psf
-            INFO_MSG("Reading geometry from %s\n", psf);
+            DEBUG_MSG("Reading geometry from %s\n", psf);
             for (size_t i = 0; i < ag_list->size; i++) {
                 if (!mol_atom_group_read_geometry(&ag_list->members[i], psf, prm, rtf)) {
                     ERR_MSG("Couldn't fill geometry from psf rtf and prm");
@@ -118,7 +104,7 @@ static struct mol_atom_group_list *_read_ag_list(
         }
 
     } else if (ag_json != NULL) {
-        INFO_MSG("Using geometry and coordinates from %s\n", json);
+        DEBUG_MSG("Using geometry and coordinates from %s\n", json);
         ag_list = mol_atom_group_list_create(1);
         ag_list->members[0] = *ag_json;
         free(ag_json);
@@ -132,7 +118,7 @@ static struct mol_atom_group_list *_read_ag_list(
 }
 
 
-static struct mol_atom_group_list* _merge_ag_lists(struct mol_atom_group_list* ag1, struct mol_atom_group_list* ag2) {
+static struct mol_atom_group_list* _merge_ag_lists(const struct mol_atom_group_list* ag1, const struct mol_atom_group_list* ag2) {
     if (ag1->size != ag2->size) {
         ERR_MSG("Receptor and ligand have different numbers of models (%i, %i)", (int)ag1->size, (int)ag2->size);
         return NULL;
@@ -202,19 +188,6 @@ struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *prm
 }
 
 
-static json_t* _read_json_file(char *path)
-{
-    json_error_t error;
-    json_t* root = json_load_file(path, 0, &error);
-    if (root == NULL) {
-        ERR_MSG("Can't load file %s", path);
-        return NULL;
-    }
-    return root;
-}
-
-
-
 void fixed_setup_free(struct fixed_setup** fixed)
 {
     if (*fixed != NULL) {
@@ -227,7 +200,7 @@ void fixed_setup_free(struct fixed_setup** fixed)
 }
 
 
-struct fixed_setup* fixed_setup_read_txt(char *file) {
+struct fixed_setup* fixed_setup_read_txt(const char *file) {
     FILE* fp;
     FOPEN_ELSE(fp, file, "r") {
         return NULL;
@@ -264,7 +237,7 @@ struct fixed_setup* fixed_setup_read_txt(char *file) {
 }
 
 
-struct fixed_setup* fixed_setup_read_json(json_t* root)
+struct fixed_setup* fixed_setup_read_json(const json_t* root)
 {
     if (!json_is_array(root)) {
         ERR_MSG("Must be array");
@@ -299,7 +272,7 @@ void pairsprings_setup_free(struct pairsprings_setup **sprst) {
 }
 
 
-struct fixed_setup* fixed_setup_atom_range(size_t start_atom, size_t end_atom)
+struct fixed_setup* fixed_setup_atom_range(const size_t start_atom, const size_t end_atom)
 {
     struct fixed_setup* fixed = calloc(1, sizeof(struct fixed_setup));
     fixed->natoms = end_atom - start_atom;
@@ -311,7 +284,7 @@ struct fixed_setup* fixed_setup_atom_range(size_t start_atom, size_t end_atom)
 }
 
 
-struct pairsprings_setup *pairsprings_setup_read_txt(char *path) {
+struct pairsprings_setup *pairsprings_setup_read_txt(const char *path) {
     FILE *fp;
     FOPEN_ELSE(fp, path, "r") {
         return NULL;
@@ -363,7 +336,7 @@ struct pairsprings_setup *pairsprings_setup_read_txt(char *path) {
 }
 
 
-struct pairsprings_setup *pairsprings_setup_read_json(json_t* root) {
+struct pairsprings_setup *pairsprings_setup_read_json(const json_t* root) {
     if (!json_is_array(root)) {
         ERR_MSG("Pairsprings must be an array");
         return NULL;
@@ -377,8 +350,10 @@ struct pairsprings_setup *pairsprings_setup_read_json(json_t* root) {
     json_t* spring;
 
     json_array_foreach(root, counter, spring) {
-        int result = json_unpack(
-                spring,
+        json_error_t j_error;
+
+        int result = json_unpack_ex(
+                spring, &j_error, 0,
                 "{s:F, s:F, s:F, s:i, s:i}",
                 "length", &spring_set[counter].lnspr,
                 "error", &spring_set[counter].erspr,
@@ -387,7 +362,7 @@ struct pairsprings_setup *pairsprings_setup_read_json(json_t* root) {
                 "atom2", &spring_set[counter].laspr[1]);
 
         if (result != 0) {
-            ERR_MSG("Wrong pairspring format");
+            JSON_ERR_MSG(j_error, "Wrong pairspring format");
             error = true;
             break;
         }
@@ -464,7 +439,7 @@ void pointsprings_setup_free(struct pointsprings_setup **sprst) {
 }
 
 
-struct pointsprings_setup *pointsprings_setup_read_txt(char *path) {
+struct pointsprings_setup *pointsprings_setup_read_txt(const char *path) {
     FILE *fp;
     FOPEN_ELSE(fp, path, "r") {
         return NULL;
@@ -522,7 +497,7 @@ struct pointsprings_setup *pointsprings_setup_read_txt(char *path) {
 }
 
 
-struct pointsprings_setup *pointsprings_setup_read_json(json_t* root)
+struct pointsprings_setup *pointsprings_setup_read_json(const json_t* root)
 {
     if (!json_is_array(root)) {
         ERR_MSG("Pointsprings must be an array");
@@ -537,13 +512,14 @@ struct pointsprings_setup *pointsprings_setup_read_json(json_t* root)
     json_array_foreach(root, spring_counter, spring) {
         struct pointspring* cur_spring = &sprs[spring_counter];
 
-        int code = json_unpack(
-                spring,
+        json_error_t j_error;
+        int code = json_unpack_ex(
+                spring, &j_error, 0,
                 "{s:F, s:[F,F,F]}",
                 "weight", &cur_spring->fkspr,
                 "coords", &cur_spring->X0, &cur_spring->Y0,  &cur_spring->Z0);
         if (code != 0) {
-            ERR_MSG("Spring");
+            JSON_ERR_MSG(j_error, "Spring");
             free(sprs);
             return NULL;
         }
@@ -635,7 +611,21 @@ void noe_setup_free(struct noe_setup **nmr) {
 }
 
 
-struct noe_setup *noe_setup_read_txt(char *sfile) {
+#define READ_WORD(f, word, line) do { \
+    (word) = NULL; \
+    while (fgets(line, 512, f) != NULL) { \
+        if ((line)[0] != '#') { \
+            (word) = strtok((line), " \t\n"); \
+            if ((word) == NULL || (word)[0] == '#') { \
+                ERR_MSG("Line cannot be empty\n"); \
+            } \
+            break; \
+        } \
+    } \
+} while(0)
+
+
+struct noe_setup *noe_setup_read_txt(const char *sfile) {
     char line[512];
     FILE *f;
     if (!(f = fopen(sfile, "r"))) {
@@ -706,9 +696,10 @@ struct noe_setup *noe_setup_read_json(json_t* root) {
 
     mol_noe_alloc_grad(noe);
 
-    int code = json_unpack(root, "{s:F, s:F}", "weight", &result->weight, "power", &result->power);
+    json_error_t j_error;
+    int code = json_unpack_ex(root, &j_error, 0, "{s:F, s:F}", "weight", &result->weight, "power", &result->power);
     if (code != 0) {
-        ERR_MSG("Couldn't parse NOE weight and power");
+        JSON_ERR_MSG(j_error, "Couldn't parse NOE setup");
         noe_setup_free(&result);
         return NULL;
     }
@@ -717,8 +708,8 @@ struct noe_setup *noe_setup_read_json(json_t* root) {
 }
 
 
-struct noe_setup *noe_setup_read_json_file(char* file) {
-    json_t* root = _read_json_file(file);
+struct noe_setup *noe_setup_read_json_file(const char* file) {
+    json_t* root = read_json_file(file);
     if (!root) {
         return NULL;
     }
@@ -733,7 +724,7 @@ struct noe_setup *noe_setup_read_json_file(char* file) {
 }
 
 
-void energy_prm_free(struct energy_prm** prm, size_t nstages)
+void energy_prm_free(struct energy_prm** prm, const size_t nstages)
 {
     if (*prm != NULL) {
         for (size_t i = 0; i < nstages; i++) {
@@ -750,9 +741,9 @@ void energy_prm_free(struct energy_prm** prm, size_t nstages)
 
 
 bool energy_prm_read(
-        struct energy_prm** result_energy_prm,
-        size_t* result_nstages,
-        struct options prms)
+        struct energy_prm **result_energy_prm,
+        size_t *result_nstages,
+        const struct options prms)
 {
     struct energy_prm* all_stage_prms = calloc(1, sizeof(struct energy_prm));
     size_t nstages = 1;
@@ -782,7 +773,11 @@ bool energy_prm_read(
     all_stage_prms->gbsa = prms.gbsa;
 
     all_stage_prms->score_only = prms.score_only;
-    all_stage_prms->verbose = prms.verbose;
+    all_stage_prms->verbose = prms.verbosity;
+
+    all_stage_prms->json_log_setup.print_step = prms.print_step;
+    all_stage_prms->json_log_setup.print_stage = prms.print_stage;
+    all_stage_prms->json_log_setup.print_noe_matrix = prms.print_noe_matrix;
 
     // setup default fixed
     if ((int)(prms.fixed_pdb != NULL) + (int)(prms.fix_receptor) + (int)(prms.fix_ligand) > 1) {
@@ -878,22 +873,25 @@ bool energy_prm_read(
     }*/
 
     // read json
-    if (prms.setup_json) {
-        json_t* setup = _read_json_file(prms.setup_json);
+    json_t* setup = NULL;
 
-        if (!setup) {
-            ERR_MSG("sd");
+    if (prms.setup_json) {
+        json_t *setup_root = read_json_file(prms.setup_json);
+        if (!setup_root) {
             energy_prm_free(&all_stage_prms, nstages);
             return false;
         }
 
-        if (!json_is_array(setup)) {
-            ERR_MSG("sd");
+        setup = json_object_get(setup_root, "stages");
+        if (setup && !json_is_array(setup)) {
+            ERR_MSG("Key 'stages' must point to a dictionary");
             json_decref(setup);
             energy_prm_free(&all_stage_prms, nstages);
             return false;
         }
+    }
 
+    if (setup) {
         nstages = json_array_size(setup);
 
         // copy default params to each stage
@@ -916,8 +914,9 @@ bool energy_prm_read(
             bool stage_fix_rec = false;
             bool stage_fix_lig = false;
 
-            int unpack_result = json_unpack(
-                    stage_desc,
+            json_error_t j_error;
+            int code = json_unpack_ex(
+                    stage_desc, &j_error, 0,
                     "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
                     "bonds", &stage_prms->bonds,
                     "angles", &stage_prms->angles,
@@ -929,11 +928,11 @@ bool energy_prm_read(
                     "fix_receptor", &stage_fix_rec,
                     "fix_ligand", &stage_fix_lig,
                     "score_only", &stage_prms->score_only,
-                    "verbose", &stage_prms->verbose,
+                    "verbosity", &stage_prms->verbose,
                     "nsteps", &stage_prms->nsteps);
 
-            if (unpack_result != 0) {
-                ERR_MSG("Flags unpacking");
+            if (code != 0) {
+                JSON_ERR_MSG(j_error, "Flags unpacking");
                 error = true;
                 break;
             }
@@ -1025,7 +1024,7 @@ bool energy_prm_read(
 }
 
 
-void pointspring_energy(struct pointsprings_setup *sprst, struct mol_atom_group* ag, double *een) {
+void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
     size_t i, i1, i2, nat;
     double xtot, ytot, ztot, fk;
     struct mol_vector3 g;
@@ -1066,7 +1065,7 @@ void pointspring_energy(struct pointsprings_setup *sprst, struct mol_atom_group*
 }
 
 
-void pairspring_energy(struct pairsprings_setup *sprst, struct mol_atom_group* ag, double *een) {
+void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
     size_t i, i1, i2;
     double xtot, ytot, ztot, fk, d, d2, ln, er, coef, delta;
     struct mol_vector3 g;

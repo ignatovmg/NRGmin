@@ -45,7 +45,8 @@ set(INCLUDE_LIST
 
 set(SRC_LIST
         ${PROJECT_SOURCE_DIR}/src/potentials.c
-        ${PROJECT_SOURCE_DIR}/src/parse_options.c)
+        ${PROJECT_SOURCE_DIR}/src/parse_options.c
+        ${PROJECT_SOURCE_DIR}/src/utils.c)
 
 add_executable(minimize ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
 

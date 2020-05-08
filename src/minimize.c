@@ -30,21 +30,26 @@ static lbfgsfloatval_t energy_func(
 
 
 int main(int argc, char **argv) {
+    VERBOSITY = DEBUG;
+
     mol_enable_floating_point_exceptions();
 
     bool parse_error;
     struct options parsed = parse_args(argc, argv, &parse_error);
     if (parse_error) {
         ERR_MSG("Parse error");
+        free_options(parsed);
         exit(EXIT_FAILURE);
     }
     if (parsed.help) {
+        free_options(parsed);
         exit(EXIT_SUCCESS);
     }
 
     struct mol_atom_group_list* ag_list = mol_atom_group_list_from_options(&parsed);
     if (!ag_list) {
         ERR_MSG("Couldn't read atom groups");
+        free_options(parsed);
         exit(EXIT_FAILURE);
     }
 
@@ -52,6 +57,8 @@ int main(int argc, char **argv) {
     size_t nstages;
     if (!energy_prm_read(&min_prms, &nstages, parsed)) {
         ERR_MSG("Couldn't fill params");
+        free_options(parsed);
+        mol_atom_group_list_free(ag_list);
         exit(EXIT_FAILURE);
     }
 
@@ -60,7 +67,9 @@ int main(int argc, char **argv) {
     FILE* out_pdb;
     FOPEN_ELSE(out_pdb, parsed.out_pdb, "w") {
         ERR_MSG("Can't open %s", parsed.out_pdb);
+        free_options(parsed);
         mol_atom_group_list_free(ag_list);
+        energy_prm_free(&min_prms, nstages);
         exit(EXIT_FAILURE);
     }
 
@@ -114,21 +123,20 @@ int main(int argc, char **argv) {
 
             mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
 
-            //free_agsetup(stage_prms->ag_setup);
-            //if (stage_prms->ace_setup) {
-            //    free_acesetup(stage_prms->ace_setup);
-            //}
-
             // Record energy every time it was evaluated
-            json_object_set_new(json_log_stage, "steps", stage_prms->json_log);
-            stage_prms->json_log = NULL;
+            if (stage_prms->json_log_setup.print_step) {
+                json_object_set_new(json_log_stage, "steps", stage_prms->json_log);
+                stage_prms->json_log = NULL;
+            }
 
             // Record final energy
-            energy_func((void *) stage_prms, NULL, NULL, 0, 0);
-            json_t* final_energy = json_deep_copy(json_array_get(stage_prms->json_log, 0));
-            json_object_set_new(json_log_stage, "final", final_energy);
-            json_decref(stage_prms->json_log);
-            stage_prms->json_log = NULL;
+            if (stage_prms->json_log_setup.print_stage) {
+                energy_func((void *) stage_prms, NULL, NULL, 0, 0);
+                json_t *final_energy = json_deep_copy(json_array_get(stage_prms->json_log, 0));
+                json_object_set_new(json_log_stage, "final", final_energy);
+                json_decref(stage_prms->json_log);
+                stage_prms->json_log = NULL;
+            }
 
             json_array_append_new(json_log_model, json_log_stage);
         }
@@ -262,7 +270,10 @@ static lbfgsfloatval_t energy_func(
         total_energy += term_energy;
 
         json_object_set_new(energy_dict, "noe", json_real(term_energy));
-        json_object_set_new(energy_dict, "noe_details", mol_noe_to_json_object(energy_prm->nmr->spec));
+
+        if (energy_prm->json_log_setup.print_noe_matrix) {
+            json_object_set_new(energy_dict, "noe_details", mol_noe_to_json_object(energy_prm->nmr->spec));
+        }
     }
 
     if (energy_prm->fit_prms != NULL) {

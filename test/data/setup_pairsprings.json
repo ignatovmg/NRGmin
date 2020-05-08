@@ -1,14 +1,16 @@
-[
-  {
-    "nsteps": 1000,
-    "pairsprings": [
-      {
-        "weight": 10,
-        "error": 0.1,
-        "length": 10,
-        "atom1": 2,
-        "atom2": 5
-      }
-    ]
-  }
-]
+{
+  "stages": [
+    {
+      "nsteps": 1000,
+      "pairsprings": [
+        {
+          "weight": 10,
+          "error": 0.1,
+          "length": 10,
+          "atom1": 2,
+          "atom2": 5
+        }
+      ]
+    }
+  ]
+}

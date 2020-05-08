@@ -6,6 +6,20 @@
 #include "utils.h"
 
 
+#define _STRINGIZE_AND_REPLACE_UNDERSCORE(arg, sep, dst) do { \
+    char str_arg[] = #arg;  \
+    char* dot_pos; \
+    if ((dot_pos = strchr(str_arg, (sep))) != NULL) { \
+        dot_pos = dot_pos + 1; \
+    }  \
+    char* dash_pos = dot_pos; \
+    while ((dash_pos = strchr(dash_pos, '_')) != NULL) { \
+        *dash_pos = '-'; \
+    };  \
+    dst = dot_pos; \
+} while (0)
+
+
 #define _FILL_PARAM(arg, value) do {      \
     char str_arg[] = #arg;  \
     char* dot_pos; \
@@ -28,6 +42,10 @@ struct options get_defaut_options()
     struct options prms = {
             .out_pdb = "out.pdb",
             .out_json = "out.json",
+
+            .print_step = false,
+            .print_stage = true,
+            .print_noe_matrix = true,
 
             .separate = false,
             .rec_natoms = 0,
@@ -62,6 +80,7 @@ struct options get_defaut_options()
             .density_json = NULL,
 
             .setup_json = NULL,
+            .setup_json_root = NULL,
 
             .nsteps = 1000,
 
@@ -73,7 +92,7 @@ struct options get_defaut_options()
             .vdw03 = 1,
             .gbsa = 0,
 
-            .verbose = 0,
+            .verbosity = DEBUG,
             .fix_receptor = 0,
             .fix_ligand = 0,
             .score_only = 0,
@@ -84,11 +103,121 @@ struct options get_defaut_options()
 }
 
 
+void free_options(struct options opts)
+{
+    if (opts.setup_json_root) {
+        json_decref(opts.setup_json_root);
+    }
+}
+
+
+static bool _fill_prms_from_json(struct options* prms, json_t* root)
+{
+    if (!json_is_object(root)) {
+        return false;
+    }
+
+    json_t* opts = json_object_get(root, "options");
+    if (!opts) {
+        return true;
+    }
+
+    if (!json_is_object(opts)) {
+        ERR_MSG("Key 'options' must point to a dictionary");
+        json_decref(opts);
+        return false;
+    }
+
+    json_error_t error;
+
+    int code = json_unpack_ex(
+            opts, &error, JSON_STRICT,
+
+            "{s?i, s?i "
+            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b "
+            " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s "
+            " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
+
+            // integer options
+            "nsteps", &prms->nsteps,
+            "verbosity", &prms->verbosity,
+
+            // binary options
+            "bonds", &prms->bonds,
+            "angles", &prms->angles,
+            "dihedrals", &prms->dihedrals,
+            "impropers", &prms->impropers,
+            "vdw", &prms->vdw,
+            "vdw03", &prms->vdw03,
+            "gbsa", &prms->gbsa,
+            "fix-receptor", &prms->fix_receptor,
+            "fix-ligand", &prms->fix_ligand,
+            "score-only", &prms->score_only,
+            "print-step", &prms->print_step,
+            "print-stage", &prms->print_stage,
+            "print-noe-matrix", &prms->print_noe_matrix,
+
+            // char options
+            "out-pdb", &prms->out_pdb,
+            "out-json", &prms->out_json,
+            "psf", &prms->psf,
+            "prm", &prms->prm,
+            "rtf", &prms->rtf,
+            "pdb", &prms->pdb,
+            "json", &prms->json,
+            "rec-psf", &prms->rec_psf,
+            "rec-prm", &prms->rec_prm,
+            "rec-rtf", &prms->rec_rtf,
+            "rec-pdb", &prms->rec_pdb,
+            "rec-json", &prms->rec_json,
+            "lig-psf", &prms->lig_psf,
+            "lig-prm", &prms->lig_prm,
+            "lig-rtf", &prms->lig_rtf,
+            "lig-pdb", &prms->lig_pdb,
+            "lig-json", &prms->lig_json,
+            "fixed-pdb", &prms->fixed_pdb,
+            "pair-springs-txt", &prms->pair_springs_txt,
+            "point-springs-txt", &prms->point_springs_txt,
+            "noe-txt", &prms->noe_txt,
+            "noe-json", &prms->noe_json,
+            "density-json", &prms->density_json
+    );
+
+    if (code != 0) {
+        JSON_ERR_MSG(error, "Couldn't parse setup from json");
+        json_decref(opts);
+        return false;
+    }
+
+    return true;
+}
+
+
 static int _check_prms(struct options *prms)
 {
     bool full = false;
     bool rec_sep = false;
     bool lig_sep = false;
+
+    VERBOSITY = prms->verbosity;
+
+    // Unpack setup json first and fill the global options if there are any
+    if (prms->setup_json) {
+        json_t* setup = read_json_file(prms->setup_json);
+        if (!setup) {
+            return 1;
+        }
+
+        if (!_fill_prms_from_json(prms, setup)) {
+            json_decref(setup);
+            ERR_MSG("Couldn't parse options");
+            return 1;
+        }
+        //json_decref(setup);
+        prms->setup_json_root = setup;
+    }
+
+    VERBOSITY = prms->verbosity;
 
     if (prms->json || prms->pdb || prms->psf || prms->prm || prms->rtf) {
         full = true;
@@ -157,6 +286,10 @@ struct options parse_args(const int argc, char *const *argv, bool *error)
                     {"out-pdb",              required_argument, 0,                 0},
                     {"out-json",              required_argument, 0,                 0},
 
+                    {"print-step", no_argument, &prms.print_step, 1},
+                    {"print-stage", no_argument, &prms.print_stage, 1},
+                    {"print-noe-matrix", no_argument, &prms.print_noe_matrix, 1},
+
                     {"psf",              required_argument, 0,                 0},
                     {"prm",              required_argument, 0,                 0},
                     {"rtf",              required_argument, 0,                 0},
@@ -206,7 +339,7 @@ struct options parse_args(const int argc, char *const *argv, bool *error)
                     {"fix-receptor",           no_argument,        &prms.fix_receptor,                 1},
                     {"fix-ligand",           no_argument,        &prms.fix_ligand,                 1},
                     {"score-only",           no_argument,        &prms.score_only,                 1},
-                    {"verbose",             no_argument,       &prms.verbose,                 1},
+                    {"verbosity",             no_argument,       &prms.verbosity,                 1},
                     {"help",             no_argument,       0,                 'h'},
 
                     {0, 0,                                  0,                 0}
@@ -225,10 +358,7 @@ struct options parse_args(const int argc, char *const *argv, bool *error)
             case 0:
                 if (long_options[option_index].flag != 0)
                     break;
-                printf("Option %s", long_options[option_index].name);
-                if (optarg)
-                    printf(" = %s", optarg);
-                printf("\n");
+                INFO_MSG("Option %s = %s", long_options[option_index].name, optarg);
                 break;
 
             case 'h':
@@ -290,7 +420,7 @@ struct options parse_args(const int argc, char *const *argv, bool *error)
 
 
 void usage_message(char *const *argv) {
-    printf("Usage msg\n");
+    fprintf(stderr, "Usage msg\n");
     return;
 
     printf("\nUsage %s [ options ]\n\n", argv[0]);

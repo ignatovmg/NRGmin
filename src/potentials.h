@@ -14,6 +14,12 @@
 #include "parse_options.h"
 
 
+struct json_log_setup {
+    bool print_step;
+    bool print_stage;
+    bool print_noe_matrix;
+};
+
 struct energy_prm {
     struct mol_atom_group *ag;
     struct agsetup *ag_setup;
@@ -37,6 +43,8 @@ struct energy_prm {
 
     bool score_only;
     bool verbose;
+
+    struct json_log_setup json_log_setup;
 };
 
 struct noe_setup {
@@ -83,17 +91,17 @@ struct fixed_setup {
 
 
 bool energy_prm_read(
-        struct energy_prm** result_energy_prm,
-        size_t* result_nstages,
-        struct options prms);
+        struct energy_prm **result_energy_prm,
+        size_t *result_nstages,
+        const struct options prms);
 
 void energy_prm_free(struct energy_prm** prm, size_t nstages);
 
 struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *prms);
 
-void pointspring_energy(struct pointsprings_setup *sprst, struct mol_atom_group* ag, double *een);
+void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_group *ag, double *een);
 
-void pairspring_energy(struct pairsprings_setup *sprst, struct mol_atom_group* ag, double *een);
+void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een);
 
 
 #endif //ENERGYMIN_POTENTIALS_H

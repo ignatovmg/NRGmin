@@ -130,9 +130,16 @@ START_TEST(test_check_getopt_success)
             ck_assert(opts.fix_receptor);
             ck_assert(!opts.fix_ligand);
             break;
-
-        default:
-            ck_assert(false);
+        case 7:
+            opts = parse_args(4, (char *[]) {"sham", "sham",
+                                              "--setup-json", "setup_global.json"}, &error);
+            ck_assert(!error);
+            ck_assert_str_eq(opts.json, "test.json");
+            ck_assert_str_eq(opts.pdb, "test.pdb");
+            ck_assert_int_eq(opts.nsteps, 100);
+            ck_assert(!opts.dihedrals);
+            ck_assert(!opts.bonds);
+            break;
     }
 }
 END_TEST
@@ -188,9 +195,11 @@ START_TEST(test_check_getopt_failure)
                                               "--fix-receptor"}, &error);
             ck_assert(error);
             break;
-
-        default:
-            ck_assert(false);
+        case 7:
+            parse_args(4, (char *[]) {"sham", "sham",
+                                      "--setup-json", "setup_global_unknown_args.json"}, &error);
+            ck_assert(error);
+            break;
     }
 }
 END_TEST
@@ -291,9 +300,6 @@ START_TEST(test_mol_atom_group_list_from_options)
             ck_assert_ptr_nonnull(ag_list);
             ck_assert_int_eq(ag_list->size, 2);
             break;
-
-        default:
-            ck_assert(false);
 
         /*case 6:
             // Fail with wrong prm file (this produces segfault, because of buggy mol_atom_group_read_geometry)
@@ -562,6 +568,8 @@ START_TEST(test_energy_prm_from_json)
             // Pass generic setup
             opts = get_defaut_options();
             opts.separate = true;
+            opts.rec_natoms = 1000;
+            opts.lig_natoms = 100;
             opts.setup_json = "setup_all.json";
 
             ck_assert(energy_prm_read(&prms, &nstages, opts));
@@ -607,8 +615,8 @@ Suite *lists_suite(void)
     Suite *suite = suite_create("functionality");
     TCase *tcase_real = tcase_create("real");
     //tcase_add_checked_fixture(tcase_real, setup_real, teardown_real);
-    tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 7);
-    tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 7);
+    tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
+    tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 9);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 10);

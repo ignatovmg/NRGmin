@@ -7,11 +7,16 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <jansson.h>
 
 
 struct options {
     char* out_pdb;
     char* out_json;
+
+    int print_step;
+    int print_stage;
+    int print_noe_matrix;
 
     bool separate;
     size_t rec_natoms;
@@ -46,6 +51,7 @@ struct options {
     char* density_json;
 
     char* setup_json;
+    json_t* setup_json_root;
 
     int nsteps;
 
@@ -57,10 +63,12 @@ struct options {
     int vdw03;
     int gbsa;
 
-    int verbose;
     int fix_receptor;
     int fix_ligand;
     int score_only;
+
+    int verbosity;
+
     int help;
 };
 
@@ -68,6 +76,8 @@ struct options {
 struct options get_defaut_options(void);
 
 struct options parse_args(const int argc, char *const *argv, bool *error);
+
+void free_options(struct options prms);
 
 void usage_message(char *const *argv);
 
