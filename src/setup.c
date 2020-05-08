@@ -1,5 +1,5 @@
 #include "utils.h"
-#include "potentials.h"
+#include "setup.h"
 #include "parse_options.h"
 
 #include "mol2/json.h"
@@ -18,9 +18,9 @@ static struct mol_atom_group_list *_read_ag_list(
     struct mol_atom_group_list* ag_list = NULL;
     struct mol_atom_group* ag_json = NULL;
 
-    // Read molecule form json
+    // Read molecule from json
     if (json != NULL) {
-        INFO_MSG("Reading json file %s\n", json);
+        DEBUG_MSG("Reading json file %s", json);
         ag_json = mol_read_json(json);
 
         if (ag_json == NULL) {
@@ -31,13 +31,13 @@ static struct mol_atom_group_list *_read_ag_list(
 
     // Read molecule from pdb
     if (pdb != NULL) {
-        DEBUG_MSG("Reading %s\n", pdb);
-        DEBUG_MSG("Trying to read %s as a multimodel one (with MODEL records)\n", pdb);
+        DEBUG_MSG("Reading %s", pdb);
+        DEBUG_MSG("Trying to read %s as a multimodel one (with MODEL records)", pdb);
         ag_list = mol_read_pdb_models(pdb);
 
         // If not multimodel, try to read as a single model
         if (ag_list == NULL) {
-            DEBUG_MSG("File %s doesn't have MODEL records. Reading as a regular pdb file\n", pdb);
+            DEBUG_MSG("File %s doesn't have MODEL records. Reading as a regular pdb file", pdb);
             struct mol_atom_group* ag_single = mol_read_pdb(pdb);
 
             // If both single and multi-model failed - give up
@@ -54,7 +54,7 @@ static struct mol_atom_group_list *_read_ag_list(
 
         // If json was provied too then merge geometry from json and coords from pdb
         if (ag_json != NULL) {
-            DEBUG_MSG("Reading coordinates from %s and geometry from %s\n", pdb, json);
+            DEBUG_MSG("Reading coordinates from %s and geometry from %s", pdb, json);
 
             struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(ag_list->size);
 
@@ -84,7 +84,7 @@ static struct mol_atom_group_list *_read_ag_list(
 
         } else if (psf && prm && rtf) {
             // If json wasn't provided read geometry from prm rtf psf
-            DEBUG_MSG("Reading geometry from %s\n", psf);
+            DEBUG_MSG("Reading geometry from %s", psf);
             for (size_t i = 0; i < ag_list->size; i++) {
                 if (!mol_atom_group_read_geometry(&ag_list->members[i], psf, prm, rtf)) {
                     ERR_MSG("Couldn't fill geometry from psf rtf and prm");
@@ -94,17 +94,17 @@ static struct mol_atom_group_list *_read_ag_list(
 
         } else if (score_only != 0) {
             // if they weren't provided, check the score_only flag
-            WRN_MSG("Geometry for the molecule is not provided, computing only non-parametric terms\n");
+            WRN_MSG("Geometry for the molecule is not provided, computing only non-parametric terms");
 
         } else {
             // Give up if nothing worked
-            ERR_MSG("--json or --psf must be provided with --pdb");
+            ERR_MSG("Force field and geometry are not provided");
             mol_atom_group_list_free(ag_list);
             return NULL;
         }
 
     } else if (ag_json != NULL) {
-        DEBUG_MSG("Using geometry and coordinates from %s\n", json);
+        DEBUG_MSG("Using geometry and coordinates from %s", json);
         ag_list = mol_atom_group_list_create(1);
         ag_list->members[0] = *ag_json;
         free(ag_json);
@@ -120,11 +120,11 @@ static struct mol_atom_group_list *_read_ag_list(
 
 static struct mol_atom_group_list* _merge_ag_lists(const struct mol_atom_group_list* ag1, const struct mol_atom_group_list* ag2) {
     if (ag1->size != ag2->size) {
-        ERR_MSG("Receptor and ligand have different numbers of models (%i, %i)", (int)ag1->size, (int)ag2->size);
+        ERR_MSG("Receptor and ligand have different numbers of models (%zu, %zu)", ag1->size, ag2->size);
         return NULL;
     }
 
-    INFO_MSG("Using models assembled from receptor and ligand models provided separately\n");
+    DEBUG_MSG("Using models assembled from receptor and ligand models provided separately\n");
     struct mol_atom_group_list *ag_list = mol_atom_group_list_create(ag1->size);
 
     for (size_t i = 0; i < ag_list->size; i++) {
@@ -137,25 +137,25 @@ static struct mol_atom_group_list* _merge_ag_lists(const struct mol_atom_group_l
 }
 
 
-struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *prms)
+struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *opts)
 {
     struct mol_atom_group_list* ag_list;
 
-    if (prms->separate) {
+    if (opts->separate) {
         struct mol_atom_group_list* rec_list = _read_ag_list(
-                prms->rec_prm,
-                prms->rec_rtf,
-                prms->rec_pdb,
-                prms->rec_psf,
-                prms->rec_json,
-                prms->score_only);
+                opts->rec_prm,
+                opts->rec_rtf,
+                opts->rec_pdb,
+                opts->rec_psf,
+                opts->rec_json,
+                opts->score_only);
         struct mol_atom_group_list* lig_list = _read_ag_list(
-                prms->lig_prm,
-                prms->lig_rtf,
-                prms->lig_pdb,
-                prms->lig_psf,
-                prms->lig_json,
-                prms->score_only);
+                opts->lig_prm,
+                opts->lig_rtf,
+                opts->lig_pdb,
+                opts->lig_psf,
+                opts->lig_json,
+                opts->score_only);
 
         if (!rec_list || !lig_list) {
             if (rec_list) {
@@ -167,28 +167,28 @@ struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *prm
             return NULL;
         }
 
-        prms->rec_natoms = rec_list->members[0].natoms;
-        prms->lig_natoms = lig_list->members[0].natoms;
+        opts->rec_natoms = rec_list->members[0].natoms;
+        opts->lig_natoms = lig_list->members[0].natoms;
 
         ag_list = _merge_ag_lists(rec_list, lig_list);
 
     } else {
         ag_list = _read_ag_list(
-                prms->prm,
-                prms->rtf,
-                prms->pdb,
-                prms->psf,
-                prms->json,
-                prms->score_only);
+                opts->prm,
+                opts->rtf,
+                opts->pdb,
+                opts->psf,
+                opts->json,
+                opts->score_only);
 
-        prms->rec_natoms = 0;
-        prms->lig_natoms = 0;
+        opts->rec_natoms = 0;
+        opts->lig_natoms = 0;
     }
     return ag_list;
 }
 
 
-void fixed_setup_free(struct fixed_setup** fixed)
+static void _fixed_setup_free(struct fixed_setup **fixed)
 {
     if (*fixed != NULL) {
         if ((*fixed)->atoms) {
@@ -200,7 +200,7 @@ void fixed_setup_free(struct fixed_setup** fixed)
 }
 
 
-struct fixed_setup* fixed_setup_read_txt(const char *file) {
+static struct fixed_setup* _fixed_setup_read_txt(const char *file) {
     FILE* fp;
     FOPEN_ELSE(fp, file, "r") {
         return NULL;
@@ -237,10 +237,10 @@ struct fixed_setup* fixed_setup_read_txt(const char *file) {
 }
 
 
-struct fixed_setup* fixed_setup_read_json(const json_t* root)
+static struct fixed_setup* _fixed_setup_read_json(const json_t *root)
 {
     if (!json_is_array(root)) {
-        ERR_MSG("Must be array");
+        ERR_MSG("Fixed atoms json setup must be an array");
         return NULL;
     }
 
@@ -252,7 +252,7 @@ struct fixed_setup* fixed_setup_read_json(const json_t* root)
     json_t* atom_id;
     json_array_foreach(root, counter, atom_id) {
         if (!json_is_integer(atom_id)) {
-            fixed_setup_free(&result);
+            _fixed_setup_free(&result);
             json_decref(atom_id);
             return NULL;
         }
@@ -263,7 +263,7 @@ struct fixed_setup* fixed_setup_read_json(const json_t* root)
 }
 
 
-void pairsprings_setup_free(struct pairsprings_setup **sprst) {
+static void _pairsprings_setup_free(struct pairsprings_setup **sprst) {
     if (*sprst != NULL) {
         free((*sprst)->springs);
         free(*sprst);
@@ -272,7 +272,7 @@ void pairsprings_setup_free(struct pairsprings_setup **sprst) {
 }
 
 
-struct fixed_setup* fixed_setup_atom_range(const size_t start_atom, const size_t end_atom)
+static struct fixed_setup* _fixed_setup_atom_range(const size_t start_atom, const size_t end_atom)
 {
     struct fixed_setup* fixed = calloc(1, sizeof(struct fixed_setup));
     fixed->natoms = end_atom - start_atom;
@@ -284,7 +284,7 @@ struct fixed_setup* fixed_setup_atom_range(const size_t start_atom, const size_t
 }
 
 
-struct pairsprings_setup *pairsprings_setup_read_txt(const char *path) {
+static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
     FILE *fp;
     FOPEN_ELSE(fp, path, "r") {
         return NULL;
@@ -294,7 +294,7 @@ struct pairsprings_setup *pairsprings_setup_read_txt(const char *path) {
     sprst = calloc(1, sizeof(struct pairsprings_setup));
 
     if (fscanf(fp, "%zu", &sprst->nsprings) != 1) {
-        ERR_MSG("Wrong spring file format\n");
+        ERR_MSG("First line is pairsprings setup must be the number of springs");
         free(sprst);
         fclose(fp);
         return NULL;
@@ -318,7 +318,7 @@ struct pairsprings_setup *pairsprings_setup_read_txt(const char *path) {
                 name2);
 
         if (c != 7) {
-            ERR_MSG("Wrong spring file format\n");
+            ERR_MSG("Each line in pairsprings setup must have 7 tokens");
             free(sprst->springs);
             free(sprst);
             fclose(fp);
@@ -336,9 +336,9 @@ struct pairsprings_setup *pairsprings_setup_read_txt(const char *path) {
 }
 
 
-struct pairsprings_setup *pairsprings_setup_read_json(const json_t* root) {
+static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root) {
     if (!json_is_array(root)) {
-        ERR_MSG("Pairsprings must be an array");
+        ERR_MSG("Pairsprings json setup must be an array");
         return NULL;
     }
 
@@ -362,7 +362,7 @@ struct pairsprings_setup *pairsprings_setup_read_json(const json_t* root) {
                 "atom2", &spring_set[counter].laspr[1]);
 
         if (result != 0) {
-            JSON_ERR_MSG(j_error, "Wrong pairspring format");
+            JSON_ERR_MSG(j_error, "Wrong pairspring setup json format");
             error = true;
             break;
         }
@@ -425,7 +425,7 @@ struct pairsprings_setup *pairsprings_setup_read_json(const json_t* root) {
 }
 
 
-void pointsprings_setup_free(struct pointsprings_setup **sprst) {
+static void _pointsprings_setup_free(struct pointsprings_setup **sprst) {
     if (*sprst != NULL) {
         for (size_t i = 0; i < (*sprst)->nsprings; i++) {
             if ((*sprst)->springs[i].laspr != NULL) {
@@ -439,7 +439,7 @@ void pointsprings_setup_free(struct pointsprings_setup **sprst) {
 }
 
 
-struct pointsprings_setup *pointsprings_setup_read_txt(const char *path) {
+static struct pointsprings_setup *_pointsprings_setup_read_txt(const char *path) {
     FILE *fp;
     FOPEN_ELSE(fp, path, "r") {
         return NULL;
@@ -449,7 +449,7 @@ struct pointsprings_setup *pointsprings_setup_read_txt(const char *path) {
     sprst = calloc(1, sizeof(struct pointsprings_setup));
 
     if (fscanf(fp, "%zu", &sprst->nsprings) != 1) {
-        ERR_MSG("Wrong spring file format\n");
+        ERR_MSG("Wrong pointsprings setup json format");
         free(sprst);
         fclose(fp);
         return NULL;
@@ -465,9 +465,9 @@ struct pointsprings_setup *pointsprings_setup_read_txt(const char *path) {
     for (size_t id = 0; id < sprst->nsprings; id++) {
         size_t c = fscanf(fp, "%zu %lf %lf %lf %lf", &naspr, &fkspr, &X0, &Y0, &Z0);
         if (c != 5) {
-            ERR_MSG("Wrong spring file format\n");
+            ERR_MSG("First line for each pointspring must have 5 tokens");
             fclose(fp);
-            pointsprings_setup_free(&sprst);
+            _pointsprings_setup_free(&sprst);
             return NULL;
         }
 
@@ -482,9 +482,9 @@ struct pointsprings_setup *pointsprings_setup_read_txt(const char *path) {
             c = fscanf(fp, "%zu %s", &aid, name);
 
             if (c != 2) {
-                ERR_MSG("Wrong spring file format\n");
+                ERR_MSG("Wrong pointsprings setup format");
                 fclose(fp);
-                pointsprings_setup_free(&sprst);
+                _pointsprings_setup_free(&sprst);
                 return NULL;
             }
 
@@ -497,10 +497,10 @@ struct pointsprings_setup *pointsprings_setup_read_txt(const char *path) {
 }
 
 
-struct pointsprings_setup *pointsprings_setup_read_json(const json_t* root)
+static struct pointsprings_setup *_pointsprings_setup_read_json(const json_t *root)
 {
     if (!json_is_array(root)) {
-        ERR_MSG("Pointsprings must be an array");
+        ERR_MSG("Pointsprings json setup must be an array");
         return NULL;
     }
 
@@ -519,14 +519,14 @@ struct pointsprings_setup *pointsprings_setup_read_json(const json_t* root)
                 "weight", &cur_spring->fkspr,
                 "coords", &cur_spring->X0, &cur_spring->Y0,  &cur_spring->Z0);
         if (code != 0) {
-            JSON_ERR_MSG(j_error, "Spring");
+            JSON_ERR_MSG(j_error, "Couldn't parse json pointspring");
             free(sprs);
             return NULL;
         }
 
         json_t* atoms = json_object_get(spring, "atoms");
         if (!atoms || !json_is_array(atoms)) {
-            ERR_MSG("Can't read atoms");
+            ERR_MSG("Can't read pointspring atoms from json");
             free(sprs);
             return NULL;
         }
@@ -602,7 +602,7 @@ void density_setup_free(struct density_setup **prms) {
 }*/
 
 
-void noe_setup_free(struct noe_setup **nmr) {
+static void _noe_setup_free(struct noe_setup **nmr) {
     if (*nmr != NULL) {
         mol_noe_free((*nmr)->spec);
         free(*nmr);
@@ -617,7 +617,7 @@ void noe_setup_free(struct noe_setup **nmr) {
         if ((line)[0] != '#') { \
             (word) = strtok((line), " \t\n"); \
             if ((word) == NULL || (word)[0] == '#') { \
-                ERR_MSG("Line cannot be empty\n"); \
+                ERR_MSG("Line cannot be empty"); \
             } \
             break; \
         } \
@@ -625,7 +625,7 @@ void noe_setup_free(struct noe_setup **nmr) {
 } while(0)
 
 
-struct noe_setup *noe_setup_read_txt(const char *sfile) {
+static struct noe_setup *_noe_setup_read_txt(const char *sfile) {
     char line[512];
     FILE *f;
     if (!(f = fopen(sfile, "r"))) {
@@ -684,10 +684,10 @@ struct noe_setup *noe_setup_read_txt(const char *sfile) {
 }
 
 
-struct noe_setup *noe_setup_read_json(json_t* root) {
+static struct noe_setup *_noe_setup_read_json(json_t *root) {
     struct mol_noe* noe = mol_noe_from_json_object(root);
     if (!noe) {
-        ERR_MSG("Couldn't parse NOE setup");
+        ERR_MSG("Couldn't parse NOE setup from json");
         return NULL;
     }
 
@@ -699,8 +699,8 @@ struct noe_setup *noe_setup_read_json(json_t* root) {
     json_error_t j_error;
     int code = json_unpack_ex(root, &j_error, 0, "{s:F, s:F}", "weight", &result->weight, "power", &result->power);
     if (code != 0) {
-        JSON_ERR_MSG(j_error, "Couldn't parse NOE setup");
-        noe_setup_free(&result);
+        JSON_ERR_MSG(j_error, "Couldn't unpack 'weight' and 'power' in json NOE setup");
+        _noe_setup_free(&result);
         return NULL;
     }
 
@@ -708,13 +708,13 @@ struct noe_setup *noe_setup_read_json(json_t* root) {
 }
 
 
-struct noe_setup *noe_setup_read_json_file(const char* file) {
+static struct noe_setup *_noe_setup_read_json_file(const char *file) {
     json_t* root = read_json_file(file);
     if (!root) {
         return NULL;
     }
 
-    struct noe_setup* result = noe_setup_read_json(root);
+    struct noe_setup* result = _noe_setup_read_json(root);
     if (!result) {
         json_decref(root);
         return NULL;
@@ -724,28 +724,28 @@ struct noe_setup *noe_setup_read_json_file(const char* file) {
 }
 
 
-void energy_prm_free(struct energy_prm** prm, const size_t nstages)
+void energy_prms_free(struct energy_prms **prms, size_t nstages)
 {
-    if (*prm != NULL) {
+    if (*prms != NULL) {
         for (size_t i = 0; i < nstages; i++) {
-            pairsprings_setup_free(&((*prm)->sprst_pairs));
-            pointsprings_setup_free(&((*prm)->sprst_points));
-            //density_setup_free(&((*prm)->fit_prms));
-            noe_setup_free(&((*prm)->nmr));
-            fixed_setup_free(&((*prm)->fixed));
+            _pairsprings_setup_free(&((*prms)->sprst_pairs));
+            _pointsprings_setup_free(&((*prms)->sprst_points));
+            //density_setup_free(&((*prms)->fit_prms));
+            _noe_setup_free(&((*prms)->nmr));
+            _fixed_setup_free(&((*prms)->fixed));
         }
-        free(*prm);
-        *prm = NULL;
+        free(*prms);
+        *prms = NULL;
     }
 }
 
 
-bool energy_prm_read(
-        struct energy_prm **result_energy_prm,
+bool energy_prms_populate_from_options(
+        struct energy_prms **result_energy_prm,
         size_t *result_nstages,
-        const struct options prms)
+        const struct options opts)
 {
-    struct energy_prm* all_stage_prms = calloc(1, sizeof(struct energy_prm));
+    struct energy_prms* all_stage_prms = calloc(1, sizeof(struct energy_prms));
     size_t nstages = 1;
 
     *result_energy_prm = NULL;
@@ -762,112 +762,112 @@ bool energy_prm_read(
     all_stage_prms->fit_prms = NULL;
     all_stage_prms->fixed = NULL;
 
-    all_stage_prms->nsteps = prms.nsteps;
+    all_stage_prms->nsteps = opts.nsteps;
 
-    all_stage_prms->bonds = prms.bonds;
-    all_stage_prms->angles = prms.angles;
-    all_stage_prms->dihedrals = prms.dihedrals;
-    all_stage_prms->impropers = prms.impropers;
-    all_stage_prms->vdw = prms.vdw;
-    all_stage_prms->vdw03 = prms.vdw03;
-    all_stage_prms->gbsa = prms.gbsa;
+    all_stage_prms->bonds = opts.bonds;
+    all_stage_prms->angles = opts.angles;
+    all_stage_prms->dihedrals = opts.dihedrals;
+    all_stage_prms->impropers = opts.impropers;
+    all_stage_prms->vdw = opts.vdw;
+    all_stage_prms->vdw03 = opts.vdw03;
+    all_stage_prms->gbsa = opts.gbsa;
 
-    all_stage_prms->score_only = prms.score_only;
-    all_stage_prms->verbose = prms.verbosity;
+    all_stage_prms->score_only = opts.score_only;
+    all_stage_prms->verbose = opts.verbosity;
 
-    all_stage_prms->json_log_setup.print_step = prms.print_step;
-    all_stage_prms->json_log_setup.print_stage = prms.print_stage;
-    all_stage_prms->json_log_setup.print_noe_matrix = prms.print_noe_matrix;
+    all_stage_prms->json_log_setup.print_step = opts.print_step;
+    all_stage_prms->json_log_setup.print_stage = opts.print_stage;
+    all_stage_prms->json_log_setup.print_noe_matrix = opts.print_noe_matrix;
 
-    // setup default fixed
-    if ((int)(prms.fixed_pdb != NULL) + (int)(prms.fix_receptor) + (int)(prms.fix_ligand) > 1) {
-        ERR_MSG("Fixes can't be combined");
-        energy_prm_free(&all_stage_prms, nstages);
+    // Setup global fixed atoms
+    if ((int)(opts.fixed_pdb != NULL) + (int)(opts.fix_receptor) + (int)(opts.fix_ligand) > 1) {
+        ERR_MSG("Different fixed atoms flags can't be combined");
+        energy_prms_free(&all_stage_prms, nstages);
         return false;
     }
 
-    if (prms.rec_natoms == 0 && prms.lig_natoms == 0 && prms.separate) {
-        ERR_MSG("Natoms can't be zero in separate mode, populate them first");
-        energy_prm_free(&all_stage_prms, nstages);
+    if (opts.rec_natoms == 0 && opts.lig_natoms == 0 && opts.separate) {
+        ERR_MSG("rec_natoms and lig_natoms can't be zero in rec/lig mode, populate them first");
+        energy_prms_free(&all_stage_prms, nstages);
         return false;
     }
 
-    if (prms.fixed_pdb) {
-        all_stage_prms->fixed = fixed_setup_read_txt(prms.fixed_pdb);
+    if (opts.fixed_pdb) {
+        all_stage_prms->fixed = _fixed_setup_read_txt(opts.fixed_pdb);
         if (!all_stage_prms->fixed) {
-            ERR_MSG("SDF");
-            energy_prm_free(&all_stage_prms, nstages);
+            ERR_MSG("Couldn't parse fixed atoms from %s", opts.fixed_pdb);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
-    } else if (prms.fix_receptor) {
+    } else if (opts.fix_receptor) {
         if (all_stage_prms->fixed) {
-            ERR_MSG("Cannot use");
-            energy_prm_free(&all_stage_prms, nstages);
+            ERR_MSG("Cannot use fix-receptor flag with another one");
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
-        all_stage_prms->fixed = fixed_setup_atom_range(0, prms.rec_natoms);
-    } else if (prms.fix_ligand) {
+        all_stage_prms->fixed = _fixed_setup_atom_range(0, opts.rec_natoms);
+    } else if (opts.fix_ligand) {
         if (all_stage_prms->fixed) {
-            ERR_MSG("Cannot use");
-            energy_prm_free(&all_stage_prms, nstages);
+            ERR_MSG("Cannot use fix-ligand flag with another one");
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
-        all_stage_prms->fixed = fixed_setup_atom_range(prms.rec_natoms, prms.rec_natoms + prms.lig_natoms);
+        all_stage_prms->fixed = _fixed_setup_atom_range(opts.rec_natoms, opts.rec_natoms + opts.lig_natoms);
     }
 
-    if (prms.pair_springs_txt) {
-        all_stage_prms->sprst_pairs = pairsprings_setup_read_txt(prms.pair_springs_txt);
+    if (opts.pair_springs_txt) {
+        all_stage_prms->sprst_pairs = _pairsprings_setup_read_txt(opts.pair_springs_txt);
 
         if (!all_stage_prms->sprst_pairs) {
-            ERR_MSG("SDF");
-            energy_prm_free(&all_stage_prms, nstages);
+            ERR_MSG("Couldn't parse pairsprings from %s", opts.pair_springs_txt);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
     }
 
-    if (prms.point_springs_txt) {
-        all_stage_prms->sprst_points = pointsprings_setup_read_txt(prms.point_springs_txt);
+    if (opts.point_springs_txt) {
+        all_stage_prms->sprst_points = _pointsprings_setup_read_txt(opts.point_springs_txt);
 
         if (!all_stage_prms->sprst_points) {
-            ERR_MSG("SDF");
-            energy_prm_free(&all_stage_prms, nstages);
+            ERR_MSG("Couldn't parse pointsprings from %s", opts.point_springs_txt);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
     }
 
-    if (prms.noe_json) {
-        all_stage_prms->nmr = noe_setup_read_json_file(prms.noe_json);
+    if (opts.noe_json) {
+        all_stage_prms->nmr = _noe_setup_read_json_file(opts.noe_json);
 
         if (!all_stage_prms->nmr) {
-            ERR_MSG("SDF");
-            energy_prm_free(&all_stage_prms, nstages);
+            ERR_MSG("Couldn't parse NOE from %s", opts.noe_json);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
     }
 
-    if (prms.noe_txt) {
+    if (opts.noe_txt) {
         if (all_stage_prms->nmr) {
-            ERR_MSG("Cannot use");
-            energy_prm_free(&all_stage_prms, nstages);
+            ERR_MSG("Cannot use NOE txt and json formats at the same time");
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
 
-        all_stage_prms->nmr = noe_setup_read_txt(prms.noe_txt);
+        all_stage_prms->nmr = _noe_setup_read_txt(opts.noe_txt);
 
         if (!all_stage_prms->nmr) {
-            ERR_MSG("SDF");
-            energy_prm_free(&all_stage_prms, nstages);
+            ERR_MSG("Couldn't parse NOE from %s", opts.noe_txt);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
     }
 
     /*
-    if (prms.density_json) {
-        all_stage_prms->fit_prms = density_setup_read_json_file(prms.density_json);
+    if (opts.density_json) {
+        all_stage_prms->fit_prms = density_setup_read_json_file(opts.density_json);
 
         if (!all_stage_prms->fit_prms) {
             ERR_MSG("SDF");
-            energy_prm_free(&all_stage_prms, nstages);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
     }*/
@@ -875,10 +875,10 @@ bool energy_prm_read(
     // read json
     json_t* setup = NULL;
 
-    if (prms.setup_json) {
-        json_t *setup_root = read_json_file(prms.setup_json);
+    if (opts.setup_json) {
+        json_t *setup_root = read_json_file(opts.setup_json);
         if (!setup_root) {
-            energy_prm_free(&all_stage_prms, nstages);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
 
@@ -886,7 +886,7 @@ bool energy_prm_read(
         if (setup && !json_is_array(setup)) {
             ERR_MSG("Key 'stages' must point to a dictionary");
             json_decref(setup);
-            energy_prm_free(&all_stage_prms, nstages);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
     }
@@ -895,11 +895,11 @@ bool energy_prm_read(
         nstages = json_array_size(setup);
 
         // copy default params to each stage
-        struct energy_prm* buffer = calloc(nstages, sizeof(struct energy_prm));
+        struct energy_prms* buffer = calloc(nstages, sizeof(struct energy_prms));
         for (size_t i = 0; i < nstages; i++) {
             // TODO: need to recursive copy of setups, because later on the
             //       pointers can be overwritten and never be freed
-            memcpy(buffer + i, all_stage_prms, sizeof(struct energy_prm));
+            memcpy(buffer + i, all_stage_prms, sizeof(struct energy_prms));
         }
         free(all_stage_prms);
         all_stage_prms = buffer;
@@ -909,7 +909,7 @@ bool energy_prm_read(
         bool error = false;
 
         json_array_foreach(setup, stage_id, stage_desc) {
-            struct energy_prm* stage_prms = &all_stage_prms[stage_id];
+            struct energy_prms* stage_prms = &all_stage_prms[stage_id];
 
             bool stage_fix_rec = false;
             bool stage_fix_lig = false;
@@ -932,47 +932,47 @@ bool energy_prm_read(
                     "nsteps", &stage_prms->nsteps);
 
             if (code != 0) {
-                JSON_ERR_MSG(j_error, "Flags unpacking");
+                JSON_ERR_MSG(j_error, "Couldn't parse stage flags in json");
                 error = true;
                 break;
             }
 
-            if ((stage_fix_rec || stage_fix_lig) && !prms.separate) {
-                ERR_MSG("Is not separate");
+            if ((stage_fix_rec || stage_fix_lig) && !opts.separate) {
+                ERR_MSG("You can't provide fix-? flags in a single file mode");
                 error = true;
                 break;
             }
 
             json_t* stage_fixed = json_object_get(stage_desc, "fixed");
             if ((int)(stage_fixed != NULL) + (int)(stage_fix_rec) + (int)(stage_fix_lig) > 1) {
-                ERR_MSG("Fix can't be combined");
+                ERR_MSG("Different fixed atoms flags can't be combined");
                 error = true;
                 break;
             }
 
             // Read fixed atoms
             if (stage_fixed) {
-                fixed_setup_free(&stage_prms->fixed);
-                stage_prms->fixed = fixed_setup_read_json(stage_fixed);
+                _fixed_setup_free(&stage_prms->fixed);
+                stage_prms->fixed = _fixed_setup_read_json(stage_fixed);
                 if (!stage_prms->fixed) {
-                    ERR_MSG("Can't read fix from json");
+                    ERR_MSG("Couldn't parse fixed atoms from %s", opts.setup_json);
                     error = true;
                     break;
                 }
             } else if (stage_fix_rec) {
-                fixed_setup_free(&stage_prms->fixed);
-                stage_prms->fixed = fixed_setup_atom_range(0, prms.rec_natoms);
+                _fixed_setup_free(&stage_prms->fixed);
+                stage_prms->fixed = _fixed_setup_atom_range(0, opts.rec_natoms);
             } else if (stage_fix_lig) {
-                fixed_setup_free(&stage_prms->fixed);
-                stage_prms->fixed = fixed_setup_atom_range(prms.rec_natoms, prms.rec_natoms + prms.lig_natoms);
+                _fixed_setup_free(&stage_prms->fixed);
+                stage_prms->fixed = _fixed_setup_atom_range(opts.rec_natoms, opts.rec_natoms + opts.lig_natoms);
             }
 
             // Pairsprings
             json_t* stage_pairsprings = json_object_get(stage_desc, "pairsprings");
             if (stage_pairsprings) {
-                stage_prms->sprst_pairs = pairsprings_setup_read_json(stage_pairsprings);
+                stage_prms->sprst_pairs = _pairsprings_setup_read_json(stage_pairsprings);
                 if (!stage_prms->sprst_pairs) {
-                    ERR_MSG("");
+                    ERR_MSG("Couldn't parse pairsprings from %s", opts.setup_json);
                     error = true;
                     break;
                 }
@@ -981,8 +981,9 @@ bool energy_prm_read(
             // Pointsprings
             json_t* stage_pointsprings = json_object_get(stage_desc, "pointsprings");
             if (stage_pointsprings) {
-                stage_prms->sprst_points = pointsprings_setup_read_json(stage_pointsprings);
+                stage_prms->sprst_points = _pointsprings_setup_read_json(stage_pointsprings);
                 if (!stage_prms->sprst_points) {
+                    ERR_MSG("Couldn't parse poinsprings from %s", opts.setup_json);
                     error = true;
                     break;
                 }
@@ -1001,8 +1002,9 @@ bool energy_prm_read(
             // NOE
             json_t* stage_noe = json_object_get(stage_desc, "noe");
             if (stage_noe) {
-                stage_prms->nmr = noe_setup_read_json(stage_noe);
+                stage_prms->nmr = _noe_setup_read_json(stage_noe);
                 if (!stage_prms->nmr) {
+                    ERR_MSG("Couldn't parse NOE from %s", opts.setup_json);
                     error = true;
                     break;
                 }
@@ -1012,7 +1014,7 @@ bool energy_prm_read(
         json_decref(setup);
 
         if (error) {
-            energy_prm_free(&all_stage_prms, nstages);
+            energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
     }
@@ -1021,83 +1023,4 @@ bool energy_prm_read(
     *result_nstages = nstages;
 
     return true;
-}
-
-
-void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    size_t i, i1, i2, nat;
-    double xtot, ytot, ztot, fk;
-    struct mol_vector3 g;
-
-    for (i = 0; i < sprst->nsprings; i++) {
-        nat = sprst->springs[i].naspr;
-
-        if (nat > 0) {
-            xtot = 0.0;
-            ytot = 0.0;
-            ztot = 0.0;
-
-            for (i1 = 0; i1 < nat; i1++) {
-                i2 = sprst->springs[i].laspr[i1];
-                xtot += ag->coords[i2].X;
-                ytot += ag->coords[i2].Y;
-                ztot += ag->coords[i2].Z;
-            }
-
-            xtot = xtot / nat - sprst->springs[i].X0;
-            ytot = ytot / nat - sprst->springs[i].Y0;
-            ztot = ztot / nat - sprst->springs[i].Z0;
-
-            fk = sprst->springs[i].fkspr;
-            (*een) += fk * (xtot * xtot + ytot * ytot + ztot * ztot);
-
-            fk = 2 * fk / nat;
-            g.X = xtot * fk;
-            g.Y = ytot * fk;
-            g.Z = ztot * fk;
-
-            for (i1 = 0; i1 < nat; i1++) {
-                i2 = sprst->springs[i].laspr[i1];
-                MOL_VEC_SUB(ag->gradients[i2], ag->gradients[i2], g);
-            }
-        }
-    }
-}
-
-
-void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    size_t i, i1, i2;
-    double xtot, ytot, ztot, fk, d, d2, ln, er, coef, delta;
-    struct mol_vector3 g;
-
-    for (i = 0; i < sprst->nsprings; i++) {
-        ln = sprst->springs[i].lnspr;
-        er = sprst->springs[i].erspr;
-        fk = sprst->springs[i].fkspr / 2.0;
-
-        i1 = sprst->springs[i].laspr[0];
-        i2 = sprst->springs[i].laspr[1];
-
-        xtot = ag->coords[i2].X - ag->coords[i1].X;
-        ytot = ag->coords[i2].Y - ag->coords[i1].Y;
-        ztot = ag->coords[i2].Z - ag->coords[i1].Z;
-
-        d2 = xtot * xtot + ytot * ytot + ztot * ztot;
-        d = sqrt(d2);
-
-        delta = fabs(d - ln);
-        delta = (delta > er) ? ((delta - er) * delta / (d - ln)) : 0.0;
-
-        //(*een) += fk * (d - ln) * (d - ln);
-        (*een) += fk * delta * delta;
-        //coef = fk * 2 * (1.0 - ln / d);
-        coef = fk * 2.0 * delta / d;
-
-        g.X = -coef * xtot;
-        g.Y = -coef * ytot;
-        g.Z = -coef * ztot;
-
-        MOL_VEC_SUB(ag->gradients[i1], ag->gradients[i1], g);
-        MOL_VEC_ADD(ag->gradients[i2], ag->gradients[i2], g);
-    }
 }

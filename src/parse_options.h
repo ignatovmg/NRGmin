@@ -73,11 +73,11 @@ struct options {
 };
 
 
-struct options get_defaut_options(void);
+struct options options_get_default(void);
 
-struct options parse_args(const int argc, char *const *argv, bool *error);
+struct options options_populate_from_argv(const int argc, char *const *argv, bool *error);
 
-void free_options(struct options prms);
+void options_free(struct options opts);
 
 void usage_message(char *const *argv);
 

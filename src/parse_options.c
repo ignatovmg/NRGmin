@@ -37,7 +37,7 @@
 } while (0)
 
 
-struct options get_defaut_options()
+struct options options_get_default()
 {
     struct options prms = {
             .out_pdb = "out.pdb",
@@ -103,7 +103,7 @@ struct options get_defaut_options()
 }
 
 
-void free_options(struct options opts)
+void options_free(struct options opts)
 {
     if (opts.setup_json_root) {
         json_decref(opts.setup_json_root);
@@ -111,27 +111,27 @@ void free_options(struct options opts)
 }
 
 
-static bool _fill_prms_from_json(struct options* prms, json_t* root)
+static bool _fill_prms_from_json(struct options* opts, json_t* root)
 {
     if (!json_is_object(root)) {
         return false;
     }
 
-    json_t* opts = json_object_get(root, "options");
-    if (!opts) {
+    json_t* dict = json_object_get(root, "options");
+    if (!dict) {
         return true;
     }
 
-    if (!json_is_object(opts)) {
+    if (!json_is_object(dict)) {
         ERR_MSG("Key 'options' must point to a dictionary");
-        json_decref(opts);
+        json_decref(dict);
         return false;
     }
 
     json_error_t error;
 
     int code = json_unpack_ex(
-            opts, &error, JSON_STRICT,
+            dict, &error, JSON_STRICT,
 
             "{s?i, s?i "
             " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b "
@@ -139,53 +139,53 @@ static bool _fill_prms_from_json(struct options* prms, json_t* root)
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
 
             // integer options
-            "nsteps", &prms->nsteps,
-            "verbosity", &prms->verbosity,
+            "nsteps", &opts->nsteps,
+            "verbosity", &opts->verbosity,
 
             // binary options
-            "bonds", &prms->bonds,
-            "angles", &prms->angles,
-            "dihedrals", &prms->dihedrals,
-            "impropers", &prms->impropers,
-            "vdw", &prms->vdw,
-            "vdw03", &prms->vdw03,
-            "gbsa", &prms->gbsa,
-            "fix-receptor", &prms->fix_receptor,
-            "fix-ligand", &prms->fix_ligand,
-            "score-only", &prms->score_only,
-            "print-step", &prms->print_step,
-            "print-stage", &prms->print_stage,
-            "print-noe-matrix", &prms->print_noe_matrix,
+            "bonds", &opts->bonds,
+            "angles", &opts->angles,
+            "dihedrals", &opts->dihedrals,
+            "impropers", &opts->impropers,
+            "vdw", &opts->vdw,
+            "vdw03", &opts->vdw03,
+            "gbsa", &opts->gbsa,
+            "fix-receptor", &opts->fix_receptor,
+            "fix-ligand", &opts->fix_ligand,
+            "score-only", &opts->score_only,
+            "print-step", &opts->print_step,
+            "print-stage", &opts->print_stage,
+            "print-noe-matrix", &opts->print_noe_matrix,
 
             // char options
-            "out-pdb", &prms->out_pdb,
-            "out-json", &prms->out_json,
-            "psf", &prms->psf,
-            "prm", &prms->prm,
-            "rtf", &prms->rtf,
-            "pdb", &prms->pdb,
-            "json", &prms->json,
-            "rec-psf", &prms->rec_psf,
-            "rec-prm", &prms->rec_prm,
-            "rec-rtf", &prms->rec_rtf,
-            "rec-pdb", &prms->rec_pdb,
-            "rec-json", &prms->rec_json,
-            "lig-psf", &prms->lig_psf,
-            "lig-prm", &prms->lig_prm,
-            "lig-rtf", &prms->lig_rtf,
-            "lig-pdb", &prms->lig_pdb,
-            "lig-json", &prms->lig_json,
-            "fixed-pdb", &prms->fixed_pdb,
-            "pair-springs-txt", &prms->pair_springs_txt,
-            "point-springs-txt", &prms->point_springs_txt,
-            "noe-txt", &prms->noe_txt,
-            "noe-json", &prms->noe_json,
-            "density-json", &prms->density_json
+            "out-pdb", &opts->out_pdb,
+            "out-json", &opts->out_json,
+            "psf", &opts->psf,
+            "prm", &opts->prm,
+            "rtf", &opts->rtf,
+            "pdb", &opts->pdb,
+            "json", &opts->json,
+            "rec-psf", &opts->rec_psf,
+            "rec-prm", &opts->rec_prm,
+            "rec-rtf", &opts->rec_rtf,
+            "rec-pdb", &opts->rec_pdb,
+            "rec-json", &opts->rec_json,
+            "lig-psf", &opts->lig_psf,
+            "lig-prm", &opts->lig_prm,
+            "lig-rtf", &opts->lig_rtf,
+            "lig-pdb", &opts->lig_pdb,
+            "lig-json", &opts->lig_json,
+            "fixed-pdb", &opts->fixed_pdb,
+            "pair-springs-txt", &opts->pair_springs_txt,
+            "point-springs-txt", &opts->point_springs_txt,
+            "noe-txt", &opts->noe_txt,
+            "noe-json", &opts->noe_json,
+            "density-json", &opts->density_json
     );
 
     if (code != 0) {
         JSON_ERR_MSG(error, "Couldn't parse setup from json");
-        json_decref(opts);
+        json_decref(dict);
         return false;
     }
 
@@ -193,83 +193,81 @@ static bool _fill_prms_from_json(struct options* prms, json_t* root)
 }
 
 
-static int _check_prms(struct options *prms)
+static int _check_prms(struct options *opts)
 {
     bool full = false;
     bool rec_sep = false;
     bool lig_sep = false;
 
-    VERBOSITY = prms->verbosity;
+    VERBOSITY = opts->verbosity;
 
     // Unpack setup json first and fill the global options if there are any
-    if (prms->setup_json) {
-        json_t* setup = read_json_file(prms->setup_json);
+    if (opts->setup_json) {
+        json_t* setup = read_json_file(opts->setup_json);
         if (!setup) {
             return 1;
         }
 
-        if (!_fill_prms_from_json(prms, setup)) {
+        if (!_fill_prms_from_json(opts, setup)) {
             json_decref(setup);
-            ERR_MSG("Couldn't parse options");
+            ERR_MSG("Couldn't parse options from --setup-json");
             return 1;
         }
         //json_decref(setup);
-        prms->setup_json_root = setup;
+        opts->setup_json_root = setup;
+
+        VERBOSITY = opts->verbosity;
     }
 
-    VERBOSITY = prms->verbosity;
-
-    if (prms->json || prms->pdb || prms->psf || prms->prm || prms->rtf) {
+    if (opts->json || opts->pdb || opts->psf || opts->prm || opts->rtf) {
         full = true;
-        prms->separate = false;
+        opts->separate = false;
 
-        if (!(prms->json || (prms->pdb && prms->psf && prms->prm && prms->rtf))) {
-            ERR_MSG("Wrong sfds");
+        if (!(opts->json || (opts->pdb && opts->psf && opts->prm && opts->rtf))) {
+            ERR_MSG("Json and/or pdb, psf, prm and rtf must be provided");
             return 1;
         }
 
-        if (prms->fix_receptor) {
-            ERR_MSG("Can't fix receptor when provided as a single file");
+        if (opts->fix_receptor) {
+            ERR_MSG("Can't fix the receptor when using single file mode");
             return 1;
         }
 
-        if (prms->fix_ligand) {
-            ERR_MSG("Can't fix ligand when provided as a single file");
+        if (opts->fix_ligand) {
+            ERR_MSG("Can't fix the ligand when using single file mode");
             return 1;
         }
-
-        INFO_MSG("Using prm %s", prms->prm);
     }
 
-    if (prms->rec_pdb || prms->rec_psf || prms->rec_prm || prms->rec_rtf || prms->rec_json) {
+    if (opts->rec_pdb || opts->rec_psf || opts->rec_prm || opts->rec_rtf || opts->rec_json) {
         if (full) {
-            ERR_MSG("Cant sep and full at the same time");
+            ERR_MSG("You can't provide options for rec/lig mode and single file mode at the same time");
             return 1;
         }
 
-        if (!(prms->rec_json || (prms->rec_pdb && prms->rec_psf && prms->rec_prm && prms->rec_rtf))) {
-            ERR_MSG("Rec error");
+        if (!(opts->rec_json || (opts->rec_pdb && opts->rec_psf && opts->rec_prm && opts->rec_rtf))) {
+            ERR_MSG("Json and/or pdb, psf, prm and rtf must be provided for receptor");
             return 1;
         }
 
         rec_sep = true;
 
-        if (!(prms->lig_json || (prms->lig_pdb && prms->lig_psf && prms->lig_prm && prms->lig_rtf))) {
-            ERR_MSG("Lig error");
+        if (!(opts->lig_json || (opts->lig_pdb && opts->lig_psf && opts->lig_prm && opts->lig_rtf))) {
+            ERR_MSG("Json and/or pdb, psf, prm and rtf must be provided for ligand");
             return 1;
         }
 
         lig_sep = true;
-        prms->separate = true;
+        opts->separate = true;
     }
 
     if (!(full || (rec_sep && lig_sep))) {
-        ERR_MSG("Nothing provided");
+        ERR_MSG("The molecule wasn't provided");
         return 1;
     }
 
-    if (prms->nsteps < 0) {
-        ERR_MSG("nsteps < 0");
+    if (opts->nsteps < 0) {
+        ERR_MSG("Number of steps can't be negative");
         return 1;
     }
 
@@ -277,9 +275,9 @@ static int _check_prms(struct options *prms)
 }
 
 
-struct options parse_args(const int argc, char *const *argv, bool *error)
+struct options options_populate_from_argv(const int argc, char *const *argv, bool *error)
 {
-    struct options prms = get_defaut_options();
+    struct options prms = options_get_default();
 
     struct option long_options[] =
             {
@@ -358,7 +356,7 @@ struct options parse_args(const int argc, char *const *argv, bool *error)
             case 0:
                 if (long_options[option_index].flag != 0)
                     break;
-                INFO_MSG("Option %s = %s", long_options[option_index].name, optarg);
+                DEBUG_MSG("Option %s = %s", long_options[option_index].name, optarg);
                 break;
 
             case 'h':

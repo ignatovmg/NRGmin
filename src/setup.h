@@ -1,5 +1,5 @@
-#ifndef ENERGYMIN_POTENTIALS_H
-#define ENERGYMIN_POTENTIALS_H
+#ifndef ENERGYMIN_SETUP_H
+#define ENERGYMIN_SETUP_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,7 +20,7 @@ struct json_log_setup {
     bool print_noe_matrix;
 };
 
-struct energy_prm {
+struct energy_prms {
     struct mol_atom_group *ag;
     struct agsetup *ag_setup;
     struct acesetup *ace_setup;
@@ -90,18 +90,14 @@ struct fixed_setup {
 };
 
 
-bool energy_prm_read(
-        struct energy_prm **result_energy_prm,
+bool energy_prms_populate_from_options(
+        struct energy_prms **result_energy_prm,
         size_t *result_nstages,
-        const struct options prms);
+        const struct options opts);
 
-void energy_prm_free(struct energy_prm** prm, size_t nstages);
+void energy_prms_free(struct energy_prms **prms, size_t nstages);
 
-struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *prms);
-
-void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_group *ag, double *een);
-
-void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een);
+struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *opts);
 
 
-#endif //ENERGYMIN_POTENTIALS_H
+#endif //ENERGYMIN_SETUP_H

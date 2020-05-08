@@ -44,9 +44,10 @@ set(INCLUDE_LIST
         "${GSL_INCLUDE_DIR}")
 
 set(SRC_LIST
-        ${PROJECT_SOURCE_DIR}/src/potentials.c
+        ${PROJECT_SOURCE_DIR}/src/setup.c
         ${PROJECT_SOURCE_DIR}/src/parse_options.c
-        ${PROJECT_SOURCE_DIR}/src/utils.c)
+        ${PROJECT_SOURCE_DIR}/src/utils.c
+        ${PROJECT_SOURCE_DIR}/src/energy.c)
 
 add_executable(minimize ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
 
