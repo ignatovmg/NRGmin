@@ -309,9 +309,9 @@ static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
     while (id < sprst->nsprings) {
         size_t c = fscanf(fp,
                 "%lf %lf %lf %zu %s %zu %s",
-                &sprs[id].lnspr,
-                &sprs[id].erspr,
-                &sprs[id].fkspr,
+                &sprs[id].length,
+                &sprs[id].error,
+                &sprs[id].weight,
                 &aid1,
                 name1,
                 &aid2,
@@ -325,8 +325,8 @@ static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
             return NULL;
         }
 
-        sprs[id].laspr[0] = aid1 - 1;
-        sprs[id].laspr[1] = aid2 - 1;
+        sprs[id].atoms[0] = aid1 - 1;
+        sprs[id].atoms[1] = aid2 - 1;
 
         id++;
     }
@@ -355,11 +355,11 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
         int result = json_unpack_ex(
                 spring, &j_error, 0,
                 "{s:F, s:F, s:F, s:i, s:i}",
-                "length", &spring_set[counter].lnspr,
-                "error", &spring_set[counter].erspr,
-                "weight", &spring_set[counter].fkspr,
-                "atom1", &spring_set[counter].laspr[0],
-                "atom2", &spring_set[counter].laspr[1]);
+                "length", &spring_set[counter].length,
+                "error", &spring_set[counter].error,
+                "weight", &spring_set[counter].weight,
+                "atom1", &spring_set[counter].atoms[0],
+                "atom2", &spring_set[counter].atoms[1]);
 
         if (result != 0) {
             JSON_ERR_MSG(j_error, "Wrong pairspring setup json format");
@@ -376,7 +376,7 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
             error = true;
             break;
         }
-        spring_set[counter].lnspr = dv;
+        spring_set[counter].length = dv;
 
         value = json_object_get(spring, "error");
         if (!value || !(dv = json_number_value(value))) {
@@ -384,7 +384,7 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
             error = true;
             break;
         }
-        spring_set[counter].erspr= dv;
+        spring_set[counter].error= dv;
 
         value = json_object_get(spring, "weight");
         if (!value || !(dv = json_number_value(value))) {
@@ -392,7 +392,7 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
             error = true;
             break;
         }
-        spring_set[counter].fkspr = dv;
+        spring_set[counter].weight = dv;
 
         value = json_object_get(spring, "atom1");
         if (!value || !(iv = json_integer_value(value))) {
@@ -400,7 +400,7 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
             error = true;
             break;
         }
-        spring_set[counter].laspr[0] = iv - 1;
+        spring_set[counter].atoms[0] = iv - 1;
 
         value = json_object_get(spring, "atom2");
         if (!value || !(iv = json_integer_value(value))) {
@@ -408,7 +408,7 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
             error = true;
             break;
         }
-        spring_set[counter].laspr[1] = iv - 1;*/
+        spring_set[counter].atoms[1] = iv - 1;*/
     }
 
     if (error) {
@@ -428,8 +428,8 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
 static void _pointsprings_setup_free(struct pointsprings_setup **sprst) {
     if (*sprst != NULL) {
         for (size_t i = 0; i < (*sprst)->nsprings; i++) {
-            if ((*sprst)->springs[i].laspr != NULL) {
-                free((*sprst)->springs[i].laspr);
+            if ((*sprst)->springs[i].atoms != NULL) {
+                free((*sprst)->springs[i].atoms);
             }
         }
         free((*sprst)->springs);
@@ -471,12 +471,12 @@ static struct pointsprings_setup *_pointsprings_setup_read_txt(const char *path)
             return NULL;
         }
 
-        sprs[id].naspr = naspr;
-        sprs[id].fkspr = fkspr;
+        sprs[id].natoms = naspr;
+        sprs[id].weight = fkspr;
         sprs[id].X0 = X0;
         sprs[id].Y0 = Y0;
         sprs[id].Z0 = Z0;
-        sprs[id].laspr = calloc(naspr, sizeof(size_t));
+        sprs[id].atoms = calloc(naspr, sizeof(size_t));
 
         for (size_t i = 0; i < naspr; i++) {
             c = fscanf(fp, "%zu %s", &aid, name);
@@ -488,7 +488,7 @@ static struct pointsprings_setup *_pointsprings_setup_read_txt(const char *path)
                 return NULL;
             }
 
-            sprs[id].laspr[i] = aid - 1;
+            sprs[id].atoms[i] = aid - 1;
         }
     }
 
@@ -516,7 +516,7 @@ static struct pointsprings_setup *_pointsprings_setup_read_json(const json_t *ro
         int code = json_unpack_ex(
                 spring, &j_error, 0,
                 "{s:F, s:[F,F,F]}",
-                "weight", &cur_spring->fkspr,
+                "weight", &cur_spring->weight,
                 "coords", &cur_spring->X0, &cur_spring->Y0,  &cur_spring->Z0);
         if (code != 0) {
             JSON_ERR_MSG(j_error, "Couldn't parse json pointspring");
@@ -531,20 +531,20 @@ static struct pointsprings_setup *_pointsprings_setup_read_json(const json_t *ro
             return NULL;
         }
 
-        cur_spring->naspr = json_array_size(atoms);
-        cur_spring->laspr = calloc(cur_spring->naspr, sizeof(size_t));
+        cur_spring->natoms = json_array_size(atoms);
+        cur_spring->atoms = calloc(cur_spring->natoms, sizeof(size_t));
         size_t atom_counter;
         json_t* atom_id;
 
         json_array_foreach(atoms, atom_counter, atom_id) {
             if (!json_is_integer(atom_id)) {
                 for (size_t i = 0; i < nsprings; i++) {
-                    free(sprs[i].laspr);
+                    free(sprs[i].atoms);
                 }
                 free(sprs);
                 return NULL;
             }
-            cur_spring->laspr[atom_counter] = json_integer_value(atom_id);
+            cur_spring->atoms[atom_counter] = json_integer_value(atom_id);
         }
     }
 
@@ -773,7 +773,6 @@ bool energy_prms_populate_from_options(
     all_stage_prms->gbsa = opts.gbsa;
 
     all_stage_prms->score_only = opts.score_only;
-    all_stage_prms->verbose = opts.verbosity;
 
     all_stage_prms->json_log_setup.print_step = opts.print_step;
     all_stage_prms->json_log_setup.print_stage = opts.print_stage;
@@ -917,7 +916,7 @@ bool energy_prms_populate_from_options(
             json_error_t j_error;
             int code = json_unpack_ex(
                     stage_desc, &j_error, 0,
-                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
+                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
                     "bonds", &stage_prms->bonds,
                     "angles", &stage_prms->angles,
                     "dihedrals", &stage_prms->dihedrals,
@@ -928,7 +927,6 @@ bool energy_prms_populate_from_options(
                     "fix_receptor", &stage_fix_rec,
                     "fix_ligand", &stage_fix_lig,
                     "score_only", &stage_prms->score_only,
-                    "verbosity", &stage_prms->verbose,
                     "nsteps", &stage_prms->nsteps);
 
             if (code != 0) {

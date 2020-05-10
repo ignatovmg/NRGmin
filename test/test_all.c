@@ -388,15 +388,15 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms->sprst_points->nsprings, 1);
-            ck_assert_int_eq(prms->sprst_points->springs[0].naspr, 24);
-            ck_assert_double_eq_tol(prms->sprst_points->springs[0].fkspr, 8, 10e-3);
+            ck_assert_int_eq(prms->sprst_points->springs[0].natoms, 24);
+            ck_assert_double_eq_tol(prms->sprst_points->springs[0].weight, 8, 10e-3);
             ck_assert_double_eq_tol(prms->sprst_points->springs[0].X0, 30.381, 10e-3);
             ck_assert_double_eq_tol(prms->sprst_points->springs[0].Y0, 5.877, 10e-3);
             ck_assert_double_eq_tol(prms->sprst_points->springs[0].Z0, 14.905, 10e-3);
 
             // Compare first 6 IDs
             _compare_arrays_size_t(
-                    prms->sprst_points->springs->laspr,
+                    prms->sprst_points->springs->atoms,
                     (size_t[]){3598, 3599, 3600, 3601, 3602, 3603},
                     6);
 
@@ -420,12 +420,12 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms->sprst_pairs->nsprings, 1);
-            ck_assert_double_eq_tol(prms->sprst_pairs->springs->fkspr, 5.0, 10e-3);
-            ck_assert_double_eq_tol(prms->sprst_pairs->springs->erspr, 2.0, 10e-3);
-            ck_assert_double_eq_tol(prms->sprst_pairs->springs->lnspr, 5.0, 10e-3);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->weight, 5.0, 10e-3);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->error, 2.0, 10e-3);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->length, 5.0, 10e-3);
 
             _compare_arrays_size_t(
-                    prms->sprst_pairs->springs->laspr,
+                    prms->sprst_pairs->springs->atoms,
                     (size_t[]){101, 3598},
                     2);
 
@@ -598,8 +598,8 @@ START_TEST(test_energy_prm_from_json)
             ck_assert_double_eq_tol(prms[1].nmr->weight, 1000, 10e-3);
             ck_assert_ptr_nonnull(prms[1].nmr->spec);
             ck_assert_int_eq(prms[1].nmr->spec->size, 2);
-            ck_assert_int_eq(prms[2].sprst_points->springs[0].laspr[3], 4);
-            ck_assert_int_eq(prms[1].sprst_pairs->springs[0].laspr[1], 5);
+            ck_assert_int_eq(prms[2].sprst_points->springs[0].atoms[3], 4);
+            ck_assert_int_eq(prms[1].sprst_pairs->springs[0].atoms[1], 5);
 
             energy_prms_free(&prms, nstages);
             break;

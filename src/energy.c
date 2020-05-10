@@ -156,7 +156,7 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
     struct mol_vector3 g;
 
     for (i = 0; i < sprst->nsprings; i++) {
-        nat = sprst->springs[i].naspr;
+        nat = sprst->springs[i].natoms;
 
         if (nat > 0) {
             xtot = 0.0;
@@ -164,7 +164,7 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
             ztot = 0.0;
 
             for (i1 = 0; i1 < nat; i1++) {
-                i2 = sprst->springs[i].laspr[i1];
+                i2 = sprst->springs[i].atoms[i1];
                 xtot += ag->coords[i2].X;
                 ytot += ag->coords[i2].Y;
                 ztot += ag->coords[i2].Z;
@@ -174,7 +174,7 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
             ytot = ytot / nat - sprst->springs[i].Y0;
             ztot = ztot / nat - sprst->springs[i].Z0;
 
-            fk = sprst->springs[i].fkspr;
+            fk = sprst->springs[i].weight;
             (*een) += fk * (xtot * xtot + ytot * ytot + ztot * ztot);
 
             fk = 2 * fk / nat;
@@ -183,7 +183,7 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
             g.Z = ztot * fk;
 
             for (i1 = 0; i1 < nat; i1++) {
-                i2 = sprst->springs[i].laspr[i1];
+                i2 = sprst->springs[i].atoms[i1];
                 MOL_VEC_SUB(ag->gradients[i2], ag->gradients[i2], g);
             }
         }
@@ -197,12 +197,12 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
     struct mol_vector3 g;
 
     for (i = 0; i < sprst->nsprings; i++) {
-        ln = sprst->springs[i].lnspr;
-        er = sprst->springs[i].erspr;
-        fk = sprst->springs[i].fkspr / 2.0;
+        ln = sprst->springs[i].length;
+        er = sprst->springs[i].error;
+        fk = sprst->springs[i].weight / 2.0;
 
-        i1 = sprst->springs[i].laspr[0];
-        i2 = sprst->springs[i].laspr[1];
+        i1 = sprst->springs[i].atoms[0];
+        i2 = sprst->springs[i].atoms[1];
 
         xtot = ag->coords[i2].X - ag->coords[i1].X;
         ytot = ag->coords[i2].Y - ag->coords[i1].Y;

@@ -106,11 +106,18 @@ int main(int argc, char **argv) {
             stage_prms->ag_setup = &ag_setup;
 
             // Minimize energy
-            mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
+            if (!stage_prms->score_only) {
+                stage_prms->json_log = NULL;
 
-            // Record energy every time it was evaluated
-            if (stage_prms->json_log_setup.print_step) {
-                json_object_set_new(json_log_stage, "steps", stage_prms->json_log);
+                mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
+
+                // Record energy every time it was evaluated
+                if (stage_prms->json_log_setup.print_step) {
+                    json_object_set_new(json_log_stage, "steps", stage_prms->json_log);
+                } else {
+                    json_decref(stage_prms->json_log);
+                }
+
                 stage_prms->json_log = NULL;
             }
 
@@ -136,7 +143,7 @@ int main(int argc, char **argv) {
         INFO_MSG("Finished model %zu", modeli);
     }
 
-    if (!json_dump_file(json_log_total, opts.out_json, JSON_INDENT(4))) {
+    if (json_dump_file(json_log_total, opts.out_json, JSON_INDENT(4)) != 0) {
         ERR_MSG("Couldn't write to file %s", opts.out_json);
         return EXIT_FAILURE;
     }

@@ -1,3 +1,7 @@
+/**
+ * \file Functions for parsing variable minimization setup formats
+ */
+
 #ifndef ENERGYMIN_SETUP_H
 #define ENERGYMIN_SETUP_H
 
@@ -14,26 +18,35 @@
 #include "parse_options.h"
 
 
+/**
+ * Regulates the output in json log file
+ */
 struct json_log_setup {
-    bool print_step;
-    bool print_stage;
-    bool print_noe_matrix;
+    bool print_step; ///< Output energy for every step
+    bool print_stage; ///< Output final energy for every minimization stage
+    bool print_noe_matrix; ///< Matrix can be bulky, so this switches "noe_details" field off in the json log
 };
 
+
+/**
+ * The structure sets up different
+ * options and terms computed by energy function
+ */
 struct energy_prms {
-    struct mol_atom_group *ag;
-    struct agsetup *ag_setup;
-    struct acesetup *ace_setup;
-    json_t* json_log;
+    struct mol_atom_group *ag; ///< Minimized atom group
+    struct agsetup *ag_setup; ///< Atom group setup
+    struct acesetup *ace_setup; ///< GBSA setup
+    json_t* json_log; ///< Energy terms are written here every time energy function is envoked
+    struct json_log_setup json_log_setup; ///< json log file parameters
 
-    struct pairsprings_setup *sprst_pairs;
-    struct pointsprings_setup *sprst_points;
-    struct noe_setup *nmr;
-    struct density_setup *fit_prms;
-    struct fixed_setup *fixed;
+    struct pairsprings_setup *sprst_pairs; ///< Pairwise distance restraints
+    struct pointsprings_setup *sprst_points; ///< Pointwise distance restraints
+    struct noe_setup *nmr; ///< NOE matrix restraints
+    struct density_setup *fit_prms; ///< Density fitting
+    struct fixed_setup *fixed; ///< Fixed atoms
 
-    int nsteps;
-    bool bonds;
+    int nsteps; ///< Max number of steps during minimization
+    bool bonds; ///< Flags
     bool angles;
     bool dihedrals;
     bool impropers;
@@ -41,10 +54,7 @@ struct energy_prms {
     bool vdw03;
     bool gbsa;
 
-    bool score_only;
-    bool verbose;
-
-    struct json_log_setup json_log_setup;
+    bool score_only; ///< Don't perform minimizition and only output energy terms
 };
 
 struct noe_setup {
@@ -61,27 +71,27 @@ struct density_setup {
 };
 
 struct pairspring {
-    size_t laspr[2];      /**< list of atoms */
-    double lnspr;
-    double erspr;
-    double fkspr;      /**< force constant */
+    size_t atoms[2];
+    double length;
+    double error;
+    double weight;
 };
 
 struct pointspring {
-    size_t naspr;      /**< number of affected atoms */
-    size_t *laspr;      /**< list of atoms */
-    double fkspr;      /**< force constant */
-    double X0, Y0, Z0; /**< anchor point */
+    size_t natoms; ///< Number of atom in a group being pulled
+    size_t *atoms; ///< Atom IDs
+    double weight; ///< Weight
+    double X0, Y0, Z0; ///< Attachment point
 };
 
 struct pairsprings_setup {
-    size_t nsprings;       /**< number of springs */
-    struct pairspring *springs;  /**< array of springs */
+    size_t nsprings;
+    struct pairspring *springs;
 };
 
 struct pointsprings_setup {
-    size_t nsprings;       /**< number of springs */
-    struct pointspring *springs;  /**< array of springs */
+    size_t nsprings;
+    struct pointspring *springs;
 };
 
 struct fixed_setup {
@@ -90,6 +100,14 @@ struct fixed_setup {
 };
 
 
+/**
+ * Fill energy minimization setups from parsed command line arguments
+ *
+ * @param result_energy_prm Structure being filled in
+ * @param result_nstages Number of minimization stages
+ * @param opts Parsed command line options
+ * @return True on success, false on failure
+ */
 bool energy_prms_populate_from_options(
         struct energy_prms **result_energy_prm,
         size_t *result_nstages,
@@ -97,6 +115,12 @@ bool energy_prms_populate_from_options(
 
 void energy_prms_free(struct energy_prms **prms, size_t nstages);
 
+
+/**
+ * Create atom group list from command line arguments
+ * @param opts Parsed command line options
+ * @return List of atom groups to minimize
+ */
 struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *opts);
 
 
