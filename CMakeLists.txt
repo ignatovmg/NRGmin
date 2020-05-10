@@ -27,21 +27,16 @@ cmake_print_variables(CMAKE_MODULE_PATH CMAKE_MODULE_PATH)
 
 find_package(Jansson REQUIRED)
 
-find_package(GSL REQUIRED)
-
 find_package(mol2 REQUIRED)
 
 set(LIBRARY_LIST
         "${MOL2_LIBRARIES}"
-        "${GSL_LIBRARIES}"
         "${JANSSON_LIBRARIES}"
         m)
 
 set(INCLUDE_LIST
         "${MOL2_INCLUDE_DIRS}"
-        "${JANSSON_INCLUDE_DIRS}"
-        "${GSL_INCLUDE_DIRS}"
-        "${GSL_INCLUDE_DIR}")
+        "${JANSSON_INCLUDE_DIRS}")
 
 set(SRC_LIST
         ${PROJECT_SOURCE_DIR}/src/setup.c

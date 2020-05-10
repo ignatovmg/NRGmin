@@ -1,0 +1,16 @@
+# groups file
+104.fake_groups
+# experimental matrix
+104.fake_mat
+# frequency (GHz)
+0.00006
+# cor time (nanoseconds)
+0.1
+# mix time (seconds)
+0.3
+# distance cutoff (A)
+1000
+# mask
+off
+# nmr weight in energy function
+100.0

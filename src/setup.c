@@ -118,7 +118,9 @@ static struct mol_atom_group_list *_read_ag_list(
 }
 
 
-static struct mol_atom_group_list* _merge_ag_lists(const struct mol_atom_group_list* ag1, const struct mol_atom_group_list* ag2) {
+static struct mol_atom_group_list* _merge_ag_lists(
+        const struct mol_atom_group_list* ag1,
+        const struct mol_atom_group_list* ag2) {
     if (ag1->size != ag2->size) {
         ERR_MSG("Receptor and ligand have different numbers of models (%zu, %zu)", ag1->size, ag2->size);
         return NULL;
@@ -200,9 +202,9 @@ static void _fixed_setup_free(struct fixed_setup **fixed)
 }
 
 
-static struct fixed_setup* _fixed_setup_read_txt(const char *file) {
+static struct fixed_setup* _fixed_setup_read_txt(const char *path) {
     FILE* fp;
-    FOPEN_ELSE(fp, file, "r") {
+    FOPEN_ELSE(fp, path, "r") {
         return NULL;
     }
 
@@ -602,11 +604,11 @@ void density_setup_free(struct density_setup **prms) {
 }*/
 
 
-static void _noe_setup_free(struct noe_setup **nmr) {
-    if (*nmr != NULL) {
-        mol_noe_free((*nmr)->spec);
-        free(*nmr);
-        *nmr = NULL;
+static void _noe_setup_free(struct noe_setup **noe) {
+    if (*noe != NULL) {
+        mol_noe_free((*noe)->spec);
+        free(*noe);
+        *noe = NULL;
     }
 }
 
@@ -625,14 +627,12 @@ static void _noe_setup_free(struct noe_setup **nmr) {
 } while(0)
 
 
-static struct noe_setup *_noe_setup_read_txt(const char *sfile) {
+static struct noe_setup *_noe_setup_read_txt(const char *path) {
     char line[512];
     FILE *f;
-    if (!(f = fopen(sfile, "r"))) {
-        ERR_MSG("jhkjh");
+    FOPEN_ELSE(f, path, "r") {
         return NULL;
     }
-
     struct noe_setup *nmr = calloc(1, sizeof(struct noe_setup));
 
     char *word;
@@ -708,8 +708,8 @@ static struct noe_setup *_noe_setup_read_json(json_t *root) {
 }
 
 
-static struct noe_setup *_noe_setup_read_json_file(const char *file) {
-    json_t* root = read_json_file(file);
+static struct noe_setup *_noe_setup_read_json_file(const char *path) {
+    json_t* root = read_json_file(path);
     if (!root) {
         return NULL;
     }
