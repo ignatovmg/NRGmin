@@ -4,8 +4,8 @@ if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
 endif()
 
-project(EnergyMin VERSION 0.0
-        DESCRIPTION "Energy minimization tool"
+project(EnergyMin VERSION 1.0
+        DESCRIPTION "Energy minimization utility"
         LANGUAGES C)
 
 set(CMAKE_CXX_STANDARD 11)
@@ -20,10 +20,6 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
 endif()
-
-include(CMakePrintHelpers)
-
-cmake_print_variables(CMAKE_MODULE_PATH CMAKE_MODULE_PATH)
 
 find_package(Jansson REQUIRED)
 
@@ -44,23 +40,23 @@ set(SRC_LIST
         ${PROJECT_SOURCE_DIR}/src/utils.c
         ${PROJECT_SOURCE_DIR}/src/energy.c)
 
-add_executable(minimize ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
+add_executable(nrgmin ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
 
 if (LTO)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT result)
     if(result)
-        set_target_properties(minimize PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+        set_target_properties(nrgmin PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
     endif()
 endif()
 
-target_include_directories(minimize
+target_include_directories(nrgmin
         PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
         "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
         PRIVATE ${INCLUDE_LIST})
 
-target_link_libraries(minimize ${LIBRARY_LIST})
+target_link_libraries(nrgmin ${LIBRARY_LIST})
 
 if (BUILD_TESTS)
     find_package(Check REQUIRED)

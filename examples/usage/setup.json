@@ -1,0 +1,47 @@
+{
+  "options": {
+    "rec_pdb": "BACE_4_rec_2models.pdb",
+    "rec_psf": "BACE_4_rec.psf",
+    "rec_prm": "BACE_4_rec_parm.prm",
+    "rec_rtf": "BACE_4_rec_pdbamino.rtf",
+    "lig_json": "BACE_4_lig.json",
+    "lig_pdb": "BACE_4_lig_2models_close.pdb"
+  },
+  "stages": [
+    {
+      "nsteps": 1000,
+      "fix_ligand": true
+    },
+    {
+      "nsteps": 1000,
+      "fix_receptor": true
+    },
+    {
+      "nsteps": 1000,
+      "vdw03": false,
+      "gbsa": true,
+      "pointsprings": [
+        {
+          "weight": 10,
+          "coords": [
+            26.816,
+            1.943,
+            23.790
+          ],
+          "atoms": [
+            3598
+          ]
+        }
+      ],
+      "pairsprings": [
+        {
+          "weight": 10,
+          "length": 10,
+          "error": 1,
+          "atom1": 3598,
+          "atom2": 3630
+        }
+      ]
+    }
+  ]
+}

@@ -20,20 +20,23 @@
 } while (0)
 
 
-#define _FILL_PARAM(arg, value) do {      \
-    char str_arg[] = #arg;  \
-    char* dot_pos; \
-    if ((dot_pos = strchr(str_arg, '.')) != NULL) { \
-        dot_pos = dot_pos + 1; \
-    }  \
-    char* dash_pos = dot_pos; \
-    while ((dash_pos = strchr(dash_pos, '_')) != NULL) { \
-        *dash_pos = '-'; \
-    };  \
-    if (strcmp(dot_pos, long_options[option_index].name) == 0) { \
-            (arg) = (value);  \
-            break; \
-    }      \
+/**
+ * Stringize "arg" find the dot, replace "-" with "_" and compare to "value"
+ */
+#define _FILL_PARAM(arg, value) do {                                   \
+    char str_arg[] = #arg;                                             \
+    char* dot_pos;                                                     \
+    if ((dot_pos = strchr(str_arg, '.')) != NULL) {                    \
+        dot_pos = dot_pos + 1;                                         \
+    }                                                                  \
+    char* dash_pos = dot_pos;                                          \
+    while ((dash_pos = strchr(dash_pos, '_')) != NULL) {               \
+        *dash_pos = '-';                                               \
+    };                                                                 \
+    if (strcmp(dot_pos, long_options[option_index].name) == 0) {       \
+            (arg) = (value);                                           \
+            break;                                                     \
+    }                                                                  \
 } while (0)
 
 
@@ -150,37 +153,37 @@ static bool _fill_prms_from_json(struct options* opts, json_t* root)
             "vdw", &opts->vdw,
             "vdw03", &opts->vdw03,
             "gbsa", &opts->gbsa,
-            "fix-receptor", &opts->fix_receptor,
-            "fix-ligand", &opts->fix_ligand,
-            "score-only", &opts->score_only,
-            "print-step", &opts->print_step,
-            "print-stage", &opts->print_stage,
-            "print-noe-matrix", &opts->print_noe_matrix,
+            "fix_receptor", &opts->fix_receptor,
+            "fix_ligand", &opts->fix_ligand,
+            "score_only", &opts->score_only,
+            "print_step", &opts->print_step,
+            "print_stage", &opts->print_stage,
+            "print_noe_matrix", &opts->print_noe_matrix,
 
             // char options
-            "out-pdb", &opts->out_pdb,
-            "out-json", &opts->out_json,
+            "out_pdb", &opts->out_pdb,
+            "out_json", &opts->out_json,
             "psf", &opts->psf,
             "prm", &opts->prm,
             "rtf", &opts->rtf,
             "pdb", &opts->pdb,
             "json", &opts->json,
-            "rec-psf", &opts->rec_psf,
-            "rec-prm", &opts->rec_prm,
-            "rec-rtf", &opts->rec_rtf,
-            "rec-pdb", &opts->rec_pdb,
-            "rec-json", &opts->rec_json,
-            "lig-psf", &opts->lig_psf,
-            "lig-prm", &opts->lig_prm,
-            "lig-rtf", &opts->lig_rtf,
-            "lig-pdb", &opts->lig_pdb,
-            "lig-json", &opts->lig_json,
-            "fixed-pdb", &opts->fixed_pdb,
-            "pair-springs-txt", &opts->pair_springs_txt,
-            "point-springs-txt", &opts->point_springs_txt,
-            "noe-txt", &opts->noe_txt,
-            "noe-json", &opts->noe_json,
-            "density-json", &opts->density_json
+            "rec_psf", &opts->rec_psf,
+            "rec_prm", &opts->rec_prm,
+            "rec_rtf", &opts->rec_rtf,
+            "rec_pdb", &opts->rec_pdb,
+            "rec_json", &opts->rec_json,
+            "lig_psf", &opts->lig_psf,
+            "lig_prm", &opts->lig_prm,
+            "lig_rtf", &opts->lig_rtf,
+            "lig_pdb", &opts->lig_pdb,
+            "lig_json", &opts->lig_json,
+            "fixed_pdb", &opts->fixed_pdb,
+            "pair_springs_txt", &opts->pair_springs_txt,
+            "point_springs_txt", &opts->point_springs_txt,
+            "noe_txt", &opts->noe_txt,
+            "noe_json", &opts->noe_json,
+            "density_json", &opts->density_json
     );
 
     if (code != 0) {
@@ -210,7 +213,7 @@ static int _check_prms(struct options *opts)
 
         if (!_fill_prms_from_json(opts, setup)) {
             json_decref(setup);
-            ERR_MSG("Couldn't parse options from --setup-json");
+            //ERR_MSG("Couldn't parse options from --setup-json");
             return 1;
         }
         //json_decref(setup);
@@ -282,17 +285,17 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
     struct option long_options[] =
             {
                     {"out-pdb",              required_argument, 0,                 0},
-                    {"out-json",              required_argument, 0,                 0},
+                    {"out-json",             required_argument, 0,                 0},
 
-                    {"print-step", no_argument, &prms.print_step, 1},
-                    {"print-stage", no_argument, &prms.print_stage, 1},
-                    {"print-noe-matrix", no_argument, &prms.print_noe_matrix, 1},
+                    {"print-step",           no_argument,       &prms.print_step,  1},
+                    {"print-stage",          no_argument,       &prms.print_stage, 1},
+                    {"print-noe-matrix",     no_argument,  &prms.print_noe_matrix, 1},
 
-                    {"psf",              required_argument, 0,                 0},
-                    {"prm",              required_argument, 0,                 0},
-                    {"rtf",              required_argument, 0,                 0},
-                    {"pdb",              required_argument, 0,                 0},
-                    {"json",             required_argument, 0,                 0},
+                    {"psf",                  required_argument, 0,                 0},
+                    {"prm",                  required_argument, 0,                 0},
+                    {"rtf",                  required_argument, 0,                 0},
+                    {"pdb",                  required_argument, 0,                 0},
+                    {"json",                 required_argument, 0,                 0},
 
                     {"rec-psf",              required_argument, 0,                 0},
                     {"rec-prm",              required_argument, 0,                 0},
@@ -306,41 +309,42 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                     {"lig-pdb",              required_argument, 0,                 0},
                     {"lig-json",             required_argument, 0,                 0},
 
-                    {"fixed-pdb",             required_argument, 0,                 0},
+                    {"fixed-pdb",            required_argument, 0,                 0},
 
-                    {"pair-springs-txt",             required_argument, 0,                 0},
-                    {"point-springs-txt",             required_argument, 0,                 0},
+                    {"pair-springs-txt",     required_argument, 0,                 0},
+                    {"point-springs-txt",    required_argument, 0,                 0},
 
-                    {"noe-txt",             required_argument, 0,                 0},
+                    {"noe-txt",              required_argument, 0,                 0},
                     {"noe-json",             required_argument, 0,                 0},
 
-                    {"density-json",             required_argument, 0,                 0},
-                    {"setup-json",             required_argument, 0,                 0},
+                    {"density-json",         required_argument, 0,                 0},
 
-                    {"nsteps",           required_argument, 0,                 0},
+                    {"setup-json",           required_argument, 0,                 0},
 
-                    {"bonds-on",             no_argument,  &prms.bonds,         1},
-                    {"bonds-off",             no_argument,  &prms.bonds,         0},
-                    {"angles-on",     no_argument,       &prms.angles,     1},
-                    {"angles-off",     no_argument,       &prms.angles,     0},
-                    {"dihedrals-on",          no_argument,       &prms.dihedrals,          1},
-                    {"dihedrals-off",          no_argument,       &prms.dihedrals,          0},
-                    {"impropers-on", no_argument,       &prms.impropers, 1},
-                    {"impropers-off", no_argument,       &prms.impropers, 0},
-                    {"vdw-on", no_argument,       &prms.vdw, 1},
-                    {"vdw-off", no_argument,       &prms.vdw, 0},
-                    {"vdw03-on", no_argument,       &prms.vdw03, 1},
-                    {"vdw03-off", no_argument,       &prms.vdw03, 0},
-                    {"gbsa-on", no_argument,       &prms.gbsa, 1},
-                    {"gbsa-off", no_argument,       &prms.gbsa, 0},
+                    {"nsteps",               required_argument, 0,                 0},
 
-                    {"fix-receptor",           no_argument,        &prms.fix_receptor,                 1},
-                    {"fix-ligand",           no_argument,        &prms.fix_ligand,                 1},
-                    {"score-only",           no_argument,        &prms.score_only,                 1},
-                    {"verbosity",             no_argument,       &prms.verbosity,                 1},
-                    {"help",             no_argument,       0,                 'h'},
+                    {"bonds-on",             no_argument,  &prms.bonds,            1},
+                    {"bonds-off",            no_argument,  &prms.bonds,            0},
+                    {"angles-on",            no_argument,  &prms.angles,           1},
+                    {"angles-off",           no_argument,  &prms.angles,           0},
+                    {"dihedrals-on",         no_argument,  &prms.dihedrals,        1},
+                    {"dihedrals-off",        no_argument,  &prms.dihedrals,        0},
+                    {"impropers-on",         no_argument,  &prms.impropers,        1},
+                    {"impropers-off",        no_argument,  &prms.impropers,        0},
+                    {"vdw-on",               no_argument,  &prms.vdw,              1},
+                    {"vdw-off",              no_argument,  &prms.vdw,              0},
+                    {"vdw03-on",             no_argument,  &prms.vdw03,            1},
+                    {"vdw03-off",            no_argument,  &prms.vdw03,            0},
+                    {"gbsa-on",              no_argument,  &prms.gbsa,             1},
+                    {"gbsa-off",             no_argument,  &prms.gbsa,             0},
 
-                    {0, 0,                                  0,                 0}
+                    {"fix-receptor",         no_argument,  &prms.fix_receptor,     1},
+                    {"fix-ligand",           no_argument,  &prms.fix_ligand,       1},
+                    {"score-only",           no_argument,  &prms.score_only,       1},
+                    {"verbosity",            no_argument,  &prms.verbosity,        1},
+                    {"help",                 no_argument,  0,                    'h'},
+
+                    {0,                      0,            0,                      0}
             };
 
     int option_index = 0;
@@ -360,18 +364,15 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                 break;
 
             case 'h':
-                usage_message(argv);
                 *error = false;
                 prms.help = true;
                 return prms;
 
             case '?':
-                usage_message(argv);
                 *error = true;
                 return prms;
 
             default:
-                usage_message(argv);
                 *error = true;
                 return prms;
         }
@@ -407,7 +408,6 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
     }
 
     if (_check_prms(&prms) != 0) {
-        usage_message(argv);
         *error = true;
         return prms;
     }
@@ -418,6 +418,96 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
 
 void usage_message(char *const *argv) {
-    fprintf(stderr, "Usage msg\n");
-    printf("\nUsage %s [ options ]\n\n", argv[0]);
+    fprintf(stderr, "\nUsage %s [ options ]\n\n", argv[0]);
+    fprintf(stderr, "Energy minimization using LBFGS.\n"
+           "\n"
+           "A molecule can be passed using two modes: single file mode or rec/lig mode.\n"
+           "Rec/lig mode is used, when structure is passed using rec-* lig-* arguments,\n"
+           "and single file mode is enabled for the opposite. Structure can be passed\n"
+           "using a set of 4 files pdb, psf, rtf, prm or as a single json file which\n"
+           "contains coordinates as well as force field parameters. Also and pair of\n"
+           "json and pdb can be passed, if one want to use geometry from json and\n"
+           "coordinates from pdb.\n"
+           "\n"
+           "All flags can be as well filled by passing a global setup file to --setup-json,\n"
+           "so this one argument is enough to run minimization.\n"
+           "\n"
+           "Examples of different minimization setups can be found in examples/energy_setup.\n"
+           "\n"
+           "    Output control:\n"
+           "\n"
+           "    --out-pdb Where to write the minimized molecule(s)\n"
+           "    --out-json Log file with energy terms\n"
+           "    --print-step Log energies for every step\n"
+           "    --print-stage Log energies for every stage\n"
+           "    --print-noe-matrix Log NOE matrix is NOE calculation is on\n"
+           "    --verbosity 0 - QUIET, 1 - ERROR, 2 - WARNING, 3 - INFO, >=4 - DEBUG\n"
+           "\n"
+           "\n"
+           "    Single file mode:\n"
+           "\n"
+           "    --psf Geometry\n"
+           "    --prm Forcefield parameters\n"
+           "    --rtf Topology file with residues description\n"
+           "    --pdb Atom coordinates (can contain multiple models)\n"
+           "    --json Json file with coordinates, geometry and force field parameters\n"
+           "\n"
+           "    Parameters for rec/lig mode\n"
+           "\n"
+           "    --rec-psf Receptor geometry\n"
+           "    --rec-prm Receptor forcefield parameters\n"
+           "    --rec-rtf Receptor topology file\n"
+           "    --rec-pdb Receptor atom coordinates (can contain multiple models)\n"
+           "    --rec-json Receptor json file with coordinates, geometry and force field parameters\n"
+           "    --lig-psf Ligand geometry\n"
+           "    --lig-prm Ligand forcefield parameters\n"
+           "    --lig-rtf Ligand topology file with residues description\n"
+           "    --lig-pdb Ligand atom coordinates (can contain multiple models)\n"
+           "    --lig-json Ligand json file with coordinates, geometry and force field parameters\n"
+           "\n"
+           "\n"
+           "    Minimization setup\n"
+           "\n"
+           "    --nsteps Number of minimization steps\n"
+           "\n"
+           "    Energy terms switches. Everything is on by default except for GBSA\n"
+           "\n"
+           "    --bonds-on/--bonds-off Bonds energy term\n"
+           "    --angles-on/--angles-off Angles\n"
+           "    --dihedrals-on/--dihedrals-off Dihedrals\n"
+           "    --impropers-on/--impropers-on Impropers\n"
+           "    --vdw-on/--vdw-off VDW\n"
+           "    --vdw03-on/--vdw03-off 1-4 VDW\n"
+           "    --gbsa-on/gbsa-off GBSA\n"
+           "\n"
+           "    Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)\n"
+           "\n"
+           "    --fixed-pdb PDB file with fixed atoms. Only atom ID is read (lines starting with ATOM)\n"
+           "    --fix-receptor Fix receptor atoms (works only in rec/lig mode)\n"
+           "    --fix-ligand Fix ligand atoms (works only in rec/lig mode)\n"
+           "\n"
+           "    Distance restraints\n"
+           "\n"
+           "    --pair-springs-txt Text file setup for pairwise restraints\n"
+           "    --point-springs-txt Text file setup for pointwise restraints\n"
+           "\n"
+           "    NOE setup\n"
+           "\n"
+           "    --noe-txt Text file setup for NOE\n"
+           "    --noe-json Json file setup for NOE\n"
+           "\n"
+           "    Density setup\n"
+           "\n"
+           "    --density-json Json file setup for density fitting\n"
+           "\n"
+           "    Global setup in json format\n"
+           "\n"
+           "    --setup-json This file duplicates all the other options. It also allows for\n"
+           "                 multistage minimization protocol, where each stage can have\n"
+           "                 different minimization terms\n"
+           "\n"
+           "    Miscellaneous\n"
+           "\n"
+           "    --score-only Score only without doing minimization\n"
+           "    --help Show this message and exit\n\n");
 }

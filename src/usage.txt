@@ -2,16 +2,16 @@ Energy minimization using LBFGS.
 
 A molecule can be passed using two modes: single file mode or rec/lig mode.
 Rec/lig mode is used, when structure is passed using rec-* lig-* arguments,
-and single file mode is enabled for  the opposite. Structure can  be passed
-using a set  of 4 files pdb, psf,  rtf, prm or as a single json  file which
-contains  coordinates as well as  force field parameters.  Also and pair  of
-json and pdb can be  passed, if  one want  to use  geometry  from json  and
+and single file mode is enabled for the opposite. Structure can be passed
+using a set of 4 files pdb, psf, rtf, prm or as a single json file which
+contains coordinates as well as force field parameters. Also and pair of
+json and pdb can be passed, if one want to use geometry from json and
 coordinates from pdb.
 
 All flags can be as well filled by passing a global setup file to --setup-json,
 so this one argument is enough to run minimization.
 
-Examples of different minimization setups can be found in examples/energy_setup
+Examples of different minimization setups can be found in examples/energy_setup.
 
     Output control:
 

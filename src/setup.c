@@ -997,7 +997,7 @@ bool energy_prms_populate_from_options(
                 }
             }*/
 
-            // NOE
+            // NO
             json_t* stage_noe = json_object_get(stage_desc, "noe");
             if (stage_noe) {
                 stage_prms->nmr = _noe_setup_read_json(stage_noe);
