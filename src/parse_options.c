@@ -114,7 +114,7 @@ void options_free(struct options opts)
 }
 
 
-static bool _fill_prms_from_json(struct options* opts, json_t* root)
+static bool _fill_prms_from_json(struct options* opts, const json_t* root)
 {
     if (!json_is_object(root)) {
         return false;
@@ -127,13 +127,12 @@ static bool _fill_prms_from_json(struct options* opts, json_t* root)
 
     if (!json_is_object(dict)) {
         ERR_MSG("Key 'options' must point to a dictionary");
-        json_decref(dict);
         return false;
     }
 
     json_error_t error;
 
-    int code = json_unpack_ex(
+    /*int code = json_unpack_ex(
             dict, &error, JSON_STRICT,
 
             "{s?i, s?i "
@@ -184,11 +183,18 @@ static bool _fill_prms_from_json(struct options* opts, json_t* root)
             "noe_txt", &opts->noe_txt,
             "noe_json", &opts->noe_json,
             "density_json", &opts->density_json
-    );
+    );*/
+
+    int code = json_unpack_ex(
+            dict, &error, JSON_STRICT,
+
+            "{s?i}",
+
+            // integer options
+            "nsteps", &opts->nsteps);
 
     if (code != 0) {
         JSON_ERR_MSG(error, "Couldn't parse setup from json");
-        json_decref(dict);
         return false;
     }
 

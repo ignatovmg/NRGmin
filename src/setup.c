@@ -6,6 +6,25 @@
 #include "mol2/icharmm.h"
 
 
+/**
+ * defines function _{POTENTIAL_NAME}_setup_read_json_file(const char *path)
+ */
+#define _POTENTIAL_SETUP_READ_JSON_FILE(NAME)                                                   \
+    static struct NAME ## _setup* _ ## NAME ## _setup_read_json_file(const char *path) {        \
+        json_t* root = read_json_file(path);                                                    \
+        if (!root) {                                                                            \
+            return NULL;                                                                        \
+        }                                                                                       \
+        struct NAME ## _setup* result = _ ## NAME ## _setup_read_json(root);                    \
+        if (!result) {                                                                          \
+            json_decref(root);                                                                  \
+            return NULL;                                                                        \
+        }                                                                                       \
+        json_decref(root);                                                                      \
+        return result;                                                                          \
+    }
+
+
 /* **************************************
  *          Creating atom groups        *
  ****************************************/
@@ -66,7 +85,7 @@ static struct mol_atom_group_list *_read_ag_list(
             for (size_t i = 0; i < fin_aglist->size; i++) {
                 struct mol_atom_group* tmp_copy = mol_atom_group_copy(ag_json);
                 fin_aglist->members[i] = *tmp_copy;
-                free(tmp_copy); // Do I need this?
+                free(tmp_copy);
 
                 if (fin_aglist->members[i].natoms != ag_list->members[i].natoms) {
                     DEBUG_MSG("Model %i in %s and %s have different atom numbers (%i, %i)",
@@ -111,6 +130,8 @@ static struct mol_atom_group_list *_read_ag_list(
     } else if (ag_json != NULL) {
         DEBUG_MSG("Using geometry and coordinates from %s", json);
         ag_list = mol_atom_group_list_create(1);
+        //free(ag_json->gradients);
+        //ag_json->gradients = NULL;
         ag_list->members[0] = *ag_json;
         free(ag_json);
 
@@ -136,6 +157,8 @@ static struct mol_atom_group_list* _merge_ag_lists(
 
     for (size_t i = 0; i < ag_list->size; i++) {
         struct mol_atom_group* _join = mol_atom_group_join(&ag1->members[i], &ag2->members[i]);
+        //free(_join->gradients);
+        //_join->gradients = NULL;
         ag_list->members[i] = *_join;
         free(_join);
     }
@@ -178,6 +201,9 @@ struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *opt
         opts->lig_natoms = lig_list->members[0].natoms;
 
         ag_list = _merge_ag_lists(rec_list, lig_list);
+
+        mol_atom_group_list_free(rec_list);
+        mol_atom_group_list_free(lig_list);
 
     } else {
         ag_list = _read_ag_list(
@@ -398,6 +424,9 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
 }
 
 
+//_POTENTIAL_SETUP_READ_JSON_FILE(pairsprings)
+
+
 /* **************************************
  *            Pointsprings              *
  ****************************************/
@@ -533,12 +562,15 @@ static struct pointsprings_setup *_pointsprings_setup_read_json(const json_t *ro
 }
 
 
+//_POTENTIAL_SETUP_READ_JSON_FILE(pointsprings)
+
+
 /* **************************************
  *               Density                *
  ****************************************/
 
 
-void _density_setup_free(struct density_setup** density)
+static void _density_setup_free(struct density_setup** density)
 {
     if (*density != NULL) {
         if ((*density)->ag != NULL) {
@@ -584,20 +616,7 @@ static struct density_setup* _density_setup_read_json(json_t* root)
 }
 
 
-static struct density_setup *_density_setup_read_json_file(const char *path) {
-    json_t* root = read_json_file(path);
-    if (!root) {
-        return NULL;
-    }
-
-    struct density_setup* result = _density_setup_read_json(root);
-    if (!result) {
-        json_decref(root);
-        return NULL;
-    }
-
-    return result;
-}
+_POTENTIAL_SETUP_READ_JSON_FILE(density)
 
 
 /* **************************************
@@ -709,20 +728,7 @@ static struct noe_setup *_noe_setup_read_json(json_t *root) {
 }
 
 
-static struct noe_setup *_noe_setup_read_json_file(const char *path) {
-    json_t* root = read_json_file(path);
-    if (!root) {
-        return NULL;
-    }
-
-    struct noe_setup* result = _noe_setup_read_json(root);
-    if (!result) {
-        json_decref(root);
-        return NULL;
-    }
-
-    return result;
-}
+_POTENTIAL_SETUP_READ_JSON_FILE(noe)
 
 
 /* **************************************
@@ -734,11 +740,11 @@ void energy_prms_free(struct energy_prms **prms, size_t nstages)
 {
     if (*prms != NULL) {
         for (size_t i = 0; i < nstages; i++) {
-            _pairsprings_setup_free(&((*prms)->sprst_pairs));
-            _pointsprings_setup_free(&((*prms)->sprst_points));
-            _density_setup_free(&((*prms)->density));
-            _noe_setup_free(&((*prms)->nmr));
-            _fixed_setup_free(&((*prms)->fixed));
+            _pairsprings_setup_free(&((*prms + i)->sprst_pairs));
+            _pointsprings_setup_free(&((*prms + i)->sprst_points));
+            _density_setup_free(&((*prms + i)->density));
+            _noe_setup_free(&((*prms + i)->nmr));
+            _fixed_setup_free(&((*prms + i)->fixed));
         }
         free(*prms);
         *prms = NULL;
@@ -878,9 +884,10 @@ bool energy_prms_populate_from_options(
 
     // read json
     json_t* setup = NULL;
+    json_t *setup_root = NULL;
 
     if (opts.setup_json) {
-        json_t *setup_root = read_json_file(opts.setup_json);
+        setup_root = read_json_file(opts.setup_json);
         if (!setup_root) {
             energy_prms_free(&all_stage_prms, nstages);
             return false;
@@ -889,7 +896,7 @@ bool energy_prms_populate_from_options(
         setup = json_object_get(setup_root, "stages");
         if (setup && !json_is_array(setup)) {
             ERR_MSG("Key 'stages' must point to a dictionary");
-            json_decref(setup);
+            json_decref(setup_root);
             energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
@@ -996,7 +1003,6 @@ bool energy_prms_populate_from_options(
             json_t* stage_density = json_object_get(stage_desc, "density");
             if (stage_density) {
                 stage_prms->density = _density_setup_read_json(stage_density);
-                json_decref(stage_density);
                 if (!stage_prms->density) {
                     ERR_MSG("Couldn't parse density from %s", opts.setup_json);
                     error = true;
@@ -1016,12 +1022,15 @@ bool energy_prms_populate_from_options(
             }
         }
 
-        json_decref(setup);
-
         if (error) {
             energy_prms_free(&all_stage_prms, nstages);
+            json_decref(setup_root);
             return false;
         }
+    }
+
+    if (setup_root) {
+        json_decref(setup_root);
     }
 
     *result_energy_prm = all_stage_prms;

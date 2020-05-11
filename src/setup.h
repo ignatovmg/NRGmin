@@ -116,7 +116,8 @@ void energy_prms_free(struct energy_prms **prms, size_t nstages);
 
 
 /**
- * Create atom group list from command line arguments
+ * Create atom group list from command line arguments. Gradient is already allocated
+ *
  * @param opts Parsed command line options
  * @return List of atom groups to minimize
  */
