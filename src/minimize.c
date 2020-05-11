@@ -71,6 +71,13 @@ int main(int argc, char **argv) {
         struct mol_atom_group *ag = &ag_list->members[modeli];
         ag->gradients = calloc(ag->natoms, sizeof(struct mol_vector3));
 
+        struct agsetup ag_setup;
+
+        // Setup fixed atoms and nblists
+        mol_fixed_init(ag);
+        init_nblst(ag, &ag_setup);
+        update_nblst(ag, &ag_setup);
+
         // Run stages of minimization
         for (size_t stage_id = 0; stage_id < nstages; stage_id++) {
             INFO_MSG("Stage %zu", stage_id);
@@ -79,11 +86,7 @@ int main(int argc, char **argv) {
             struct energy_prms *stage_prms = &min_prms[stage_id];
             stage_prms->ag = ag;
 
-            struct agsetup ag_setup;
             struct acesetup ace_setup;
-
-            // Setup fixed atoms and nblists
-            mol_fixed_init(ag);
 
             if (stage_prms->fixed) {
                 mol_fixed_update(ag, stage_prms->fixed->natoms, stage_prms->fixed->atoms);
@@ -91,7 +94,6 @@ int main(int argc, char **argv) {
                 mol_fixed_update(ag, 0, NULL);
             }
 
-            init_nblst(ag, &ag_setup);
             update_nblst(ag, &ag_setup);
 
             // Set up GBSA
@@ -109,8 +111,7 @@ int main(int argc, char **argv) {
 
             // Minimize energy
             if (!stage_prms->score_only) {
-                stage_prms->json_log = NULL;
-
+                stage_prms->json_log = json_array();
                 mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
 
                 // Record energy every time it was evaluated
@@ -119,12 +120,12 @@ int main(int argc, char **argv) {
                 } else {
                     json_decref(stage_prms->json_log);
                 }
-
                 stage_prms->json_log = NULL;
             }
 
             // Record final energy
             if (stage_prms->json_log_setup.print_stage) {
+                stage_prms->json_log = json_array();;
                 energy_func((void *) stage_prms, NULL, NULL, 0, 0);
                 json_t *final_energy = json_deep_copy(json_array_get(stage_prms->json_log, 0));
                 json_object_set_new(json_log_stage, "final", final_energy);
@@ -133,6 +134,7 @@ int main(int argc, char **argv) {
             }
 
             json_array_append_new(json_log_model, json_log_stage);
+            //free_acesetup(&ace_setup);
         }
 
         mol_fwrite_pdb(out_pdb, ag);
@@ -142,6 +144,7 @@ int main(int argc, char **argv) {
             fprintf(out_pdb, "ENDMDL\n");
         }
 
+        //free_agsetup(&ag_setup);
         INFO_MSG("Finished model %zu", modeli);
     }
 

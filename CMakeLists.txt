@@ -12,13 +12,20 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(LTO "Link Time Optimization" ON)
-option(BUILD_TESTS "Build tests" ON)
+option(LTO            "Link Time Optimization" ON)
+option(BUILD_TESTS    "Build tests" ON)
+option(USE_SANITIZER  "Build with address sanitizer" OFF)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(-Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
+    add_compile_options(-pg -Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
+endif()
+
+if(USE_SANITIZER)
+    set(SANITIZER_FLAGS "-fno-omit-frame-pointer -fsanitize=address,undefined")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  ${SANITIZER_FLAGS}")
 endif()
 
 find_package(Jansson REQUIRED)

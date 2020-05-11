@@ -1,7 +1,7 @@
 # NRGmin 
 Utility for molecular mechanics energy minimization
 
-### Installation ###
+## Installation ###
 
 1. Install [libmol2](https://bitbucket.org/bu-structure/libmol2/src/master)
 
@@ -13,7 +13,11 @@ Utility for molecular mechanics energy minimization
        
 3. The binary is in `build/nrgmin`
 
-### How to run
+## How to run
+
+Full list of parameters can be viewed by running  `./nrgmin -h`
+
+### Passing a molecule
 
 A molecule can be passed using single file mode as a set of 4 files
 
@@ -30,8 +34,18 @@ Or as a json file
 As well as in a rec/lig mode:
 
 ```
-./nrgmin ---rec-pdb mol.pdb --rec-psf mol.psf --rec-prm mol.prm --rec-rtf mol.rtf --lig-json lig.json
+./nrgmin ---rec-pdb rec.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
 ```
+
+If you want to use parameters from json file and coordinates from pdb
+
+```
+./nrgmin ---rec-pdb rec.pdb --rec-json rec.json --lig-pdb lig.pdb --lig-json lig.json
+```
+
+Note: PDB file can contain multiple models (the number of models must match in rec/lig mode)
+
+### Energy function
 
 Energy function setup is flexible, so you can switch terms on and off
 
@@ -66,7 +80,7 @@ To see all flags:
 ```
 
 
-### Master json format
+### Master json file format for --setup-json
 
 Has two fields: `options`, which duplicates all existing flags, and `stages`. `Stages` is an array, 
 where each entry describes a minimization stage and can use all existing flags. Fields specified in 

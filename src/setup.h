@@ -42,7 +42,7 @@ struct energy_prms {
     struct pairsprings_setup *sprst_pairs; ///< Pairwise distance restraints
     struct pointsprings_setup *sprst_points; ///< Pointwise distance restraints
     struct noe_setup *nmr; ///< NOE matrix restraints
-    struct density_setup *fit_prms; ///< Density fitting
+    struct density_setup *density; ///< Density fitting
     struct fixed_setup *fixed; ///< Fixed atoms
 
     int nsteps; ///< Max number of steps during minimization
@@ -65,8 +65,7 @@ struct noe_setup {
 
 struct density_setup {
     double weight;
-    size_t ag_count;
-    struct mol_atom_group **ag_list;
+    struct mol_atom_group *ag;
     struct mol_fitting_params prms;
 };
 

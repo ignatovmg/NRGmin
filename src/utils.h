@@ -21,11 +21,11 @@ extern enum VERBOSITY_LEVELS VERBOSITY;
     if (VERBOSITY > QUIET) {                                            \
         fprintf(stderr,                                                 \
             "[Json parse error] (%s:%i, %s):\n\n"                       \
-            "                    " fmt "\n\n"                           \
-            "                    Source: %s\n"                          \
-            "                    Message: %s\n"                         \
-            "                    Line: %i\n"                            \
-            "                    Column: %i\n\n",                       \
+            "        " fmt "\n\n"                                       \
+            "        Source: %s\n"                                      \
+            "        Message: %s\n"                                     \
+            "        Line: %i\n"                                        \
+            "        Column: %i\n\n",                                   \
             __FILE__, __LINE__, __func__,                               \
             ##__VA_ARGS__,                                              \
             json_error.source,                                          \
@@ -39,7 +39,7 @@ extern enum VERBOSITY_LEVELS VERBOSITY;
     if (VERBOSITY > QUIET) {                                            \
         fprintf(stderr,                                                 \
             "[Error] (%s:%i, %s):\n\n"                                  \
-            "         " fmt "\n\n",                                     \
+            "        " fmt "\n\n",                                      \
             __FILE__, __LINE__, __func__, ##__VA_ARGS__);               \
     }                                                                   \
 } while(0)
@@ -48,7 +48,7 @@ extern enum VERBOSITY_LEVELS VERBOSITY;
     if (VERBOSITY > ERROR) {                                            \
         fprintf(stderr,                                                 \
              "[Warning] (%s:%i, %s):\n\n"                               \
-             "           " fmt "\n\n",                                  \
+             "        " fmt "\n\n",                                     \
              __FILE__, __LINE__, __func__, ##__VA_ARGS__);              \
     }                                                                   \
 } while(0)

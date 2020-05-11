@@ -455,8 +455,18 @@ START_TEST(test_energy_prm_from_flags)
             energy_prms_free(&prms, nstages);
             break;
 
-        default:
-            ck_assert(false);
+        case 9:
+            // Pass density
+            opts = options_get_default();
+            opts.density_json = "density.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+            ck_assert_double_eq_tol(prms[0].density->weight, 1000, 0.001);
+            ck_assert_double_eq_tol(prms[0].density->prms.radius, 2, 0.001);
+            ck_assert_int_eq(prms[0].density->ag->natoms, 42);
+            energy_prms_free(&prms, nstages);
+            break;
     }
 }
 
@@ -565,6 +575,29 @@ START_TEST(test_energy_prm_from_json)
             break;
 
         case 9:
+            // Pass density
+            opts = options_get_default();
+            opts.setup_json = "setup_density.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+            ck_assert_double_eq_tol(prms[0].density->weight, 1000, 0.001);
+            ck_assert_double_eq_tol(prms[0].density->prms.radius, 2, 0.001);
+            ck_assert_int_eq(prms[0].density->ag->natoms, 42);
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 10:
+            // Fail density
+            opts = options_get_default();
+            opts.setup_json = "setup_density_invalid.json";
+
+            ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_null(prms);
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 11:
             // Pass generic setup
             opts = options_get_default();
             opts.separate = true;
@@ -618,8 +651,8 @@ Suite *lists_suite(void)
     tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
     tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
-    tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 9);
-    tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 10);
+    tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 10);
+    tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
     suite_add_tcase(suite, tcase_real);
 
     return suite;

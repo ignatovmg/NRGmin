@@ -18,10 +18,6 @@ lbfgsfloatval_t energy_func(
     lbfgsfloatval_t term_energy;
 
     struct energy_prms *energy_prm = (struct energy_prms *) prm;
-    if (energy_prm->json_log == NULL) {
-        energy_prm->json_log = json_array();
-    }
-
     json_t* energy_dict = json_object();
 
     if (array != NULL) {
@@ -124,12 +120,11 @@ lbfgsfloatval_t energy_func(
         }
     }
 
-    if (energy_prm->fit_prms != NULL) {
-        term_energy = mol_fitting_score_aglist(energy_prm->ag,
-                energy_prm->fit_prms->ag_list,
-                energy_prm->fit_prms->ag_count,
-                &energy_prm->fit_prms->prms,
-                energy_prm->fit_prms->weight);
+    if (energy_prm->density != NULL) {
+        term_energy = mol_fitting_score(energy_prm->ag,
+                energy_prm->density->ag,
+                &energy_prm->density->prms,
+                energy_prm->density->weight);
         json_object_set_new(energy_dict, "density", json_real(term_energy));
         total_energy += term_energy;
     }
@@ -144,7 +139,12 @@ lbfgsfloatval_t energy_func(
     }
 
     json_object_set_new(energy_dict, "total", json_real(total_energy));
-    json_array_append_new(energy_prm->json_log, energy_dict);
+
+    if (energy_prm->json_log) {
+        json_array_append_new(energy_prm->json_log, energy_dict);
+    } else {
+        json_decref(energy_dict);
+    }
 
     return total_energy;
 }

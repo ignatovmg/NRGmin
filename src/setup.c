@@ -6,6 +6,11 @@
 #include "mol2/icharmm.h"
 
 
+/* **************************************
+ *          Creating atom groups        *
+ ****************************************/
+
+
 static struct mol_atom_group_list *_read_ag_list(
         const char *prm,
         const char *rtf,
@@ -190,6 +195,11 @@ struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *opt
 }
 
 
+/* **************************************
+ *               Fixed atoms            *
+ ****************************************/
+
+
 static void _fixed_setup_free(struct fixed_setup **fixed)
 {
     if (*fixed != NULL) {
@@ -239,19 +249,18 @@ static struct fixed_setup* _fixed_setup_read_txt(const char *path) {
 }
 
 
-static struct fixed_setup* _fixed_setup_read_json(const json_t *root)
-{
+static struct fixed_setup* _fixed_setup_read_json(const json_t *root) {
     if (!json_is_array(root)) {
         ERR_MSG("Fixed atoms json setup must be an array");
         return NULL;
     }
 
-    struct fixed_setup* result = calloc(1, sizeof(struct fixed_setup));
+    struct fixed_setup *result = calloc(1, sizeof(struct fixed_setup));
     result->natoms = json_array_size(root);
     result->atoms = calloc(result->natoms, sizeof(size_t));
 
     size_t counter;
-    json_t* atom_id;
+    json_t *atom_id;
     json_array_foreach(root, counter, atom_id) {
         if (!json_is_integer(atom_id)) {
             _fixed_setup_free(&result);
@@ -265,15 +274,6 @@ static struct fixed_setup* _fixed_setup_read_json(const json_t *root)
 }
 
 
-static void _pairsprings_setup_free(struct pairsprings_setup **sprst) {
-    if (*sprst != NULL) {
-        free((*sprst)->springs);
-        free(*sprst);
-        *sprst = NULL;
-    }
-}
-
-
 static struct fixed_setup* _fixed_setup_atom_range(const size_t start_atom, const size_t end_atom)
 {
     struct fixed_setup* fixed = calloc(1, sizeof(struct fixed_setup));
@@ -283,6 +283,20 @@ static struct fixed_setup* _fixed_setup_atom_range(const size_t start_atom, cons
         fixed->atoms[i] = start_atom + i;
     }
     return fixed;
+}
+
+
+/* **************************************
+ *               Pairsprings            *
+ ****************************************/
+
+
+static void _pairsprings_setup_free(struct pairsprings_setup **sprst) {
+    if (*sprst != NULL) {
+        free((*sprst)->springs);
+        free(*sprst);
+        *sprst = NULL;
+    }
 }
 
 
@@ -368,49 +382,6 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
             error = true;
             break;
         }
-
-        /*double dv;
-        size_t iv;
-
-        json_t* value = json_object_get(spring, "length");
-        if (!value || !(dv = json_number_value(value))) {
-            ERR_MSG("sf");
-            error = true;
-            break;
-        }
-        spring_set[counter].length = dv;
-
-        value = json_object_get(spring, "error");
-        if (!value || !(dv = json_number_value(value))) {
-            ERR_MSG("sf");
-            error = true;
-            break;
-        }
-        spring_set[counter].error= dv;
-
-        value = json_object_get(spring, "weight");
-        if (!value || !(dv = json_number_value(value))) {
-            ERR_MSG("sf");
-            error = true;
-            break;
-        }
-        spring_set[counter].weight = dv;
-
-        value = json_object_get(spring, "atom1");
-        if (!value || !(iv = json_integer_value(value))) {
-            ERR_MSG("sf");
-            error = true;
-            break;
-        }
-        spring_set[counter].atoms[0] = iv - 1;
-
-        value = json_object_get(spring, "atom2");
-        if (!value || !(iv = json_integer_value(value))) {
-            ERR_MSG("sf");
-            error = true;
-            break;
-        }
-        spring_set[counter].atoms[1] = iv - 1;*/
     }
 
     if (error) {
@@ -425,6 +396,11 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
 
     return sprst;
 }
+
+
+/* **************************************
+ *            Pointsprings              *
+ ****************************************/
 
 
 static void _pointsprings_setup_free(struct pointsprings_setup **sprst) {
@@ -557,51 +533,76 @@ static struct pointsprings_setup *_pointsprings_setup_read_json(const json_t *ro
 }
 
 
-/*struct density_setup *density_setup_create(char *fitting_pdblist, double weight, double radius) {
-    struct density_setup *fit_prms = calloc(1, sizeof(struct density_setup));
+/* **************************************
+ *               Density                *
+ ****************************************/
 
-    FILE *f = _fopen_err(fitting_pdblist, "r");
-    char pdb_file[512];
-    struct mol_atom_group **aglist = calloc(1, sizeof(struct mol_atom_group *));
-    int ag_count = 0;
-    int cur_size = 1;
-    while (fgets(pdb_file, 512, f) != NULL) {
-        // Remove new line character
-        for (int i = 0; i < 512; i++) {
-            if (pdb_file[i] == '\n') {
-                pdb_file[i] = '\0';
-                break;
-            }
+
+void _density_setup_free(struct density_setup** density)
+{
+    if (*density != NULL) {
+        if ((*density)->ag != NULL) {
+            mol_atom_group_free((*density)->ag);
         }
-
-        struct mol_atom_group *ag = mol_read_pdb(pdb_file);
-        ag_count++;
-
-        if (ag_count > cur_size) {
-            cur_size *= 2;
-            aglist = realloc(aglist, cur_size * sizeof(struct mol_atom_group *));
-        }
-
-        aglist[ag_count - 1] = ag;
+        free(*density);
+        *density = NULL;
     }
-
-    fit_prms->ag_list = aglist;
-    fit_prms->ag_count = ag_count;
-    fit_prms->prms.radius = radius;
-    fit_prms->weight = weight;
-    return fit_prms;
 }
 
 
-void density_setup_free(struct density_setup **prms) {
-    if (prms != NULL) {
-        for (int i = 0; i < prms->ag_count; i++) {
-            mol_atom_group_free(prms->ag_list[i]);
-        }
-        free(prms->ag_list);
-        free(prms);
+static struct density_setup* _density_setup_read_json(json_t* root)
+{
+    json_error_t j_error;
+    int code;
+
+    struct density_setup *density = calloc(1, sizeof(struct density_setup));
+    density->ag = NULL;
+    char* pdb;
+
+    code = json_unpack_ex(
+            root, &j_error, JSON_STRICT,
+            "{s:s, s:F, s:F}",
+            "pdb", &pdb,
+            "weight", &density->weight,
+            "atom_radius", &density->prms.radius);
+
+    if (code != 0) {
+        JSON_ERR_MSG(j_error, "Couldn't parse density setup");
+        _density_setup_free(&density);
+        return NULL;
     }
-}*/
+
+    struct mol_atom_group* ag = mol_read_pdb(pdb);
+    if (!ag) {
+        ERR_MSG("Couldn't read atom group in density setup");
+        _density_setup_free(&density);
+        return NULL;
+    }
+    density->ag = ag;
+
+    return density;
+}
+
+
+static struct density_setup *_density_setup_read_json_file(const char *path) {
+    json_t* root = read_json_file(path);
+    if (!root) {
+        return NULL;
+    }
+
+    struct density_setup* result = _density_setup_read_json(root);
+    if (!result) {
+        json_decref(root);
+        return NULL;
+    }
+
+    return result;
+}
+
+
+/* **************************************
+ *                 NOE                  *
+ ****************************************/
 
 
 static void _noe_setup_free(struct noe_setup **noe) {
@@ -724,13 +725,18 @@ static struct noe_setup *_noe_setup_read_json_file(const char *path) {
 }
 
 
+/* **************************************
+ *      Populate energy parameters      *
+ ****************************************/
+
+
 void energy_prms_free(struct energy_prms **prms, size_t nstages)
 {
     if (*prms != NULL) {
         for (size_t i = 0; i < nstages; i++) {
             _pairsprings_setup_free(&((*prms)->sprst_pairs));
             _pointsprings_setup_free(&((*prms)->sprst_points));
-            //density_setup_free(&((*prms)->fit_prms));
+            _density_setup_free(&((*prms)->density));
             _noe_setup_free(&((*prms)->nmr));
             _fixed_setup_free(&((*prms)->fixed));
         }
@@ -759,7 +765,7 @@ bool energy_prms_populate_from_options(
     all_stage_prms->sprst_pairs = NULL;
     all_stage_prms->sprst_points = NULL;
     all_stage_prms->nmr = NULL;
-    all_stage_prms->fit_prms = NULL;
+    all_stage_prms->density = NULL;
     all_stage_prms->fixed = NULL;
 
     all_stage_prms->nsteps = opts.nsteps;
@@ -860,16 +866,15 @@ bool energy_prms_populate_from_options(
         }
     }
 
-    /*
     if (opts.density_json) {
-        all_stage_prms->fit_prms = density_setup_read_json_file(opts.density_json);
+        all_stage_prms->density = _density_setup_read_json_file(opts.density_json);
 
-        if (!all_stage_prms->fit_prms) {
-            ERR_MSG("SDF");
+        if (!all_stage_prms->density) {
+            ERR_MSG("Couldn't parse density from %s", opts.density_json);
             energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
-    }*/
+    }
 
     // read json
     json_t* setup = NULL;
@@ -987,17 +992,19 @@ bool energy_prms_populate_from_options(
                 }
             }
 
-            /*json_t* stage_density = json_object_get(stage_desc, "density");
+            // Density
+            json_t* stage_density = json_object_get(stage_desc, "density");
             if (stage_density) {
-                stage_prms->fit_prms = density_setup_read_json(stage_density);
+                stage_prms->density = _density_setup_read_json(stage_density);
                 json_decref(stage_density);
-                if (!stage_prms->fit_prms) {
+                if (!stage_prms->density) {
+                    ERR_MSG("Couldn't parse density from %s", opts.setup_json);
                     error = true;
                     break;
                 }
-            }*/
+            }
 
-            // NO
+            // NOE
             json_t* stage_noe = json_object_get(stage_desc, "noe");
             if (stage_noe) {
                 stage_prms->nmr = _noe_setup_read_json(stage_noe);

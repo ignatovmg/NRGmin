@@ -42,6 +42,14 @@
           "atom2": 3630
         }
       ]
+    },
+    {
+      "nsteps": 1000,
+      "density": {
+        "weight": 1000,
+        "atom_radius": 2.0,
+        "pdb": "density.pdb"
+      }
     }
   ]
 }
