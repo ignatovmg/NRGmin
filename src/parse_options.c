@@ -132,7 +132,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
 
     json_error_t error;
 
-    /*int code = json_unpack_ex(
+    int code = json_unpack_ex(
             dict, &error, JSON_STRICT,
 
             "{s?i, s?i "
@@ -183,15 +183,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "noe_txt", &opts->noe_txt,
             "noe_json", &opts->noe_json,
             "density_json", &opts->density_json
-    );*/
-
-    int code = json_unpack_ex(
-            dict, &error, JSON_STRICT,
-
-            "{s?i}",
-
-            // integer options
-            "nsteps", &opts->nsteps);
+    );
 
     if (code != 0) {
         JSON_ERR_MSG(error, "Couldn't parse setup from json");
