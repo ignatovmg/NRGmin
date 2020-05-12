@@ -6,20 +6,6 @@
 #include "utils.h"
 
 
-#define _STRINGIZE_AND_REPLACE_UNDERSCORE(arg, sep, dst) do { \
-    char str_arg[] = #arg;  \
-    char* dot_pos; \
-    if ((dot_pos = strchr(str_arg, (sep))) != NULL) { \
-        dot_pos = dot_pos + 1; \
-    }  \
-    char* dash_pos = dot_pos; \
-    while ((dash_pos = strchr(dash_pos, '_')) != NULL) { \
-        *dash_pos = '-'; \
-    };  \
-    dst = dot_pos; \
-} while (0)
-
-
 /**
  * Stringize "arg" find the dot, replace "-" with "_" and compare to "value"
  */
@@ -200,7 +186,7 @@ static int _check_prms(struct options *opts)
     bool rec_sep = false;
     bool lig_sep = false;
 
-    VERBOSITY = opts->verbosity;
+    VERBOSITY = opts->verbosity >= 0 ? opts->verbosity : 0;
 
     // Unpack setup json first and fill the global options if there are any
     if (opts->setup_json) {
@@ -211,13 +197,11 @@ static int _check_prms(struct options *opts)
 
         if (!_fill_prms_from_json(opts, setup)) {
             json_decref(setup);
-            //ERR_MSG("Couldn't parse options from --setup-json");
             return 1;
         }
-        //json_decref(setup);
         opts->setup_json_root = setup;
 
-        VERBOSITY = opts->verbosity;
+        VERBOSITY = opts->verbosity >= 0 ? opts->verbosity : 0;
     }
 
     if (opts->json || opts->pdb || opts->psf || opts->prm || opts->rtf) {
@@ -284,6 +268,7 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
             {
                     {"out-pdb",              required_argument, 0,                 0},
                     {"out-json",             required_argument, 0,                 0},
+                    {"verbosity",            required_argument, 0,                 0},
 
                     {"print-step",           no_argument,       &prms.print_step,  1},
                     {"print-stage",          no_argument,       &prms.print_stage, 1},
@@ -339,7 +324,6 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                     {"fix-receptor",         no_argument,  &prms.fix_receptor,     1},
                     {"fix-ligand",           no_argument,  &prms.fix_ligand,       1},
                     {"score-only",           no_argument,  &prms.score_only,       1},
-                    {"verbosity",            no_argument,  &prms.verbosity,        1},
                     {"help",                 no_argument,  0,                    'h'},
 
                     {0,                      0,            0,                      0}
@@ -358,7 +342,7 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
             case 0:
                 if (long_options[option_index].flag != 0)
                     break;
-                DEBUG_MSG("Option %s = %s", long_options[option_index].name, optarg);
+                //DEBUG_MSG("Option %s = %s", long_options[option_index].name, optarg);
                 break;
 
             case 'h':
@@ -402,6 +386,9 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
         if (strcmp("nsteps", long_options[option_index].name) == 0) {
             prms.nsteps = atoi(optarg);
+        }
+        if (strcmp("verbosity", long_options[option_index].name) == 0) {
+            prms.verbosity = atoi(optarg);
         }
     }
 

@@ -159,6 +159,6 @@ int main(int argc, char **argv) {
     energy_prms_free(&min_prms, nstages);
     options_free(opts);
 
-    INFO_MSG("Completed\n");
+    INFO_MSG("Completed");
     return EXIT_SUCCESS;
 }

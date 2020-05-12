@@ -38,7 +38,7 @@ static struct mol_atom_group_list *_read_ag_list(
         const char *json,
         const int score_only) {
 
-    DEBUG_MSG("Started reading a new atom group\n");
+    DEBUG_MSG("Started reading a new atom group");
     struct mol_atom_group_list* ag_list = NULL;
     struct mol_atom_group* ag_json = NULL;
 
@@ -80,31 +80,31 @@ static struct mol_atom_group_list *_read_ag_list(
         if (ag_json != NULL) {
             DEBUG_MSG("Reading coordinates from %s and geometry from %s", pdb, json);
 
-            struct mol_atom_group_list *fin_aglist = mol_atom_group_list_create(ag_list->size);
+            struct mol_atom_group_list *final_aglist = mol_atom_group_list_create(ag_list->size);
 
-            for (size_t i = 0; i < fin_aglist->size; i++) {
+            for (size_t i = 0; i < final_aglist->size; i++) {
                 struct mol_atom_group* tmp_copy = mol_atom_group_copy(ag_json);
-                fin_aglist->members[i] = *tmp_copy;
+                final_aglist->members[i] = *tmp_copy;
                 free(tmp_copy);
 
-                if (fin_aglist->members[i].natoms != ag_list->members[i].natoms) {
-                    DEBUG_MSG("Model %i in %s and %s have different atom numbers (%i, %i)",
-                            (int) i, pdb, json,
-                            (int) ag_list->members[i].natoms,
-                            (int) fin_aglist->members[i].natoms);
-                    mol_atom_group_list_free(fin_aglist);
+                if (final_aglist->members[i].natoms != ag_list->members[i].natoms) {
+                    ERR_MSG("Model %zu in %s and %s have different atom numbers (%zu, %zu)",
+                            i, pdb, json,
+                            ag_list->members[i].natoms,
+                            final_aglist->members[i].natoms);
+                    mol_atom_group_list_free(final_aglist);
                     mol_atom_group_list_free(ag_list);
                     mol_atom_group_free(ag_json);
                     return NULL;
                 }
-                memcpy(fin_aglist->members[i].coords,
+                memcpy(final_aglist->members[i].coords,
                         ag_list->members[i].coords,
                         sizeof(struct mol_vector3) * ag_list->members[i].natoms);
             }
 
             mol_atom_group_list_free(ag_list);
             mol_atom_group_free(ag_json);
-            ag_list = fin_aglist;
+            ag_list = final_aglist;
 
         } else if (psf && prm && rtf) {
             // If json wasn't provided read geometry from prm rtf psf
@@ -152,7 +152,7 @@ static struct mol_atom_group_list* _merge_ag_lists(
         return NULL;
     }
 
-    DEBUG_MSG("Using models assembled from receptor and ligand models provided separately\n");
+    DEBUG_MSG("Using models assembled from receptor and ligand models provided separately");
     struct mol_atom_group_list *ag_list = mol_atom_group_list_create(ag1->size);
 
     for (size_t i = 0; i < ag_list->size; i++) {
@@ -804,6 +804,7 @@ bool energy_prms_populate_from_options(
     }
 
     if (opts.fixed_pdb) {
+        DEBUG_MSG("Reading %s", opts.fixed_pdb);
         all_stage_prms->fixed = _fixed_setup_read_txt(opts.fixed_pdb);
         if (!all_stage_prms->fixed) {
             ERR_MSG("Couldn't parse fixed atoms from %s", opts.fixed_pdb);
@@ -811,6 +812,7 @@ bool energy_prms_populate_from_options(
             return false;
         }
     } else if (opts.fix_receptor) {
+        DEBUG_MSG("Fixing receptor atoms");
         if (all_stage_prms->fixed) {
             ERR_MSG("Cannot use fix-receptor flag with another one");
             energy_prms_free(&all_stage_prms, nstages);
@@ -818,6 +820,7 @@ bool energy_prms_populate_from_options(
         }
         all_stage_prms->fixed = _fixed_setup_atom_range(0, opts.rec_natoms);
     } else if (opts.fix_ligand) {
+        DEBUG_MSG("Fixing ligand atoms");
         if (all_stage_prms->fixed) {
             ERR_MSG("Cannot use fix-ligand flag with another one");
             energy_prms_free(&all_stage_prms, nstages);
@@ -827,6 +830,7 @@ bool energy_prms_populate_from_options(
     }
 
     if (opts.pair_springs_txt) {
+        DEBUG_MSG("Parsing %s", opts.pair_springs_txt);
         all_stage_prms->sprst_pairs = _pairsprings_setup_read_txt(opts.pair_springs_txt);
 
         if (!all_stage_prms->sprst_pairs) {
@@ -837,6 +841,7 @@ bool energy_prms_populate_from_options(
     }
 
     if (opts.point_springs_txt) {
+        DEBUG_MSG("Parsing %s", opts.point_springs_txt);
         all_stage_prms->sprst_points = _pointsprings_setup_read_txt(opts.point_springs_txt);
 
         if (!all_stage_prms->sprst_points) {
@@ -847,6 +852,7 @@ bool energy_prms_populate_from_options(
     }
 
     if (opts.noe_json) {
+        DEBUG_MSG("Parsing %s", opts.noe_json);
         all_stage_prms->nmr = _noe_setup_read_json_file(opts.noe_json);
 
         if (!all_stage_prms->nmr) {
@@ -873,6 +879,7 @@ bool energy_prms_populate_from_options(
     }
 
     if (opts.density_json) {
+        DEBUG_MSG("Parsing %s", opts.density_json);
         all_stage_prms->density = _density_setup_read_json_file(opts.density_json);
 
         if (!all_stage_prms->density) {
@@ -887,6 +894,7 @@ bool energy_prms_populate_from_options(
     json_t *setup_root = NULL;
 
     if (opts.setup_json) {
+        DEBUG_MSG("Parsing %s", opts.setup_json);
         setup_root = read_json_file(opts.setup_json);
         if (!setup_root) {
             energy_prms_free(&all_stage_prms, nstages);
@@ -904,6 +912,7 @@ bool energy_prms_populate_from_options(
 
     if (setup) {
         nstages = json_array_size(setup);
+        DEBUG_MSG("Found %zu stages", nstages);
 
         // copy default params to each stage
         struct energy_prms* buffer = calloc(nstages, sizeof(struct energy_prms));
@@ -920,12 +929,14 @@ bool energy_prms_populate_from_options(
         bool error = false;
 
         json_array_foreach(setup, stage_id, stage_desc) {
+            DEBUG_MSG("Parsing stage %zu", stage_id);
             struct energy_prms* stage_prms = &all_stage_prms[stage_id];
 
             bool stage_fix_rec = false;
             bool stage_fix_lig = false;
 
             json_error_t j_error;
+            DEBUG_MSG("Unpacking options");
             int code = json_unpack_ex(
                     stage_desc, &j_error, 0,
                     "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
@@ -948,7 +959,7 @@ bool energy_prms_populate_from_options(
             }
 
             if ((stage_fix_rec || stage_fix_lig) && !opts.separate) {
-                ERR_MSG("You can't provide fix-? flags in a single file mode");
+                ERR_MSG("You can't provide fix-* flags in a single file mode");
                 error = true;
                 break;
             }
@@ -962,6 +973,7 @@ bool energy_prms_populate_from_options(
 
             // Read fixed atoms
             if (stage_fixed) {
+                DEBUG_MSG("Creating fixed atoms for stage");
                 _fixed_setup_free(&stage_prms->fixed);
                 stage_prms->fixed = _fixed_setup_read_json(stage_fixed);
                 if (!stage_prms->fixed) {
@@ -980,6 +992,7 @@ bool energy_prms_populate_from_options(
             // Pairsprings
             json_t* stage_pairsprings = json_object_get(stage_desc, "pairsprings");
             if (stage_pairsprings) {
+                DEBUG_MSG("Creating pairsprings for stage");
                 stage_prms->sprst_pairs = _pairsprings_setup_read_json(stage_pairsprings);
                 if (!stage_prms->sprst_pairs) {
                     ERR_MSG("Couldn't parse pairsprings from %s", opts.setup_json);
@@ -991,6 +1004,7 @@ bool energy_prms_populate_from_options(
             // Pointsprings
             json_t* stage_pointsprings = json_object_get(stage_desc, "pointsprings");
             if (stage_pointsprings) {
+                DEBUG_MSG("Creating pointsprings for stage");
                 stage_prms->sprst_points = _pointsprings_setup_read_json(stage_pointsprings);
                 if (!stage_prms->sprst_points) {
                     ERR_MSG("Couldn't parse poinsprings from %s", opts.setup_json);
@@ -1002,6 +1016,7 @@ bool energy_prms_populate_from_options(
             // Density
             json_t* stage_density = json_object_get(stage_desc, "density");
             if (stage_density) {
+                DEBUG_MSG("Creating density for stage");
                 stage_prms->density = _density_setup_read_json(stage_density);
                 if (!stage_prms->density) {
                     ERR_MSG("Couldn't parse density from %s", opts.setup_json);
@@ -1013,6 +1028,7 @@ bool energy_prms_populate_from_options(
             // NOE
             json_t* stage_noe = json_object_get(stage_desc, "noe");
             if (stage_noe) {
+                DEBUG_MSG("Creating NOE for stage");
                 stage_prms->nmr = _noe_setup_read_json(stage_noe);
                 if (!stage_prms->nmr) {
                     ERR_MSG("Couldn't parse NOE from %s", opts.setup_json);
