@@ -87,5 +87,6 @@ Examples of different minimization setups can be found in examples/energy_setup.
 
     Miscellaneous
 
+    --num-threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads
     --score-only Score only without doing minimization
     --help Show this message and exit

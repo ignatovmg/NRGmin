@@ -84,6 +84,14 @@ static struct mol_atom_group_list *_read_ag_list(
 
             for (size_t i = 0; i < final_aglist->size; i++) {
                 struct mol_atom_group* tmp_copy = mol_atom_group_copy(ag_json);
+
+                // TODO: These are initialized from the beginning for some reason. Create issue in libmol
+                //free_if_not_null(tmp_copy->active_atoms);
+                //free_if_not_null(tmp_copy->active_bonds);
+                //free_if_not_null(tmp_copy->active_angles);
+                //free_if_not_null(tmp_copy->active_dihedrals);
+                //free_if_not_null(tmp_copy->active_impropers);
+
                 final_aglist->members[i] = *tmp_copy;
                 free(tmp_copy);
 

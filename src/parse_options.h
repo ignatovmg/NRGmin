@@ -83,6 +83,7 @@ struct options {
 
     int verbosity; ///< Levels 0 - QUIET, 1 - ERROR, 2 - WARNING, 3- INFO, 4 - DEBUG
 
+    int num_threads;
     int help; ///< Print help and exit
 };
 

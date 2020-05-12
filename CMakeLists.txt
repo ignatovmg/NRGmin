@@ -12,9 +12,10 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(LTO            "Link Time Optimization" ON)
-option(BUILD_TESTS    "Build tests" ON)
-option(USE_SANITIZER  "Build with address sanitizer" OFF)
+option(LTO            "Link Time Optimization"             ON)
+option(BUILD_TESTS    "Build tests"                        ON)
+option(USE_SANITIZER  "Build with address sanitizer"      OFF)
+option(OPENMP         "Add OPENMP executable"             OFF)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
@@ -64,6 +65,30 @@ target_include_directories(nrgmin
         PRIVATE ${INCLUDE_LIST})
 
 target_link_libraries(nrgmin ${LIBRARY_LIST})
+
+if (OPENMP)
+    find_package(OpenMP REQUIRED)
+
+    add_executable(nrgmin.omp ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
+
+    if (LTO)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT result)
+        if(result)
+            set_target_properties(nrgmin.omp PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+        endif()
+    endif()
+
+    target_include_directories(nrgmin.omp
+        PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+        "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
+        PRIVATE ${INCLUDE_LIST})
+
+    target_link_libraries(nrgmin.omp ${LIBRARY_LIST} OpenMP::OpenMP_C)
+
+    target_compile_definitions(nrgmin.omp PUBLIC OPENMP)
+endif()
 
 if (BUILD_TESTS)
     find_package(Check REQUIRED)

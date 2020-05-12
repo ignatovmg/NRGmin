@@ -85,7 +85,9 @@ struct options options_get_default()
             .fix_receptor = 0,
             .fix_ligand = 0,
             .score_only = 0,
-            .help = 0
+            .help = 0,
+
+            .num_threads = 0
     };
 
     return prms;
@@ -121,7 +123,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
     int code = json_unpack_ex(
             dict, &error, JSON_STRICT,
 
-            "{s?i, s?i, "
+            "{s?i, s?i, s?i "
             " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
@@ -129,6 +131,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             // integer options
             "nsteps", &opts->nsteps,
             "verbosity", &opts->verbosity,
+            "num_threads", &opts->num_threads,
 
             // binary options
             "bonds", &opts->bonds,
@@ -204,6 +207,11 @@ static int _check_prms(struct options *opts)
         VERBOSITY = opts->verbosity >= 0 ? opts->verbosity : 0;
     }
 
+    if (opts->num_threads < 0) {
+        ERR_MSG("Number of threads can't be negative");
+        return 1;
+    }
+
     if (opts->json || opts->pdb || opts->psf || opts->prm || opts->rtf) {
         full = true;
         opts->separate = false;
@@ -269,6 +277,7 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                     {"out-pdb",              required_argument, 0,                 0},
                     {"out-json",             required_argument, 0,                 0},
                     {"verbosity",            required_argument, 0,                 0},
+                    {"num-threads",          required_argument, 0,                 0},
 
                     {"print-step",           no_argument,       &prms.print_step,  1},
                     {"print-stage",          no_argument,       &prms.print_stage, 1},
@@ -390,6 +399,9 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
         if (strcmp("verbosity", long_options[option_index].name) == 0) {
             prms.verbosity = atoi(optarg);
         }
+        if (strcmp("num-threads", long_options[option_index].name) == 0) {
+            prms.num_threads = atoi(optarg);
+        }
     }
 
     if (_check_prms(&prms) != 0) {
@@ -493,6 +505,7 @@ void usage_message(char *const *argv) {
            "\n"
            "    Miscellaneous\n"
            "\n"
+           "    --num-threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads\n"
            "    --score-only Score only without doing minimization\n"
            "    --help Show this message and exit\n\n");
 }

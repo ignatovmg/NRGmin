@@ -13,6 +13,9 @@ Utility for molecular mechanics energy minimization
        
 3. The binary is in `build/nrgmin`
 
+4. If you want to build with OpenMP, add `-DOPENMP=ON` to `cmake` command, it will create additional executable
+   `build/nrgmin.omp`. `--num-threads` controls the number of OpenMP threads.
+
 ## How to run
 
 Full list of parameters can be viewed by running  `./nrgmin -h`
@@ -43,7 +46,12 @@ If you want to use parameters from json file and coordinates from pdb
 ./nrgmin ---rec-pdb rec.pdb --rec-json rec.json --lig-pdb lig.pdb --lig-json lig.json
 ```
 
-Note: PDB file can contain multiple models (the number of models must match in rec/lig mode)
+PDB file can contain multiple models (the number of models must match in rec/lig mode). `nrgmin.omp` parallelizes
+minimization for multiple models using the flag `--num-threads`
+
+```
+./nrgmin.omp --json mol.json --pdb mol_10models.pdb --num-threads 10
+```
 
 ### Energy function
 
@@ -219,7 +227,8 @@ Global setup in json format
                          different minimization terms
         
 Miscellaneous
-        
+            
+            --num-threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads
             --score-only Score only without doing minimization
             --help Show this message and exit
 
