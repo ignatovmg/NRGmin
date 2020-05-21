@@ -1,16 +1,23 @@
 {
-  "stages": [
-    {
-      "nsteps": 1000,
-      "pairsprings": [
+    "stages": [
         {
-          "weight": 10,
-          "error": 0.1,
-          "length": 10,
-          "atom1": 2,
-          "atom2": 5
+            "pairsprings": [
+                {
+                    "distance": 5.0, 
+                    "weight": 5.0, 
+                    "average": "SUM", 
+                    "lerror": 2.0, 
+                    "potential": "SOFT-SQUARE", 
+                    "group1": [
+                        102
+                    ], 
+                    "rerror": 2.0, 
+                    "group2": [
+                        3599
+                    ]
+                }
+            ], 
+            "nsteps": 1000
         }
-      ]
-    }
-  ]
+    ]
 }

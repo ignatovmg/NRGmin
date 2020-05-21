@@ -69,11 +69,15 @@ struct density_setup {
     struct mol_fitting_params prms;
 };
 
-struct pairspring {
-    size_t atoms[2];
-    double length;
-    double error;
-    double weight;
+struct pairspring { // may not be used later, just to specify space
+    size_t *group1;      /**< list of first atoms */
+    size_t *group2;      /**< list of second atoms */
+    double weight;      /**< force constant */
+    double distance;
+    double lerror;
+    double rerror;
+    char potential[10];
+    char average[4];
 };
 
 struct pointspring {
@@ -84,8 +88,8 @@ struct pointspring {
 };
 
 struct pairsprings_setup {
-    size_t nsprings;
-    struct pairspring *springs;
+    size_t nsprings;       /**< number of springs */
+    json_t *springs;  /**< json array of springs */
 };
 
 struct pointsprings_setup {

@@ -342,45 +342,59 @@ static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
 
     struct pairsprings_setup *sprst;
     sprst = calloc(1, sizeof(struct pairsprings_setup));
-
-    if (fscanf(fp, "%zu", &sprst->nsprings) != 1) {
-        ERR_MSG("First line is pairsprings setup must be the number of springs");
-        free(sprst);
-        fclose(fp);
-        return NULL;
-    }
-
-    sprst->springs = calloc(sprst->nsprings, sizeof(struct pairspring));
-    struct pairspring *sprs = sprst->springs;
-
+    char c[200];
+    json_error_t error;
     size_t id = 0;
-    char name1[8], name2[8];
-    size_t aid1, aid2;
-    while (id < sprst->nsprings) {
-        size_t c = fscanf(fp,
-                "%lf %lf %lf %zu %s %zu %s",
-                &sprs[id].length,
-                &sprs[id].error,
-                &sprs[id].weight,
-                &aid1,
-                name1,
-                &aid2,
-                name2);
 
-        if (c != 7) {
-            ERR_MSG("Each line in pairsprings setup must have 7 tokens");
-            free(sprst->springs);
-            free(sprst);
-            fclose(fp);
+    json_t *jsprings = json_array();
+    json_t *spr_line;
+    while (fgets(c, 200, fp)!=NULL) {
+        spr_line = json_loads(c, 0, &error);
+        if (spr_line==NULL) {
+            ERR_MSG("Wrong pairsprings setup format, should be in json format.\n");
             return NULL;
         }
+        else {
+            json_array_append(jsprings, spr_line);
+        }
 
-        sprs[id].atoms[0] = aid1 - 1;
-        sprs[id].atoms[1] = aid2 - 1;
-
+        if (json_array_get( json_object_get(spr_line, "group1"), 0)==NULL) {
+            ERR_MSG("Wrong pairsprings setup format\n");
+            return NULL;
+        }
+        if (json_array_get( json_object_get(spr_line, "group2"), 0)==NULL) {
+            ERR_MSG("Wrong pairsprings setup format\n");
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "potential") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format\n");
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "weight") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format\n");
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "lerror") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format\n");
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "rerror") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format\n");
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "distance") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format\n");
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "average") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format\n");
+            return NULL;
+        }
         id++;
     }
-
+    json_decref(spr_line);
+    sprst->nsprings = id;
+    sprst->springs = jsprings;
     fclose(fp);
     return sprst;
 }
@@ -391,41 +405,50 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
         ERR_MSG("Pairsprings json setup must be an array");
         return NULL;
     }
-
     size_t nsprings = json_array_size(root);
-    struct pairspring* spring_set = calloc(nsprings, sizeof(struct pairspring));
-
-    bool error = false;
-    size_t counter;
-    json_t* spring;
-
-    json_array_foreach(root, counter, spring) {
-        json_error_t j_error;
-
-        int result = json_unpack_ex(
-                spring, &j_error, 0,
-                "{s:F, s:F, s:F, s:i, s:i}",
-                "length", &spring_set[counter].length,
-                "error", &spring_set[counter].error,
-                "weight", &spring_set[counter].weight,
-                "atom1", &spring_set[counter].atoms[0],
-                "atom2", &spring_set[counter].atoms[1]);
-
-        if (result != 0) {
-            JSON_ERR_MSG(j_error, "Wrong pairspring setup json format");
-            error = true;
-            break;
+    int i;
+    json_t *jsprings = json_array();
+    json_t *spr_line;
+    for (i = 0; i< nsprings; i++) {
+        spr_line = json_array_get(root, i);
+        json_array_append(jsprings, spr_line);
+        if (json_array_get( json_object_get(spr_line, "group1"), 0)== NULL) {
+            ERR_MSG("Wrong pairsprings setup format in line #%d\n", i+1);
+            return NULL;
         }
-    }
-
-    if (error) {
-        free(spring_set);
-        return NULL;
+        if (json_array_get( json_object_get(spr_line, "group2"), 0)== NULL) {
+            ERR_MSG("Wrong pairsprings setup format in line #%d\n", i+1);
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "potential") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format in line #%d\n", i+1);
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "weight") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format in line #%d\n", i+1);
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "lerror") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format in line #%d\n", i+1);
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "rerror") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format in line #%d\n", i+1);
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "distance") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format in line #%d\n", i+1);
+            return NULL;
+        }
+        if ( json_object_get(spr_line, "average") == NULL) {
+            ERR_MSG("Wrong pairsprings setup format in line #%d\n", i+1);
+            return NULL;
+        }
     }
 
     struct pairsprings_setup *sprst;
     sprst = calloc(1, sizeof(struct pairsprings_setup));
-    sprst->springs = spring_set;
+    sprst->springs = jsprings;
     sprst->nsprings = nsprings;
 
     return sprst;

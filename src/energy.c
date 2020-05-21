@@ -6,6 +6,7 @@
 #include "mol2/fitting.h"
 #include "mol2/noe.h"
 
+#include "utils.h"
 
 lbfgsfloatval_t energy_func(
         void *restrict prm,
@@ -192,38 +193,133 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
 
 
 void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    size_t i, i1, i2;
-    double xtot, ytot, ztot, fk, d, d2, ln, er, coef, delta;
+    int i, j, k, idx2, idx1, m, n;
+    size_t lni1, lni2, nm;
+    double *xtot_a, *ytot_a, *ztot_a; // store gradients direction for each atom
+    double *d_a;
+    double xtot, ytot, ztot, d, delta, d2, coef, ln, ler, rer, fk, hk;
+    double gradx, grady, gradz;
+    json_t *i1, *i2;
+    const char *potential, *averaging;
     struct mol_vector3 g;
 
-    for (i = 0; i < sprst->nsprings; i++) {
-        ln = sprst->springs[i].length;
-        er = sprst->springs[i].error;
-        fk = sprst->springs[i].weight / 2.0;
+    for (i = 0; i< sprst -> nsprings; i++) {
+        json_t *line_1 = json_array_get(sprst->springs, i);
+        ln = json_number_value(json_object_get(line_1, "distance"));
+        ler = json_number_value(json_object_get(line_1, "lerror"));
+        rer = json_number_value(json_object_get(line_1, "rerror"));
+        fk = json_number_value(json_object_get(line_1, "weight"));
 
-        i1 = sprst->springs[i].atoms[0];
-        i2 = sprst->springs[i].atoms[1];
+        // start to calculate the average distance over two groups
+        i1 = json_object_get(line_1, "group1");
+        i2 = json_object_get(line_1, "group2");
 
-        xtot = ag->coords[i2].X - ag->coords[i1].X;
-        ytot = ag->coords[i2].Y - ag->coords[i1].Y;
-        ztot = ag->coords[i2].Z - ag->coords[i1].Z;
+        lni1 = json_array_size(i1);
+        lni2 = json_array_size(i2);
+        xtot_a = calloc(lni1*lni2, sizeof(double));
+        ytot_a = calloc(lni1*lni2, sizeof(double));
+        ztot_a = calloc(lni1*lni2, sizeof(double));
+        d_a = calloc(lni1*lni2, sizeof(double));
+        double aved = 0;
+        for(j = 0; j < lni1; j++) {
+            idx1 = json_integer_value(json_array_get(i1,j));
+            for (k = 0; k < lni2; k++) {
+                idx2 = json_integer_value(json_array_get(i2,k));
+                xtot = ag->coords[idx2-1].X - ag->coords[idx1-1].X;
+                ytot = ag->coords[idx2-1].Y - ag->coords[idx1-1].Y;
+                ztot = ag->coords[idx2-1].Z - ag->coords[idx1-1].Z;
+                d2 = xtot*xtot + ytot*ytot + ztot*ztot;
+                d = sqrt(d2);
+                aved += 1/(pow(d, 6));
+                xtot_a[lni2*j + k] = xtot;
+                ytot_a[lni2*j + k] = ytot;
+                ztot_a[lni2*j + k] = ztot;
+                d_a[lni2*j + k] = d;
+            }
+        }
+        double sumd = aved;
+        averaging = json_string_value(json_object_get( line_1, "average"));
+        if (!(strcmp(averaging, "SUM"))) {
+            aved = 1/pow(aved,1.0/6);
+            nm = 1;
+        } else if (!(strcmp(averaging, "R-6"))){  // R6 average
+            aved = 1/pow(aved/lni1/lni2,1.0/6);
+            nm =lni1*lni2;
+        }
+        else {
+            ERR_MSG("The average should be one of SUM, R-6.\n");
+        }
+        delta = aved - ln;
 
-        d2 = xtot * xtot + ytot * ytot + ztot * ztot;
-        d = sqrt(d2);
+        potential = json_string_value(json_object_get( line_1, "potential"));
+        if (!(strncmp(potential, "SQUARE-WELL", 4))) {  // square-well
+            if (delta < 0) {
+                delta = (delta < -ler) ? (delta+ler) : 0.0;
+            } else {
+                delta = (delta > rer) ? (delta-rer) : 0.0;
+            }
+            (*een) += fk * delta * delta;
+            coef = fk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+        }
+        else if (!(strncmp(potential, "BIHARMONIC", 4))) {  // biharmonic, temperature=300
+            if (delta < 0) {
+                hk = fk * 300*0.0019872041/(2*ler*ler);
+            } else {
+                hk = fk * 300*0.0019872041/(2*rer*rer);
+            }
+            hk = fmin(1000, hk);
+            (*een) += hk * delta * delta;
+            coef = hk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+        }
+        else if (!(strncmp(potential, "SOFT-SQUARE", 4))) {  // soft-square
+            if (delta < 0) {
+                delta = (delta < -ler) ? (delta+ler) : 0.0;
+            } else {
+                delta = (delta > rer) ? (delta-rer) : 0.0;
+            }
 
-        delta = fabs(d - ln);
-        delta = (delta > er) ? ((delta - er) * delta / (d - ln)) : 0.0;
-
-        //(*een) += fk * (d - ln) * (d - ln);
-        (*een) += fk * delta * delta;
-        //coef = fk * 2 * (1.0 - ln / d);
-        coef = fk * 2.0 * delta / d;
-
-        g.X = -coef * xtot;
-        g.Y = -coef * ytot;
-        g.Z = -coef * ztot;
-
-        MOL_VEC_SUB(ag->gradients[i1], ag->gradients[i1], g);
-        MOL_VEC_ADD(ag->gradients[i2], ag->gradients[i2], g);
+            if (delta <= 3.0) {  // here the switch bound is 3.0
+                (*een) += fk* delta*delta;
+                coef = fk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+            } else {  //delta > 3.0
+                (*een) += fk*(delta - 45/delta + 21);
+                coef = fk * (1 + 45/(delta*delta)) * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+            }
+        }
+        else {
+            ERR_MSG("The potential should be one of SQUARE-WEll, BIHARMONIC, SOFT-SQUARE.\n");
+        }
+        // calculate and update gradients first groups
+        for (j = 0; j < lni1; j++) {
+            idx1 = json_integer_value(json_array_get(i1,j));
+            gradx = 0; grady = 0; gradz = 0;
+            for (k = 0; k < lni2; k++) {
+                gradx += coef * xtot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                grady += coef * ytot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                gradz += coef * ztot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+            }
+            g.X = -gradx;
+            g.Y = -grady;
+            g.Z = -gradz;
+            MOL_VEC_SUB(ag->gradients[idx1-1], ag->gradients[idx1-1], g);
+        }
+        // calculate and update gradients second groups
+        for (k = 0; k < lni2; k++) {
+            idx2 = json_integer_value(json_array_get(i2,k));
+            gradx = 0; grady = 0; gradz = 0;
+            for (j = 0; j < lni1; j++) {
+                gradx += coef * xtot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                grady += coef * ytot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+                gradz += coef * ztot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
+            }
+            g.X = -gradx;
+            g.Y = -grady;
+            g.Z = -gradz;
+            MOL_VEC_ADD(ag->gradients[idx2-1], ag->gradients[idx2-1], g);
+        }
+        free(xtot_a);
+        free(ytot_a);
+        free(ztot_a);
+        free(d_a);
     }
 }
