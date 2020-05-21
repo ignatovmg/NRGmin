@@ -1,18 +1,97 @@
-cmake_minimum_required(VERSION 3.5)
-project(energymin LANGUAGES C)
-set(energymin_version_major 0)
-set(energymin_version_minor 0)
-set(energymin_version "${energymin_version_major}.${energymin_version_minor}")
+cmake_minimum_required(VERSION 3.9)
+
+if(${CMAKE_VERSION} VERSION_LESS 3.12)
+    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
+endif()
+
+project(NRGmin VERSION 1.0
+        DESCRIPTION "Energy minimization utility"
+        LANGUAGES C)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(LTO            "Link Time Optimization"             ON)
+option(BUILD_TESTS    "Build tests"                        ON)
+option(USE_SANITIZER  "Build with address sanitizer"      OFF)
+option(OPENMP         "Add OPENMP executable"             OFF)
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
-set(CMAKE_C_FLAGS "-std=c11 -fPIC ${CMAKE_C_FLAGS}")
-set(CMAKE_C_FLAGS_DEBUG "-Wall ${CMAKE_C_FLAGS_DEBUG}")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-pg -Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
+endif()
 
-include_directories($ENV{HOME}/include)
-link_directories($ENV{HOME}/lib)
+if(USE_SANITIZER)
+    set(SANITIZER_FLAGS "-fno-omit-frame-pointer -fsanitize=address,undefined")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  ${SANITIZER_FLAGS}")
+endif()
 
-find_package(GSL REQUIRED)
+find_package(Jansson REQUIRED)
 
-add_executable(minimize minimize.c)
-target_link_libraries(minimize mol2 nmrgrad ${GSL_LIBRARIES} jansson m)
+find_package(mol2 REQUIRED)
+
+set(LIBRARY_LIST
+        "${MOL2_LIBRARIES}"
+        "${JANSSON_LIBRARIES}"
+        m)
+
+set(INCLUDE_LIST
+        "${MOL2_INCLUDE_DIRS}"
+        "${JANSSON_INCLUDE_DIRS}")
+
+set(SRC_LIST
+        ${PROJECT_SOURCE_DIR}/src/setup.c
+        ${PROJECT_SOURCE_DIR}/src/parse_options.c
+        ${PROJECT_SOURCE_DIR}/src/utils.c
+        ${PROJECT_SOURCE_DIR}/src/energy.c)
+
+add_executable(nrgmin ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
+
+if (LTO)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT result)
+    if(result)
+        set_target_properties(nrgmin PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
+endif()
+
+target_include_directories(nrgmin
+        PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+        "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
+        PRIVATE ${INCLUDE_LIST})
+
+target_link_libraries(nrgmin ${LIBRARY_LIST})
+
+if (OPENMP)
+    find_package(OpenMP REQUIRED)
+
+    add_executable(nrgmin.omp ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
+
+    if (LTO)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT result)
+        if(result)
+            set_target_properties(nrgmin.omp PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+        endif()
+    endif()
+
+    target_include_directories(nrgmin.omp
+        PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+        "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
+        PRIVATE ${INCLUDE_LIST})
+
+    target_link_libraries(nrgmin.omp ${LIBRARY_LIST} OpenMP::OpenMP_C)
+
+    target_compile_definitions(nrgmin.omp PUBLIC OPENMP)
+endif()
+
+if (BUILD_TESTS)
+    find_package(Check REQUIRED)
+    enable_testing()
+    add_subdirectory("test")
+endif()
