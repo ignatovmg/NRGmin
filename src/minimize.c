@@ -93,9 +93,11 @@ int main(int argc, char **argv) {
             struct mol_atom_group *ag = &ag_list->members[modeli];
 
             // Setup fixed atoms and nblists
-            struct agsetup ag_setup;
             mol_fixed_init(ag);
+
+            struct agsetup ag_setup;
             init_nblst(ag, &ag_setup);
+            update_nblst(ag, &ag_setup);
 
             // Run stages of minimization
             for (size_t stage_id = 0; stage_id < nstages; stage_id++) {
@@ -105,17 +107,9 @@ int main(int argc, char **argv) {
                 *stage_prms = min_prms[stage_id];
                 stage_prms->ag = ag;
 
-                if (stage_prms->fixed) {
-                    mol_fixed_update(ag, stage_prms->fixed->natoms, stage_prms->fixed->atoms);
-                } else {
-                    mol_fixed_update(ag, 0, NULL);
-                }
-
-                update_nblst(ag, &ag_setup);
-
                 // Set up GBSA
+                struct acesetup ace_setup;
                 if (stage_prms->gbsa) {
-                    struct acesetup ace_setup;
                     ace_setup.efac = 0.5;
                     ace_ini(ag, &ace_setup);
                     ace_fixedupdate(ag, &ag_setup, &ace_setup);
@@ -123,6 +117,18 @@ int main(int argc, char **argv) {
                     stage_prms->ace_setup = &ace_setup;
                 } else {
                     stage_prms->ace_setup = NULL;
+                }
+
+                if (stage_prms->fixed) {
+                    mol_fixed_update(ag, stage_prms->fixed->natoms, stage_prms->fixed->atoms);
+                } else {
+                    mol_fixed_update(ag, 0, NULL);
+                }
+
+                update_nblst(ag, &ag_setup);
+                if (stage_prms->gbsa) {
+                    ace_fixedupdate(ag, &ag_setup, stage_prms->ace_setup);
+                    ace_updatenblst(&ag_setup, stage_prms->ace_setup);
                 }
 
                 stage_prms->ag_setup = &ag_setup;
