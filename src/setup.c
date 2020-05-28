@@ -276,8 +276,8 @@ static struct fixed_setup* _fixed_setup_read_txt(const char *path) {
     fclose(fp);
 
     struct fixed_setup* result = calloc(1, sizeof(struct fixed_setup));
-    result->atoms = calloc(nfix, sizeof(size_t));
-    result->natoms = nfix;
+    result->atoms = fix;
+    result->natoms = na;
 
     return result;
 }

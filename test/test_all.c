@@ -467,6 +467,19 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert_int_eq(prms[0].density->ag->natoms, 42);
             energy_prms_free(&prms, nstages);
             break;
+
+        case 10:
+            // Pass fixed pdb
+            opts = options_get_default();
+            opts.fixed_pdb = "BACE_4_lig_far.pdb";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+            ck_assert_int_eq(prms[0].fixed->natoms, 42);
+            _compare_arrays_size_t(prms[0].fixed->atoms, (size_t[]){3598, 3599, 3600, 3601, 3602, 3603}, 6);
+
+            energy_prms_free(&prms, nstages);
+            break;
     }
 }
 
@@ -651,7 +664,7 @@ Suite *lists_suite(void)
     tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
     tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
-    tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 10);
+    tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 11);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
     suite_add_tcase(suite, tcase_real);
 
