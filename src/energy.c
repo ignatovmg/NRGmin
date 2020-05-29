@@ -193,38 +193,33 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
 
 
 void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    int i, j, k, idx2, idx1, m, n;
+    size_t i, j, k, idx2, idx1;
     size_t lni1, lni2, nm;
     double *xtot_a, *ytot_a, *ztot_a; // store gradients direction for each atom
     double *d_a;
     double xtot, ytot, ztot, d, delta, d2, coef, ln, ler, rer, fk, hk;
     double gradx, grady, gradz;
-    json_t *i1, *i2;
     const char *potential, *averaging;
     struct mol_vector3 g;
 
     for (i = 0; i< sprst -> nsprings; i++) {
-        json_t *line_1 = json_array_get(sprst->springs, i);
-        ln = json_number_value(json_object_get(line_1, "distance"));
-        ler = json_number_value(json_object_get(line_1, "lerror"));
-        rer = json_number_value(json_object_get(line_1, "rerror"));
-        fk = json_number_value(json_object_get(line_1, "weight"));
+        ln = sprst->springs[i].distance;
+        ler = sprst->springs[i].lerror;
+        rer = sprst->springs[i].rerror;
+        fk = sprst->springs[i].weight;
 
         // start to calculate the average distance over two groups
-        i1 = json_object_get(line_1, "group1");
-        i2 = json_object_get(line_1, "group2");
-
-        lni1 = json_array_size(i1);
-        lni2 = json_array_size(i2);
+        lni1 = sprst->springs[i].leng1;
+        lni2 = sprst->springs[i].leng2;
         xtot_a = calloc(lni1*lni2, sizeof(double));
         ytot_a = calloc(lni1*lni2, sizeof(double));
         ztot_a = calloc(lni1*lni2, sizeof(double));
         d_a = calloc(lni1*lni2, sizeof(double));
         double aved = 0;
         for(j = 0; j < lni1; j++) {
-            idx1 = json_integer_value(json_array_get(i1,j));
+            idx1 = sprst->springs[i].group1[j];
             for (k = 0; k < lni2; k++) {
-                idx2 = json_integer_value(json_array_get(i2,k));
+                idx2 = sprst->springs[i].group2[k];
                 xtot = ag->coords[idx2-1].X - ag->coords[idx1-1].X;
                 ytot = ag->coords[idx2-1].Y - ag->coords[idx1-1].Y;
                 ztot = ag->coords[idx2-1].Z - ag->coords[idx1-1].Z;
@@ -238,7 +233,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
             }
         }
         double sumd = aved;
-        averaging = json_string_value(json_object_get( line_1, "average"));
+        averaging = sprst->springs[i].average;
         if (!(strcmp(averaging, "SUM"))) {
             aved = 1/pow(aved,1.0/6);
             nm = 1;
@@ -251,7 +246,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
         }
         delta = aved - ln;
 
-        potential = json_string_value(json_object_get( line_1, "potential"));
+        potential = sprst->springs[i].potential;
         if (!(strncmp(potential, "SQUARE-WELL", 4))) {  // square-well
             if (delta < 0) {
                 delta = (delta < -ler) ? (delta+ler) : 0.0;
@@ -286,12 +281,9 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
                 coef = fk * (1 + 45/(delta*delta)) * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
             }
         }
-        else {
-            ERR_MSG("The potential should be one of SQUARE-WEll, BIHARMONIC, SOFT-SQUARE.\n");
-        }
         // calculate and update gradients first groups
         for (j = 0; j < lni1; j++) {
-            idx1 = json_integer_value(json_array_get(i1,j));
+            idx1 = sprst->springs[i].group1[j];
             gradx = 0; grady = 0; gradz = 0;
             for (k = 0; k < lni2; k++) {
                 gradx += coef * xtot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);
@@ -305,7 +297,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
         }
         // calculate and update gradients second groups
         for (k = 0; k < lni2; k++) {
-            idx2 = json_integer_value(json_array_get(i2,k));
+            idx2 = sprst->springs[i].group2[k];
             gradx = 0; grady = 0; gradz = 0;
             for (j = 0; j < lni1; j++) {
                 gradx += coef * xtot_a[j*lni2+k] * pow(d_a[j*lni2+k], -8.0);

@@ -420,14 +420,16 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms->sprst_pairs->nsprings, 1);
-            ck_assert_double_eq_tol(json_number_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "weight")), 5.0, 10e-3);
-            ck_assert_double_eq_tol(json_number_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "lerror")), 2.0, 10e-3);
-            ck_assert_double_eq_tol(json_number_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "rerror")), 2.0, 10e-3);
-            ck_assert_double_eq_tol(json_number_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "distance")), 5.0, 10e-3);
-            ck_assert_int_eq(json_integer_value(json_array_get(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "group1"),0)), 102);
-            ck_assert_int_eq(json_integer_value(json_array_get(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "group2"),0)), 3599);
-            ck_assert_str_eq(json_string_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "average")), "SUM");
-            ck_assert_str_eq(json_string_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "potential")), "SOFT-SQUARE");
+            ck_assert_int_eq(prms->sprst_pairs->springs->leng1, 1);
+            ck_assert_int_eq(prms->sprst_pairs->springs->leng2, 1);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->weight, 5.0, 10e-3);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->lerror, 2.0, 10e-3);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->rerror, 2.0, 10e-3);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->distance, 5.0, 10e-3);
+            ck_assert_str_eq(prms->sprst_pairs->springs->average, "SUM");
+            ck_assert_str_eq(prms->sprst_pairs->springs->potential, "SOFT-SQUARE");
+            ck_assert_int_eq(prms->sprst_pairs->springs->group1[0], 101);
+            ck_assert_int_eq(prms->sprst_pairs->springs->group2[0], 3598);
 
             energy_prms_free(&prms, nstages);
             break;
@@ -520,15 +522,6 @@ START_TEST(test_energy_prm_from_json)
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
-            ck_assert_int_eq(prms->sprst_pairs->nsprings, 1);
-            ck_assert_double_eq_tol(json_number_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "weight")), 5.0, 10e-3);
-            ck_assert_double_eq_tol(json_number_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "lerror")), 2.0, 10e-3);
-            ck_assert_double_eq_tol(json_number_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "rerror")), 2.0, 10e-3);
-            ck_assert_double_eq_tol(json_number_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "distance")), 5.0, 10e-3);
-            ck_assert_int_eq(json_integer_value(json_array_get(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "group1"),0)), 102);
-            ck_assert_int_eq(json_integer_value(json_array_get(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "group2"),0)), 3599);
-            ck_assert_str_eq(json_string_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "average")), "SUM");
-            ck_assert_str_eq(json_string_value(json_object_get(json_array_get(prms->sprst_pairs->springs,0), "potential")), "SOFT-SQUARE");
 
             energy_prms_free(&prms, nstages);
             break;
@@ -642,7 +635,7 @@ START_TEST(test_energy_prm_from_json)
             ck_assert_ptr_nonnull(prms[1].nmr->spec);
             ck_assert_int_eq(prms[1].nmr->spec->size, 2);
             ck_assert_int_eq(prms[2].sprst_points->springs[0].atoms[3], 4);
-            ck_assert_int_eq(json_integer_value(json_array_get(json_object_get(json_array_get(prms[1].sprst_pairs->springs, 0), "group2"), 0)), 5);
+            ck_assert_int_eq(prms[1].sprst_pairs->springs[0].group2[0], 4);
 
             energy_prms_free(&prms, nstages);
             break;
