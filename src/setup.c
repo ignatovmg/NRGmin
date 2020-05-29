@@ -363,23 +363,23 @@ static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
     size_t aid1, aid2;
     while (id < sprst->nsprings) {
         size_t c = fscanf(fp,
-                          "%lf %lf %lf %lf %zu %s %zu %s",
+                          "%lf %lf %lf %zu %s %zu %s",
                           &sprs[id].distance,
                           &sprs[id].lerror,
-                          &sprs[id].rerror,
                           &sprs[id].weight,
                           &aid1,
                           name1,
                           &aid2,
                           name2);
 
-        if (c != 8) {
-            ERR_MSG("Each line in pairsprings setup must have 8 tokens");
+        if (c != 7) {
+            ERR_MSG("Each line in pairsprings setup must have 7 tokens");
             free(sprst->springs);
             free(sprst);
             fclose(fp);
             return NULL;
         }
+        sprs[id].rerror = sprs[id].lerror;
         sprs[id].leng1 = 1;
         sprs[id].leng2 = 1;
         sprs[id].group1 = calloc(1, sizeof(size_t));
