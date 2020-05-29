@@ -790,6 +790,8 @@ bool energy_prms_populate_from_options(
     all_stage_prms->impropers = opts.impropers;
     all_stage_prms->vdw = opts.vdw;
     all_stage_prms->vdw03 = opts.vdw03;
+    all_stage_prms->eleng = opts.eleng;
+    all_stage_prms->elengs03 = opts.elengs03;
     all_stage_prms->gbsa = opts.gbsa;
 
     all_stage_prms->score_only = opts.score_only;
@@ -947,13 +949,15 @@ bool energy_prms_populate_from_options(
             DEBUG_MSG("Unpacking options");
             int code = json_unpack_ex(
                     stage_desc, &j_error, 0,
-                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
+                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
                     "bonds", &stage_prms->bonds,
                     "angles", &stage_prms->angles,
                     "dihedrals", &stage_prms->dihedrals,
                     "impropers", &stage_prms->impropers,
                     "vdw", &stage_prms->vdw,
                     "vdw03", &stage_prms->vdw03,
+                    "eleng", &stage_prms->eleng,
+                    "elengs03", &stage_prms->elengs03,
                     "gbsa", &stage_prms->gbsa,
                     "fix_receptor", &stage_fix_rec,
                     "fix_ligand", &stage_fix_lig,

@@ -52,6 +52,8 @@ struct energy_prms {
     bool impropers;
     bool vdw;
     bool vdw03;
+    bool eleng;
+    bool elengs03;
     bool gbsa;
 
     bool score_only; ///< Don't perform minimizition and only output energy terms

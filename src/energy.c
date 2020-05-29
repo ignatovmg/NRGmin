@@ -41,6 +41,27 @@ lbfgsfloatval_t energy_func(
         total_energy += term_energy;
     }
 
+    double ele_eps = 1.0;
+    if (energy_prm->eleng) {
+        term_energy = 0.0;
+        eleng(energy_prm->ag, ele_eps, &term_energy, energy_prm->ag_setup->nblst);
+        json_object_set_new(energy_dict, "eleng", json_real(term_energy));
+        total_energy += term_energy;
+    }
+
+    if (energy_prm->elengs03) {
+        term_energy = 0.0;
+        elengs03(1.0,
+                energy_prm->ag_setup->nblst->nbcof,
+                energy_prm->ag,
+                ele_eps,
+                &term_energy,
+                energy_prm->ag_setup->nf03,
+                energy_prm->ag_setup->listf03);
+        json_object_set_new(energy_dict, "elengs03", json_real(term_energy));
+        total_energy += term_energy;
+    }
+
     if (energy_prm->vdw) {
         term_energy = 0.0;
         vdweng(energy_prm->ag, &term_energy, energy_prm->ag_setup->nblst);

@@ -79,6 +79,8 @@ struct options options_get_default()
             .impropers = 1,
             .vdw = 1,
             .vdw03 = 1,
+            .eleng = 1,
+            .elengs03 = 1,
             .gbsa = 0,
 
             .verbosity = DEBUG,
@@ -124,7 +126,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             dict, &error, JSON_STRICT,
 
             "{s?i, s?i, s?i "
-            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
+            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
 
@@ -140,6 +142,8 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "impropers", &opts->impropers,
             "vdw", &opts->vdw,
             "vdw03", &opts->vdw03,
+            "eleng", &opts->eleng,
+            "elengs03", &opts->elengs03,
             "gbsa", &opts->gbsa,
             "fix_receptor", &opts->fix_receptor,
             "fix_ligand", &opts->fix_ligand,
@@ -327,6 +331,10 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                     {"vdw-off",              no_argument,  &prms.vdw,              0},
                     {"vdw03-on",             no_argument,  &prms.vdw03,            1},
                     {"vdw03-off",            no_argument,  &prms.vdw03,            0},
+                    {"eleng-on",             no_argument,  &prms.eleng,            1},
+                    {"eleng-off",            no_argument,  &prms.eleng,            0},
+                    {"elengs03-on",          no_argument,  &prms.elengs03,         1},
+                    {"elengs03-off",         no_argument,  &prms.elengs03,         0},
                     {"gbsa-on",              no_argument,  &prms.gbsa,             1},
                     {"gbsa-off",             no_argument,  &prms.gbsa,             0},
 
@@ -475,6 +483,8 @@ void usage_message(char *const *argv) {
            "    --impropers-on/--impropers-on Impropers\n"
            "    --vdw-on/--vdw-off VDW\n"
            "    --vdw03-on/--vdw03-off 1-4 VDW\n"
+           "    --eleng-on/--eleng-off Coulomb electrostatics\n"
+           "    --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics\n"
            "    --gbsa-on/gbsa-off GBSA\n"
            "\n"
            "    Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)\n"
