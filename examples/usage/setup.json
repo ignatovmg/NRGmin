@@ -1,62 +1,62 @@
 {
+  "options": {
+    "rec_pdb": "BACE_4_rec_2models.pdb",
+    "rec_psf": "BACE_4_rec.psf",
+    "rec_prm": "BACE_4_rec_parm.prm",
+    "rec_rtf": "BACE_4_rec_pdbamino.rtf",
+    "lig_json": "BACE_4_lig.json",
+    "lig_pdb": "BACE_4_lig_2models_close.pdb"
+  },
   "stages": [
     {
-      "nsteps": 1000, 
+      "nsteps": 1000,
       "fix_ligand": true
-    }, 
+    },
     {
-      "fix_receptor": true, 
-      "nsteps": 1000
-    }, 
+      "nsteps": 1000,
+      "fix_receptor": true
+    },
     {
-      "pairsprings": [
-        {
-          "weight": 10.0, 
-          "lrror": 1.0, 
-          "error": 1.0, 
-          "length": 10.0, 
-          "potential": "SOFT-SQUARE", 
-          "group1": [
-            3598
-          ], 
-          "group2": [
-            3630
-          ], 
-          "average": "SUM"
-        }
-      ], 
-      "vdw03": false, 
+      "nsteps": 1000,
+      "vdw03": false,
+      "gbsa": true,
       "pointsprings": [
         {
+          "weight": 10,
           "coords": [
-            26.816, 
-            1.943, 
-            23.79
-          ], 
-          "weight": 10, 
+            26.816,
+            1.943,
+            23.790
+          ],
           "atoms": [
             3598
           ]
         }
-      ], 
-      "nsteps": 1000, 
-      "gbsa": true
-    }, 
+      ],
+      "pairsprings": [
+        {
+          "distance": 10.0,
+          "weight": 10.0,
+          "lerror": 1.0,
+          "rerror": 1.0,
+          "potential": 2,
+          "average": 0,
+          "group1": [
+            3598
+          ],
+          "group2": [
+            3630
+          ]
+        }
+      ]
+    },
     {
-      "nsteps": 1000, 
+      "nsteps": 1000,
       "density": {
-        "atom_radius": 2.0, 
-        "pdb": "density.pdb", 
-        "weight": 1000
+        "weight": 1000,
+        "atom_radius": 2.0,
+        "pdb": "density.pdb"
       }
     }
-  ], 
-  "options": {
-    "lig_json": "BACE_4_lig.json", 
-    "rec_pdb": "BACE_4_rec_2models.pdb", 
-    "rec_rtf": "BACE_4_rec_pdbamino.rtf", 
-    "lig_pdb": "BACE_4_lig_2models_close.pdb", 
-    "rec_psf": "BACE_4_rec.psf", 
-    "rec_prm": "BACE_4_rec_parm.prm"
-  }
+  ]
 }

@@ -380,14 +380,14 @@ static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
             return NULL;
         }
         sprs[id].rerror = sprs[id].lerror;
-        sprs[id].leng1 = 1;
-        sprs[id].leng2 = 1;
+        sprs[id].group_size1 = 1;
+        sprs[id].group_size2 = 1;
         sprs[id].group1 = calloc(1, sizeof(size_t));
         sprs[id].group2 = calloc(1, sizeof(size_t));
         sprs[id].group1[0] = aid1 - 1;
         sprs[id].group2[0] = aid2 - 1;
-        strcpy(sprs[id].average, "SUM");
-        strcpy(sprs[id].potential, "SOFT-SQUARE");
+        sprs[id].average = 0;
+        sprs[id].potential = 2;
 
         id++;
     }
@@ -412,46 +412,31 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
     json_t* g2;
 
     size_t len1, len2, i;
-    char *average;
-    char *potential;
     json_array_foreach(root, counter, spring) {
         json_error_t j_error;
         int result = json_unpack_ex(
                 spring, &j_error, 0,
-                "{s:F, s:F, s:F, s:F, s:s, s:s}",
+                "{s:F, s:F, s:F, s:F, s:i, s:i}",
                 "distance", &spring_set[counter].distance,
                 "lerror", &spring_set[counter].lerror,
                 "rerror", &spring_set[counter].rerror,
                 "weight", &spring_set[counter].weight,
-                "potential", &potential,
-                "average", &average);
+                "potential", &spring_set[counter].potential,
+                "average", &spring_set[counter].average);
 
         if (result != 0) {
             JSON_ERR_MSG(j_error, "Wrong pairspring setup json format");
             error = true;
             break;
         }
-        if (!strcmp(average, "SUM")) {
-            strcpy(spring_set[counter].average, "SUM");
-        }
-        else if (!strcmp(average, "R-6")) {
-            strcpy(spring_set[counter].average, "R-6");
-        }
-        else {
-            ERR_MSG("The average should be SUM, or R-6.\n");
+        if (spring_set[counter].average >1 || spring_set[counter].average <0) {
+            ERR_MSG("The average should be 0 (SUM), or 1 (R-6).");
+            error = true;
+            break;
         }
 
-        if (!strcmp(potential, "SOFT-SQUARE")) {
-            strcpy(spring_set[counter].potential, "SOFT");
-        }
-        else if (!strcmp(potential, "BIHARMONIC")) {
-            strcpy(spring_set[counter].potential, "BIHA");
-        }
-        else if (!strcmp(potential, "SQUARE-WELL")) {
-            strcpy(spring_set[counter].potential, "SQUA");
-        }
-        else {
-            ERR_MSG("potential in pairsprings should be one of SQUARE-WEll, BIHARMONIC, SOFT-SQUARE.\n");
+        if (spring_set[counter].potential>2 || spring_set[counter].potential <0) {
+            ERR_MSG("Potential in pairsprings should be one of 0 (SQUARE-WEll), 1 (BIHARMONIC), 2 (SOFT-SQUARE).");
             error = true;
             break;
         }
@@ -460,20 +445,28 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
         len1 = json_array_size(g1);
         len2 = json_array_size(g2);
         if (len1==0 || len2==0) {
-            JSON_ERR_MSG(j_error, "Wrong pairspring setup json format");
+            ERR_MSG("Wrong pairspring setup group size.");
             error = true;
             break;
         }
-        spring_set[counter].leng1 = len1;
-        spring_set[counter].leng2 = len2;
+        spring_set[counter].group_size1 = len1;
+        spring_set[counter].group_size2 = len2;
         spring_set[counter].group1 = calloc(len1, sizeof(size_t));
         spring_set[counter].group2 = calloc(len2, sizeof(size_t));
 
         for (i = 0; i < len1; ++i) {
-            spring_set[counter].group1[i] = json_integer_value(json_array_get(g1, i)) -1;
+            if (json_is_integer(json_array_get(g1, i))) {
+                spring_set[counter].group1[i] = json_integer_value(json_array_get(g1, i)) - 1;
+            } else {
+                ERR_MSG("Index in group1 must be interger");
+            }
         }
         for (i = 0; i < len2; ++i) {
-            spring_set[counter].group2[i] = json_integer_value(json_array_get(g2, i)) -1;
+            if (json_is_integer(json_array_get(g2, i))) {
+                spring_set[counter].group2[i] = json_integer_value(json_array_get(g2, i)) - 1;
+            } else {
+                ERR_MSG("Index in group2 must be interger");
+            }
         }
     }
 

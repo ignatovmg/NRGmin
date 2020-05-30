@@ -199,7 +199,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
     double *d_a;
     double xtot, ytot, ztot, d, delta, d2, coef, ln, ler, rer, fk, hk;
     double gradx, grady, gradz;
-    const char *potential, *averaging;
+    int potential, averaging;
     struct mol_vector3 g;
 
     for (i = 0; i< sprst -> nsprings; i++) {
@@ -209,8 +209,8 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
         fk = sprst->springs[i].weight;
 
         // start to calculate the average distance over two groups
-        lni1 = sprst->springs[i].leng1;
-        lni2 = sprst->springs[i].leng2;
+        lni1 = sprst->springs[i].group_size1;
+        lni2 = sprst->springs[i].group_size2;
         xtot_a = calloc(lni1*lni2, sizeof(double));
         ytot_a = calloc(lni1*lni2, sizeof(double));
         ztot_a = calloc(lni1*lni2, sizeof(double));
@@ -234,20 +234,17 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
         }
         double sumd = aved;
         averaging = sprst->springs[i].average;
-        if (!(strcmp(averaging, "SUM"))) {
+        if (averaging == 0) {
             aved = 1/pow(aved,1.0/6);
             nm = 1;
-        } else if (!(strcmp(averaging, "R-6"))){  // R6 average
+        } else if (averaging == 1){  // R6 average
             aved = 1/pow(aved/lni1/lni2,1.0/6);
             nm =lni1*lni2;
-        }
-        else {
-            ERR_MSG("The average should be one of SUM, R-6.\n");
         }
         delta = aved - ln;
 
         potential = sprst->springs[i].potential;
-        if (!(strncmp(potential, "SQUARE-WELL", 4))) {  // square-well
+        if (potential == 0) {  // square-well
             if (delta < 0) {
                 delta = (delta < -ler) ? (delta+ler) : 0.0;
             } else {
@@ -256,7 +253,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
             (*een) += fk * delta * delta;
             coef = fk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
         }
-        else if (!(strncmp(potential, "BIHARMONIC", 4))) {  // biharmonic, temperature=300
+        else if (potential == 1) {  // biharmonic, temperature=300
             if (delta < 0) {
                 hk = fk * 300*0.0019872041/(2*ler*ler);
             } else {
@@ -266,7 +263,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
             (*een) += hk * delta * delta;
             coef = hk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
         }
-        else if (!(strncmp(potential, "SOFT-SQUARE", 4))) {  // soft-square
+        else if (potential == 2) {  // soft-square
             if (delta < 0) {
                 delta = (delta < -ler) ? (delta+ler) : 0.0;
             } else {

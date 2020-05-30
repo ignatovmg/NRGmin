@@ -72,14 +72,14 @@ struct density_setup {
 struct pairspring {
     size_t *group1;      /**< list of first atoms */
     size_t *group2;      /**< list of second atoms */
-    size_t leng1;        /**< length of 1st group */
-    size_t leng2;        /**< length of 2nd group */
+    size_t group_size1;        /**< length of 1st group */
+    size_t group_size2;        /**< length of 2nd group */
     double weight;      /**< force constant */
     double distance;    /**< distance constraint */
     double lerror;      /**< left error */
     double rerror;      /**< right error */
-    char potential[12]; /**< potential for penalty function */
-    char average[4];    /**< way to average for group atoms */
+    int potential; /**< potential for penalty function */
+    int average;    /**< way to average for group atoms */
 };
 // write the free function to free the spaces
 

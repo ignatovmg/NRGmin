@@ -420,14 +420,14 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms->sprst_pairs->nsprings, 1);
-            ck_assert_int_eq(prms->sprst_pairs->springs->leng1, 1);
-            ck_assert_int_eq(prms->sprst_pairs->springs->leng2, 1);
+            ck_assert_int_eq(prms->sprst_pairs->springs->group_size1, 1);
+            ck_assert_int_eq(prms->sprst_pairs->springs->group_size2, 1);
             ck_assert_double_eq_tol(prms->sprst_pairs->springs->weight, 5.0, 10e-3);
             ck_assert_double_eq_tol(prms->sprst_pairs->springs->lerror, 2.0, 10e-3);
             ck_assert_double_eq_tol(prms->sprst_pairs->springs->rerror, 2.0, 10e-3);
             ck_assert_double_eq_tol(prms->sprst_pairs->springs->distance, 5.0, 10e-3);
-            ck_assert_str_eq(prms->sprst_pairs->springs->average, "SUM");
-            ck_assert_str_eq(prms->sprst_pairs->springs->potential, "SOFT-SQUARE");
+            ck_assert_int_eq(prms->sprst_pairs->springs->average, 0);
+            ck_assert_int_eq(prms->sprst_pairs->springs->potential, 2);
             ck_assert_int_eq(prms->sprst_pairs->springs->group1[0], 101);
             ck_assert_int_eq(prms->sprst_pairs->springs->group2[0], 3598);
 

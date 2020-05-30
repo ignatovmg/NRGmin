@@ -1,117 +1,117 @@
 {
     "stages": [
         {
-            "fix_receptor": true, 
-            "nsteps": 1000, 
+            "nsteps": 1000,
+            "fix_receptor": true,
             "vdw": false
-        }, 
+        },
         {
+            "nsteps": 500,
+            "fixed": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                8,
+                2000
+            ],
             "pairsprings": [
                 {
-                    "distance": 10.0, 
-                    "weight": 10.0, 
-                    "average": "SUM", 
-                    "lerror": 0.1, 
-                    "potential": "SOFT-SQUARE", 
+                    "distance": 10.0,
+                    "weight": 10.0,
+                    "rerror": 0.1,
+                    "lerror": 0.1,
+                    "potential": 2,
+                    "average": 0,
                     "group1": [
                         2
-                    ], 
-                    "rerror": 0.1, 
+                    ],
                     "group2": [
                         5
                     ]
                 }
-            ], 
-            "fixed": [
-                0, 
-                1, 
-                2, 
-                3, 
-                4, 
-                8, 
-                2000
-            ], 
-            "nsteps": 500, 
+            ],
             "noe": {
-                "cutoff": 10, 
-                "t_cor": 0.1, 
-                "weight": 1000, 
-                "power": 0.33333, 
-                "mask": [
-                    [
-                        0, 
-                        1
-                    ]
-                ], 
-                "t_mix": 0.2, 
-                "experiment": [
-                    {
-                        "group1": 0, 
-                        "value": 0.840252, 
-                        "group2": 0
-                    }, 
-                    {
-                        "group1": 0, 
-                        "value": -0.074589, 
-                        "group2": 1
-                    }, 
-                    {
-                        "group1": 1, 
-                        "value": -0.074589, 
-                        "group2": 0
-                    }, 
-                    {
-                        "group1": 1, 
-                        "value": 0.840252, 
-                        "group2": 1
-                    }
-                ], 
-                "frequency": 6e-05, 
+                "weight": 1000,
+                "power": 0.33333,
                 "groups": [
                     [
                         0
-                    ], 
+                    ],
                     [
+                        1
+                    ]
+                ],
+                "frequency": 0.00006,
+                "t_cor": 0.1,
+                "t_mix": 0.2,
+                "cutoff": 10,
+                "experiment": [
+                    {
+                        "group1": 0,
+                        "group2": 0,
+                        "value": 0.840252
+                    },
+                    {
+                        "group1": 0,
+                        "group2": 1,
+                        "value": -0.074589
+                    },
+                    {
+                        "group1": 1,
+                        "group2": 0,
+                        "value": -0.074589
+                    },
+                    {
+                        "group1": 1,
+                        "group2": 1,
+                        "value": 0.840252
+                    }
+                ],
+                "mask": [
+                    [
+                        0,
                         1
                     ]
                 ]
             }
-        }, 
+        },
         {
+            "nsteps": 500,
+            "pointsprings": [
+                {
+                    "weight": 10,
+                    "coords": [
+                        1,
+                        1,
+                        1
+                    ],
+                    "atoms": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5
+                    ]
+                }
+            ],
             "pairsprings": [
                 {
-                    "distance": 10.0, 
-                    "weight": 10.0, 
-                    "average": "SUM", 
-                    "lerror": 0.1, 
-                    "potential": "SOFT-SQUARE", 
+                    "distance": 10.0,
+                    "weight": 10.0,
+                    "rerror": 0.1,
+                    "lerror": 0.1,
+                    "potential": 2,
+                    "average": 0,
                     "group1": [
                         2
-                    ], 
-                    "rerror": 0.1, 
+                    ],
                     "group2": [
                         5
                     ]
                 }
-            ], 
-            "pointsprings": [
-                {
-                    "coords": [
-                        1, 
-                        1, 
-                        1
-                    ], 
-                    "weight": 10, 
-                    "atoms": [
-                        1, 
-                        2, 
-                        3, 
-                        4, 
-                        5
-                    ]
-                }
-            ], 
-            "nsteps": 500
+            ]
         }
     ]
 }

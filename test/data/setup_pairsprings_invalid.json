@@ -1,22 +1,22 @@
 {
     "stages": [
         {
+            "nsteps": 1000,
             "pairsprings": [
                 {
-                    "distance": 5.0, 
-                    "average": "SUM", 
-                    "lerror": 2.0, 
-                    "potential": "SOFT-SQUARE", 
+                    "distance": 5.0,
+                    "lerror": 2.0,
+                    "rerror": 2.0,
+                    "potential": 2,
+                    "average": 0,
                     "group1": [
                         102
-                    ], 
-                    "rerror": 2.0, 
+                    ],
                     "group2": [
                         3599
                     ]
                 }
-            ], 
-            "nsteps": 1000
+            ]
         }
     ]
-} 
+}
