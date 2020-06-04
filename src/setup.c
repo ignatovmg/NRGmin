@@ -117,12 +117,29 @@ static struct mol_atom_group_list *_read_ag_list(
         } else if (psf && prm && rtf) {
             // If json wasn't provided read geometry from prm rtf psf
             DEBUG_MSG("Reading geometry from %s", psf);
-            for (size_t i = 0; i < ag_list->size; i++) {
-                if (!mol_atom_group_read_geometry(&ag_list->members[i], psf, prm, rtf)) {
-                    ERR_MSG("Couldn't fill geometry from psf rtf and prm");
-                    mol_atom_group_list_free(ag_list);
-                }
+            struct mol_atom_group_list* ag_list_copy =  mol_atom_group_list_create(ag_list->size);
+
+            // Fill the geometry for the first model
+            if (!mol_atom_group_read_geometry(&ag_list->members[0], psf, prm, rtf)) {
+                ERR_MSG("Couldn't fill geometry from psf rtf and prm");
+                mol_atom_group_list_free(ag_list);
+                mol_atom_group_list_free(ag_list_copy);
+                return NULL;
             }
+
+            // Copy the first model into each member of ag_list_copy and fill the coordinates from ag_list
+            // this is done for speed up, because reading geomerty for each model separately can be very slow
+            for (size_t i = 0; i < ag_list->size; i++) {
+                struct mol_atom_group* buf = mol_atom_group_copy(&ag_list->members[0]);
+                ag_list_copy->members[i] = *buf;
+                memcpy(ag_list_copy->members[i].coords,
+                        ag_list->members[i].coords,
+                        ag_list->members[i].natoms * sizeof(struct mol_vector3));
+                free(buf);
+            }
+            mol_atom_group_list_free(ag_list);
+            ag_list = ag_list_copy;
+            DEBUG_MSG("Done reading geometry");
 
         } else if (score_only != 0) {
             // if they weren't provided, check the score_only flag
@@ -258,17 +275,27 @@ static struct fixed_setup* _fixed_setup_read_txt(const char *path) {
     char *buffer = calloc(linesz, sizeof(char));
 
     while (fgets(buffer, linesz - 1, fp) != NULL) {
-        if (!strncmp(buffer, "ATOM", 4)) nfix++;
+        if (!strncmp(buffer, "ATOM", 4)) {
+            nfix++;
+        }
     }
 
     rewind(fp);
-    size_t* fix = calloc(nfix, sizeof(size_t));
-    size_t na = 0;
+    size_t* fixed_atoms = calloc(nfix, sizeof(size_t));
+    size_t counter = 0;
+    size_t atom_id;
+    char* not_used;
 
     while (fgets(buffer, linesz - 1, fp) != NULL) {
         if (!strncmp(buffer, "ATOM", 4)) {
-            fix[na] = atoi(buffer + 4) - 1;
-            na++;
+            atom_id = strtoul(buffer + 4, &not_used, 10);
+            if (atom_id == 0) {
+                ERR_MSG("Wrong atom serial number encountered in %s, line: %s", path, buffer);
+                free(buffer);
+                fclose(fp);
+                return NULL;
+            }
+            fixed_atoms[counter++] = atom_id - 1;
         }
     }
 
@@ -276,8 +303,8 @@ static struct fixed_setup* _fixed_setup_read_txt(const char *path) {
     fclose(fp);
 
     struct fixed_setup* result = calloc(1, sizeof(struct fixed_setup));
-    result->atoms = fix;
-    result->natoms = na;
+    result->atoms = fixed_atoms;
+    result->natoms = counter;
 
     return result;
 }
