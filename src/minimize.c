@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <jansson.h>
+#include <signal.h>
+#include <setjmp.h>
+#include <fenv.h>
 
 #include "mol2/gbsa.h"
 #include "mol2/minimize.h"
@@ -18,10 +21,31 @@
 #define __TOL__ 5E-4
 
 
+jmp_buf* FE_RETURN_LOCATIONS;
+
+/**
+ * Handler for SIGFPE (floating point exception)
+ */
+void overflow_handler(__attribute__((unused)) int signal_number) {
+    if (feclearexcept(FE_ALL_EXCEPT) != 0){
+        WRN_MSG("Couldn't clear exceptions");
+    }
+
+    int thread_id = 0;
+
+    #ifdef OPENMP
+    thread_id = omp_get_thread_num();
+    #endif
+
+    longjmp(FE_RETURN_LOCATIONS[thread_id], 1);
+}
+
+
 int main(int argc, char **argv) {
     VERBOSITY = DEBUG;
 
     mol_enable_floating_point_exceptions();
+    signal(SIGFPE, overflow_handler);
 
     bool opts_error;
     struct options opts = options_populate_from_argv(argc, argv, &opts_error);
@@ -50,12 +74,12 @@ int main(int argc, char **argv) {
         json_log_total[i] = json_array();
     }
 
-#ifdef OPENMP
+    #ifdef OPENMP
     if (opts.num_threads > 0) {
         omp_set_num_threads(opts.num_threads);
     }
 
-    #pragma omp parallel shared(ag_list, json_log_total, opts)
+    #pragma omp parallel shared(ag_list, json_log_total, opts, FE_RETURN_LOCATIONS)
     {
         int num_threads = omp_get_num_threads();
         int thread_id = omp_get_thread_num();
@@ -63,9 +87,14 @@ int main(int argc, char **argv) {
         if (thread_id == 0) {
             DEBUG_MSG("Using %i threads", num_threads);
         }
-#else
+    #else
+        int num_threads = 1;
         int thread_id = 0;
-#endif
+    #endif
+
+        if (thread_id == 0) {
+            FE_RETURN_LOCATIONS = calloc(num_threads, sizeof(jmp_buf));
+        }
 
         // Create local copy of energy prms for each thread
         struct energy_prms* min_prms;
@@ -79,12 +108,11 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
 
-#ifdef OPENMP
+        #ifdef OPENMP
         // Wait till all threads successfully create min_prms
         #pragma omp barrier
-
         #pragma omp for
-#endif
+        #endif
         for (size_t modeli = 0; modeli < ag_list->size; modeli++) {
             INFO_MSG("Started model %zu", modeli);
 
@@ -127,25 +155,63 @@ int main(int argc, char **argv) {
                 }
 
                 stage_prms->ag_setup = &ag_setup;
+                bool sigfpe_caught = false;
 
                 // Minimize energy
                 if (!stage_prms->score_only) {
                     stage_prms->json_log = json_array();
-                    mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
+
+                    if (setjmp(FE_RETURN_LOCATIONS[thread_id]) == 1) {
+                        // If minimization failed with SIGFPE the execution jumps to this location
+                        WRN_MSG("Floating point exception detected for model %zu during minimization", modeli);
+                        sigfpe_caught = true;
+                        if (stage_prms->json_log && (json_array_size(stage_prms->json_log) > 0)) {
+                            // Add "exception" to the last recorded energy set
+                            json_t *last_energy_dict = json_array_get(stage_prms->json_log, json_array_size(stage_prms->json_log) - 1);
+                            json_object_set_new(last_energy_dict, "exception", json_string("Floating point exception during minimization"));
+                        }
+                    } else {
+                        mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
+                    }
 
                     // Record energy every time it was evaluated
                     if (stage_prms->json_log_setup.print_step) {
-                        json_object_set_new(json_log_stage, "steps", stage_prms->json_log);
-                    } else {
-                        json_decref(stage_prms->json_log);
+                        json_object_set(json_log_stage, "steps", stage_prms->json_log);
                     }
+                    json_decref(stage_prms->json_log);
                     stage_prms->json_log = NULL;
                 }
 
                 // Record final energy
                 if (stage_prms->json_log_setup.print_stage) {
                     stage_prms->json_log = json_array();
-                    energy_func((void *) stage_prms, NULL, NULL, 0, 0);
+
+                    if (sigfpe_caught) {
+                        // if SIGFPE was caught previously during minimization, do not compute the final energy and set "exception" instead
+                        json_t* energy_dict = json_object();
+                        json_object_set_new(
+                                energy_dict,
+                                "exception",
+                                json_string("Floating point exception during minimization"));
+                        json_array_append_new(stage_prms->json_log, energy_dict);
+                    } else {
+                        if (setjmp(FE_RETURN_LOCATIONS[thread_id]) == 1) {
+                            // If energy evalution failed with SIGFPE, the execution jumps to this location
+                            WRN_MSG("Floating point exception detected for model %zu during final energy evaluation", modeli);
+                            sigfpe_caught = true;
+
+                            if (stage_prms->json_log) {
+                                json_t *last_energy_dict = json_array_get(stage_prms->json_log, 0);
+                                json_object_set_new(
+                                        last_energy_dict,
+                                        "exception",
+                                        json_string("Floating point exception during final energy evaluation"));
+                            }
+                        } else {
+                            energy_func((void *) stage_prms, NULL, NULL, 0, 0);
+                        }
+                    }
+
                     json_t *final_energy = json_deep_copy(json_array_get(stage_prms->json_log, 0));
                     json_object_set_new(json_log_stage, "final", final_energy);
                     json_decref(stage_prms->json_log);
@@ -166,9 +232,9 @@ int main(int argc, char **argv) {
 
         energy_prms_free(&min_prms, nstages);
 
-#ifdef OPENMP
+    #ifdef OPENMP
     }
-#endif
+    #endif
 
     // Write minimized models
     if (!opts.score_only) {
@@ -207,6 +273,7 @@ int main(int argc, char **argv) {
     // Free everything
     mol_atom_group_list_free(ag_list);
     options_free(opts);
+    free(FE_RETURN_LOCATIONS);
 
     INFO_MSG("Completed");
     return EXIT_SUCCESS;

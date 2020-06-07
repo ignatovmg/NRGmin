@@ -19,6 +19,9 @@ lbfgsfloatval_t energy_func(
 
     struct energy_prms *energy_prm = (struct energy_prms *) prm;
     json_t* energy_dict = json_object();
+    if (energy_prm->json_log) {
+        json_array_append_new(energy_prm->json_log, energy_dict);
+    }
 
     if (array != NULL) {
         assert((size_t)array_size == energy_prm->ag->active_atoms->size * 3);
@@ -161,9 +164,7 @@ lbfgsfloatval_t energy_func(
 
     json_object_set_new(energy_dict, "total", json_real(total_energy));
 
-    if (energy_prm->json_log) {
-        json_array_append_new(energy_prm->json_log, energy_dict);
-    } else {
+    if (!energy_prm->json_log) {
         json_decref(energy_dict);
     }
 
