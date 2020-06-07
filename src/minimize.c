@@ -171,21 +171,23 @@ int main(int argc, char **argv) {
 #endif
 
     // Write minimized models
-    FILE* out_pdb;
-    FOPEN_ELSE(out_pdb, opts.out_pdb, "w") {
-        options_free(opts);
-        mol_atom_group_list_free(ag_list);
-        exit(EXIT_FAILURE);
-    }
-
-    DEBUG_MSG("Writing minimized models to %s", opts.out_pdb);
-    for (size_t modeli = 0; modeli < ag_list->size; modeli++) {
-        if (ag_list->size > 1) {
-            fprintf(out_pdb, "MODEL %zu\n", (modeli + 1));
+    if (!opts.score_only) {
+        FILE *out_pdb;
+        FOPEN_ELSE(out_pdb, opts.out_pdb, "w") {
+            options_free(opts);
+            mol_atom_group_list_free(ag_list);
+            exit(EXIT_FAILURE);
         }
-        mol_fwrite_pdb(out_pdb, &ag_list->members[modeli]);
-        if (ag_list->size > 1) {
-            fprintf(out_pdb, "ENDMDL\n");
+
+        DEBUG_MSG("Writing minimized models to %s", opts.out_pdb);
+        for (size_t modeli = 0; modeli < ag_list->size; modeli++) {
+            if (ag_list->size > 1) {
+                fprintf(out_pdb, "MODEL %zu\n", (modeli + 1));
+            }
+            mol_fwrite_pdb(out_pdb, &ag_list->members[modeli]);
+            if (ag_list->size > 1) {
+                fprintf(out_pdb, "ENDMDL\n");
+            }
         }
     }
 
