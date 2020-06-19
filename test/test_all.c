@@ -1,9 +1,15 @@
 #include <stdio.h>
 #include <check.h>
+#include <jansson.h>
 
-#include "parse_options.h"
+#include "mol2/benergy.h"
+#include "mol2/pdb.h"
+#include "mol2/vector.h"
+#include "mol2/atom_group.h"
+#include "utils.h"
 #include "setup.h"
-
+#include "parse_options.h"
+#include "energy.h"
 
 // These functions are defined only in newer versions of check
 #ifndef ck_assert_double_eq_tol
@@ -27,7 +33,10 @@
 	} while(0);
 #endif
 
-
+struct mol_atom_group *test_ag1, *test_ag2;
+struct pairsprings_setup *sprst, *sj;
+json_t *spj;
+json_error_t *err_j;
 /*static void _compare_arrays_int(const int* x, const int* y, const size_t len)
 {
     for (size_t i = 0; i < len; i++) {
@@ -49,6 +58,211 @@ static void _compare_arrays_size_t(const size_t* x, const size_t* y, const size_
     }
 }*/
 
+static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
+    FILE *fp;
+    FOPEN_ELSE(fp, path, "r") {
+        return NULL;
+    }
+
+    struct pairsprings_setup *sprst;
+    sprst = calloc(1, sizeof(struct pairsprings_setup));
+
+    if (fscanf(fp, "%zu", &sprst->nsprings) != 1) {
+        ERR_MSG("First line is pairsprings setup must be the number of springs");
+        free(sprst);
+        fclose(fp);
+        return NULL;
+    }
+
+    sprst->springs = calloc(sprst->nsprings, sizeof(struct pairspring));
+    struct pairspring *sprs = sprst->springs;
+
+    size_t id = 0;
+    char name1[8], name2[8];
+    size_t aid1, aid2;
+    while (id < sprst->nsprings) {
+        size_t c = fscanf(fp,
+                          "%lf %lf %lf %zu %s %zu %s",
+                          &sprs[id].distance,
+                          &sprs[id].lerror,
+                          &sprs[id].weight,
+                          &aid1,
+                          name1,
+                          &aid2,
+                          name2);
+
+        if (c != 7) {
+            ERR_MSG("Each line in pairsprings setup must have 7 tokens");
+            free(sprst->springs);
+            free(sprst);
+            fclose(fp);
+            return NULL;
+        }
+        sprs[id].rerror = sprs[id].lerror;
+        sprs[id].group_size1 = 1;
+        sprs[id].group_size2 = 1;
+        sprs[id].group1 = calloc(1, sizeof(size_t));
+        sprs[id].group2 = calloc(1, sizeof(size_t));
+        sprs[id].group1[0] = aid1 - 1;
+        sprs[id].group2[0] = aid2 - 1;
+        sprs[id].average = 0;
+        sprs[id].potential = 2;
+
+        id++;
+    }
+
+    fclose(fp);
+    return sprst;
+}
+
+static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root) {
+    if (!json_is_array(root)) {
+        ERR_MSG("Pairsprings json setup must be an array");
+        return NULL;
+    }
+    size_t nsprings = json_array_size(root);
+    struct pairspring* spring_set = calloc(nsprings, sizeof(struct pairspring));
+
+    bool error = false;
+    size_t counter;
+    json_t* spring;
+    json_t* g1;
+    json_t* g2;
+
+    size_t len1, len2, i;
+    json_array_foreach(root, counter, spring) {
+        json_error_t j_error;
+        int result = json_unpack_ex(
+                spring, &j_error, 0,
+                "{s:F, s:F, s:F, s:F, s:i, s:i}",
+                "distance", &spring_set[counter].distance,
+                "lerror", &spring_set[counter].lerror,
+                "rerror", &spring_set[counter].rerror,
+                "weight", &spring_set[counter].weight,
+                "potential", &spring_set[counter].potential,
+                "average", &spring_set[counter].average);
+
+        if (result != 0) {
+            JSON_ERR_MSG(j_error, "Wrong pairspring setup json format");
+            error = true;
+            break;
+        }
+        if (spring_set[counter].average >1 || spring_set[counter].average <0) {
+            ERR_MSG("The average should be 0 (SUM), or 1 (R-6).");
+            error = true;
+            break;
+        }
+
+        if (spring_set[counter].potential>2 || spring_set[counter].potential <0) {
+            ERR_MSG("Potential in pairsprings should be one of 0 (SQUARE-WEll), 1 (BIHARMONIC), 2 (SOFT-SQUARE).");
+            error = true;
+            break;
+        }
+        g1 = json_object_get(spring, "group1");
+        g2 = json_object_get(spring, "group2");
+        len1 = json_array_size(g1);
+        len2 = json_array_size(g2);
+        if (len1==0 || len2==0) {
+            ERR_MSG("Wrong pairspring setup group size.");
+            error = true;
+            break;
+        }
+        spring_set[counter].group_size1 = len1;
+        spring_set[counter].group_size2 = len2;
+        spring_set[counter].group1 = calloc(len1, sizeof(size_t));
+        spring_set[counter].group2 = calloc(len2, sizeof(size_t));
+
+        for (i = 0; i < len1; ++i) {
+            if (json_is_integer(json_array_get(g1, i))) {
+                spring_set[counter].group1[i] = json_integer_value(json_array_get(g1, i)) - 1;
+            } else {
+                ERR_MSG("Index in group1 must be interger");
+            }
+        }
+        for (i = 0; i < len2; ++i) {
+            if (json_is_integer(json_array_get(g2, i))) {
+                spring_set[counter].group2[i] = json_integer_value(json_array_get(g2, i)) - 1;
+            } else {
+                ERR_MSG("Index in group2 must be interger");
+            }
+        }
+    }
+
+    if (error) {
+        free(spring_set);
+        return NULL;
+    }
+
+    struct pairsprings_setup *sprst;
+    sprst = calloc(1, sizeof(struct pairsprings_setup));
+    sprst->springs = spring_set;
+    sprst->nsprings = nsprings;
+
+    return sprst;
+}
+
+static void test_pairspring_gradients(
+        struct mol_atom_group *mob_ag,
+        const struct pairsprings_setup *sps,
+        const double delta,
+        const double tol)
+{
+    struct mol_vector3 *num_grad = calloc(mob_ag->natoms, sizeof(struct mol_vector3));
+
+    mol_zero_gradients(mob_ag);
+    lbfgsfloatval_t een_orig;
+    pairspring_energy(sps, mob_ag, &een_orig);
+    struct mol_vector3 *old_grad_ptr = mob_ag->gradients;
+    double *vect = calloc(3*mob_ag->natoms, sizeof(double));
+    for (int i = 0; i < mob_ag->natoms; i++)
+    {
+        vect[3*i] = old_grad_ptr[i].X;
+        vect[3*i+1] = old_grad_ptr[i].Y;
+        vect[3*i+2] = old_grad_ptr[i].Z;
+    }
+
+    mol_zero_gradients(mob_ag);
+
+    double oldcrd;
+    lbfgsfloatval_t een_x, een_y, een_z;
+    for (size_t i = 0; i < mob_ag->natoms; i++) {
+        een_x = 0;
+        een_y = 0;
+        een_z = 0;
+        oldcrd = mob_ag->coords[i].X;
+        mob_ag->coords[i].X = oldcrd + delta;
+        pairspring_energy(sps, mob_ag, &een_x);
+        num_grad[i].X = (een_orig - een_x) / delta;
+        mob_ag->coords[i].X = oldcrd;
+
+        oldcrd = mob_ag->coords[i].Y;
+        mob_ag->coords[i].Y = oldcrd + delta;
+        pairspring_energy(sps, mob_ag, &een_y);
+        num_grad[i].Y = (een_orig - een_y) / delta;
+        mob_ag->coords[i].Y = oldcrd;
+
+        oldcrd = mob_ag->coords[i].Z;
+        mob_ag->coords[i].Z = oldcrd + delta;
+        pairspring_energy(sps, mob_ag, &een_z);
+        num_grad[i].Z = (een_orig - een_z) / delta;
+        mob_ag->coords[i].Z = oldcrd;
+    }
+
+    char msg[256];
+    for (size_t i = 0; i < mob_ag->natoms; i++) {
+        sprintf(msg,
+                "\n(atom: %ld) calc: (%lf, %lf, %lf): numerical: (%lf, %lf, %lf)\n",
+                i,
+                vect[3*i], vect[3*i+1], vect[3*i+2],
+                num_grad[i].X, num_grad[i].Y, num_grad[i].Z);
+
+        ck_assert_msg(fabs(vect[3*i] - num_grad[i].X) < tol, msg);
+        ck_assert_msg(fabs(vect[3*i+1] - num_grad[i].Y) < tol, msg);
+        ck_assert_msg(fabs(vect[3*i+2] - num_grad[i].Z) < tol, msg);
+    }
+    free(num_grad);
+    free(vect);
+}
 
 START_TEST(test_check_getopt_success)
 {
@@ -646,16 +860,49 @@ START_TEST(test_energy_prm_from_json)
 }
 
 
+START_TEST(test_pairspring_penalty)
+{
+    mol_zero_gradients(test_ag1);
+    test_pairspring_gradients(test_ag1, sprst, 10e-5, 10e-3);
+}
+END_TEST
+
+START_TEST(test_pairspring_penalty2)
+{   // test wit json input
+    mol_zero_gradients(test_ag2);
+    test_pairspring_gradients(test_ag2, sj, 10e-5, 10e-3);
+}
+END_TEST
+
+void setup_real(void)
+{
+    sprst = _pairsprings_setup_read_txt("355w1.txt");
+    spj = json_load_file("355w1.json", 0, err_j);
+    sj = _pairsprings_setup_read_json(spj);
+    test_ag1 = mol_read_pdb("30355_best.pdb");
+    test_ag2 = mol_read_pdb("30355_best.pdb");
+    test_ag1->gradients = calloc(test_ag1->natoms, sizeof(struct mol_vector3));
+    test_ag2->gradients = calloc(test_ag2->natoms, sizeof(struct mol_vector3));
+}
+
+void teardown_real(void)
+{
+    mol_atom_group_free(test_ag1);
+    mol_atom_group_free(test_ag2);
+}
+
 Suite *lists_suite(void)
 {
     Suite *suite = suite_create("functionality");
     TCase *tcase_real = tcase_create("real");
-    //tcase_add_checked_fixture(tcase_real, setup_real, teardown_real);
+    tcase_add_checked_fixture(tcase_real, setup_real, teardown_real);
     tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
     tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 10);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
+    tcase_add_test(tcase_real, test_pairspring_penalty);
+    tcase_add_test(tcase_real, test_pairspring_penalty2);
     suite_add_tcase(suite, tcase_real);
 
     return suite;

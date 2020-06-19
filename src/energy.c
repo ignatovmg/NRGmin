@@ -193,16 +193,14 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
 
 
 void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    size_t i, j, k, idx2, idx1;
-    size_t lni1, lni2, nm;
-    double *xtot_a, *ytot_a, *ztot_a; // store gradients direction for each atom
-    double *d_a;
-    double xtot, ytot, ztot, d, delta, d2, coef, ln, ler, rer, fk, hk;
-    double gradx, grady, gradz;
+    size_t i, j, k, idx1, idx2, lni1, lni2, nm;
+    double *xtot_a, *ytot_a, *ztot_a, *d_a;
+    double xtot, ytot, ztot, d, d2, aved, sumd;
+    double delta, coef, ln, ler, rer, fk, hk, gradx, grady, gradz;
     int potential, averaging;
     struct mol_vector3 g;
 
-    for (i = 0; i< sprst -> nsprings; i++) {
+    for (i = 0; i < sprst -> nsprings; i++) {
         ln = sprst->springs[i].distance;
         ler = sprst->springs[i].lerror;
         rer = sprst->springs[i].rerror;
@@ -215,31 +213,32 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
         ytot_a = calloc(lni1*lni2, sizeof(double));
         ztot_a = calloc(lni1*lni2, sizeof(double));
         d_a = calloc(lni1*lni2, sizeof(double));
-        double aved = 0;
+
+        aved = 0;
         for(j = 0; j < lni1; j++) {
             idx1 = sprst->springs[i].group1[j];
             for (k = 0; k < lni2; k++) {
                 idx2 = sprst->springs[i].group2[k];
-                xtot = ag->coords[idx2-1].X - ag->coords[idx1-1].X;
-                ytot = ag->coords[idx2-1].Y - ag->coords[idx1-1].Y;
-                ztot = ag->coords[idx2-1].Z - ag->coords[idx1-1].Z;
+                xtot = ag->coords[idx2].X - ag->coords[idx1].X;
+                ytot = ag->coords[idx2].Y - ag->coords[idx1].Y;
+                ztot = ag->coords[idx2].Z - ag->coords[idx1].Z;
                 d2 = xtot*xtot + ytot*ytot + ztot*ztot;
                 d = sqrt(d2);
-                aved += 1/(pow(d, 6));
+                aved += pow(d, -6.0);
                 xtot_a[lni2*j + k] = xtot;
                 ytot_a[lni2*j + k] = ytot;
                 ztot_a[lni2*j + k] = ztot;
                 d_a[lni2*j + k] = d;
             }
         }
-        double sumd = aved;
+        sumd = aved;
         averaging = sprst->springs[i].average;
         if (averaging == 0) {
-            aved = 1/pow(aved,1.0/6);
+            aved = pow(aved,-1.0/6.0);
             nm = 1;
         } else if (averaging == 1){  // R6 average
-            aved = 1/pow(aved/lni1/lni2,1.0/6);
-            nm =lni1*lni2;
+            aved = pow(aved/lni1/lni2,-1.0/6);
+            nm = lni1*lni2;
         }
         delta = aved - ln;
 
@@ -251,7 +250,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
                 delta = (delta > rer) ? (delta-rer) : 0.0;
             }
             (*een) += fk * delta * delta;
-            coef = fk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+            coef = fk * 2.0 * delta * pow(nm, 1.0/6.0)*pow(sumd, -7.0/6.0);
         }
         else if (potential == 1) {  // biharmonic, temperature=300
             if (delta < 0) {
@@ -261,7 +260,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
             }
             hk = fmin(1000, hk);
             (*een) += hk * delta * delta;
-            coef = hk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+            coef = hk * 2.0 * delta * pow(nm, 1.0/6.0)*pow(sumd, -7.0/6.0);
         }
         else if (potential == 2) {  // soft-square
             if (delta < 0) {
@@ -272,7 +271,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
 
             if (delta <= 3.0) {  // here the switch bound is 3.0
                 (*een) += fk* delta*delta;
-                coef = fk * 2.0 * delta * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
+                coef = fk * 2.0 * delta * pow(nm, 1.0/6.0)*pow(sumd, -7.0/6.0);
             } else {  //delta > 3.0
                 (*een) += fk*(delta - 45/delta + 21);
                 coef = fk * (1 + 45/(delta*delta)) * pow(nm, 1.0/6)*pow(sumd, -7.0/6);
@@ -290,7 +289,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
             g.X = -gradx;
             g.Y = -grady;
             g.Z = -gradz;
-            MOL_VEC_SUB(ag->gradients[idx1-1], ag->gradients[idx1-1], g);
+            MOL_VEC_SUB(ag->gradients[idx1], ag->gradients[idx1], g);
         }
         // calculate and update gradients second groups
         for (k = 0; k < lni2; k++) {
@@ -304,7 +303,7 @@ void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_gr
             g.X = -gradx;
             g.Y = -grady;
             g.Z = -gradz;
-            MOL_VEC_ADD(ag->gradients[idx2-1], ag->gradients[idx2-1], g);
+            MOL_VEC_ADD(ag->gradients[idx2], ag->gradients[idx2], g);
         }
         free(xtot_a);
         free(ytot_a);

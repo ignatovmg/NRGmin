@@ -329,8 +329,10 @@ static void _pairsprings_setup_free(struct pairsprings_setup **sprst) {
     if (*sprst != NULL) {
         size_t i;
         for (i = 0;  i < (*sprst)->nsprings; i++) {
-            free((*sprst)->springs->group1);
-            free((*sprst)->springs->group2);
+            if ((*sprst)->springs[i].group1 != NULL) {
+                free((*sprst)->springs[i].group1);
+                free((*sprst)->springs[i].group2);
+            }
         }
         free((*sprst)->springs);
         free(*sprst);
