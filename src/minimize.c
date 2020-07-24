@@ -21,7 +21,7 @@
 #define __TOL__ 5E-4
 
 
-jmp_buf* FE_RETURN_LOCATIONS;
+jmp_buf FE_RETURN_LOCATION;
 
 /**
  * Handler for SIGFPE (floating point exception)
@@ -31,21 +31,20 @@ void overflow_handler(__attribute__((unused)) int signal_number) {
         WRN_MSG("Couldn't clear exceptions");
     }
 
-    int thread_id = 0;
-
-    #ifdef OPENMP
-    thread_id = omp_get_thread_num();
-    #endif
-
-    longjmp(FE_RETURN_LOCATIONS[thread_id], 1);
+    longjmp(FE_RETURN_LOCATION, 1);
 }
 
 
 int main(int argc, char **argv) {
     VERBOSITY = DEBUG;
 
+    #ifndef OPENMP
+    // For serial version, SIGFPE will be caught and "exception" field will be added
+    // to the corresponding model entry in output json file. In OMP version SIGFPE
+    // will be switched off
     mol_enable_floating_point_exceptions();
     signal(SIGFPE, overflow_handler);
+    #endif
 
     bool opts_error;
     struct options opts = options_populate_from_argv(argc, argv, &opts_error);
@@ -79,7 +78,7 @@ int main(int argc, char **argv) {
         omp_set_num_threads(opts.num_threads);
     }
 
-    #pragma omp parallel shared(ag_list, json_log_total, opts, FE_RETURN_LOCATIONS)
+    #pragma omp parallel shared(ag_list, json_log_total, opts)
     {
         int num_threads = omp_get_num_threads();
         int thread_id = omp_get_thread_num();
@@ -88,13 +87,8 @@ int main(int argc, char **argv) {
             DEBUG_MSG("Using %i threads", num_threads);
         }
     #else
-        int num_threads = 1;
         int thread_id = 0;
     #endif
-
-        if (thread_id == 0) {
-            FE_RETURN_LOCATIONS = calloc(num_threads, sizeof(jmp_buf));
-        }
 
         // Create local copy of energy prms for each thread
         struct energy_prms* min_prms;
@@ -161,7 +155,7 @@ int main(int argc, char **argv) {
                 if (!stage_prms->score_only) {
                     stage_prms->json_log = json_array();
 
-                    if (setjmp(FE_RETURN_LOCATIONS[thread_id]) == 1) {
+                    if (setjmp(FE_RETURN_LOCATION) == 1) {
                         // If minimization failed with SIGFPE the execution jumps to this location
                         WRN_MSG("Floating point exception detected for model %zu during minimization", modeli);
                         sigfpe_caught = true;
@@ -195,7 +189,7 @@ int main(int argc, char **argv) {
                                 json_string("Floating point exception during minimization"));
                         json_array_append_new(stage_prms->json_log, energy_dict);
                     } else {
-                        if (setjmp(FE_RETURN_LOCATIONS[thread_id]) == 1) {
+                        if (setjmp(FE_RETURN_LOCATION) == 1) {
                             // If energy evalution failed with SIGFPE, the execution jumps to this location
                             WRN_MSG("Floating point exception detected for model %zu during final energy evaluation", modeli);
                             sigfpe_caught = true;
@@ -273,7 +267,6 @@ int main(int argc, char **argv) {
     // Free everything
     mol_atom_group_list_free(ag_list);
     options_free(opts);
-    free(FE_RETURN_LOCATIONS);
 
     INFO_MSG("Completed");
     return EXIT_SUCCESS;
