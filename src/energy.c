@@ -1,10 +1,15 @@
+#include <assert.h>
+
 #include "energy.h"
 
 #include "mol2/benergy.h"
 #include "mol2/gbsa.h"
 #include "mol2/nbenergy.h"
 #include "mol2/fitting.h"
+
+#ifdef NOE
 #include "mol2/noe.h"
+#endif
 
 
 lbfgsfloatval_t energy_func(
@@ -126,6 +131,7 @@ lbfgsfloatval_t energy_func(
         total_energy += term_energy;
     }
 
+#ifdef NOE
     if (energy_prm->nmr != NULL) {
         mol_noe_calc_peaks(energy_prm->nmr->spec, energy_prm->ag, true);
         mol_noe_calc_energy(
@@ -143,6 +149,7 @@ lbfgsfloatval_t energy_func(
             json_object_set_new(energy_dict, "noe_details", mol_noe_to_json_object(energy_prm->nmr->spec));
         }
     }
+#endif
 
     if (energy_prm->density != NULL) {
         term_energy = mol_fitting_score(energy_prm->ag,

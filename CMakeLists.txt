@@ -20,6 +20,7 @@ option(BUILD_TESTS    "Build tests"                        ON)
 option(USE_LTO        "Link Time Optimization"             ON)
 option(USE_SANITIZER  "Build with address sanitizer"      OFF)
 option(OPENMP         "Add OPENMP executable"             OFF)
+option(NOE            "Build with NOE feature"             ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
@@ -30,10 +31,14 @@ if (UNIX)
     endif()
 endif()
 
-if(USE_SANITIZER)
+if (USE_SANITIZER)
     set(SANITIZER_FLAGS "-fno-omit-frame-pointer -fsanitize=address,undefined")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  ${SANITIZER_FLAGS}")
+endif()
+
+if (NOE)
+    add_definitions(-D NOE)
 endif()
 
 find_package(Jansson REQUIRED)

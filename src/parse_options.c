@@ -268,6 +268,13 @@ static int _check_prms(struct options *opts)
         return 1;
     }
 
+#ifndef NOE
+    if (opts->noe_txt || opts->noe_json) {
+        ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
+        return 1;
+    }
+#endif
+
     return 0;
 }
 
@@ -498,11 +505,13 @@ void usage_message(char *const *argv) {
            "    --pair-springs-txt Text file setup for pairwise restraints\n"
            "    --point-springs-txt Text file setup for pointwise restraints\n"
            "\n"
+#ifdef NOE
            "    NOE setup\n"
            "\n"
            "    --noe-txt Text file setup for NOE\n"
            "    --noe-json Json file setup for NOE\n"
            "\n"
+#endif
            "    Density setup\n"
            "\n"
            "    --density-json Json file setup for density fitting\n"

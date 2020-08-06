@@ -448,6 +448,7 @@ START_TEST(test_energy_prm_from_flags)
             opts = options_get_default();
             opts.noe_json = "noe.json";
 
+#ifdef NOE
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_double_eq_tol(prms->nmr->weight, 1000, 10e-3);
@@ -455,6 +456,10 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert_int_eq(prms->nmr->spec->size, 2);
             ck_assert_double_eq_tol(prms->nmr->spec->exp[1], -0.074589, 10e-3);
             energy_prms_free(&prms, nstages);
+#else
+            ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_null(prms);
+#endif
             break;
 
         case 9:
@@ -573,10 +578,15 @@ START_TEST(test_energy_prm_from_json)
             opts = options_get_default();
             opts.setup_json = "setup_noe.json";
 
+#ifdef NOE
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms[0].nmr->spec->size, 2);
             energy_prms_free(&prms, nstages);
+#else
+            ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_null(prms);
+#endif
             break;
 
         case 8:
@@ -618,8 +628,11 @@ START_TEST(test_energy_prm_from_json)
             opts.separate = true;
             opts.rec_natoms = 1000;
             opts.lig_natoms = 100;
+#ifdef NOE
             opts.setup_json = "setup_all.json";
-
+#else
+            opts.setup_json = "setup_all_no_noe.json";
+#endif
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(nstages, 3);
@@ -633,19 +646,23 @@ START_TEST(test_energy_prm_from_json)
             ck_assert_ptr_nonnull(prms[1].fixed);
             ck_assert_ptr_null(prms[2].fixed);
 
+#ifdef NOE
             ck_assert_ptr_null(prms[0].nmr);
             ck_assert_ptr_nonnull(prms[1].nmr);
             ck_assert_ptr_null(prms[2].nmr);
+#endif
 
             ck_assert_ptr_null(prms[0].sprst_pairs);
             ck_assert_ptr_nonnull(prms[1].sprst_pairs);
             ck_assert_ptr_nonnull(prms[2].sprst_pairs);
 
             // Check some random values from the setup to make sure it was parsed properly
+#ifdef NOE
             ck_assert_double_eq_tol(prms[1].nmr->power, 1./3., 10e-3);
             ck_assert_double_eq_tol(prms[1].nmr->weight, 1000, 10e-3);
             ck_assert_ptr_nonnull(prms[1].nmr->spec);
             ck_assert_int_eq(prms[1].nmr->spec->size, 2);
+#endif
             ck_assert_int_eq(prms[2].sprst_points->springs[0].atoms[3], 4);
             ck_assert_int_eq(prms[1].sprst_pairs->springs[0].atoms[1], 5);
 

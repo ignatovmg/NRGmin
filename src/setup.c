@@ -659,6 +659,8 @@ _POTENTIAL_SETUP_READ_JSON_FILE(density)
  ****************************************/
 
 
+#ifdef NOE
+
 static void _noe_setup_free(struct noe_setup **noe) {
     if (*noe != NULL) {
         mol_noe_free((*noe)->spec);
@@ -765,6 +767,8 @@ static struct noe_setup *_noe_setup_read_json(json_t *root) {
 
 _POTENTIAL_SETUP_READ_JSON_FILE(noe)
 
+#endif
+
 
 /* **************************************
  *      Populate energy parameters      *
@@ -778,7 +782,9 @@ void energy_prms_free(struct energy_prms **prms, size_t nstages)
             _pairsprings_setup_free(&((*prms + i)->sprst_pairs));
             _pointsprings_setup_free(&((*prms + i)->sprst_points));
             _density_setup_free(&((*prms + i)->density));
+#ifdef NOE
             _noe_setup_free(&((*prms + i)->nmr));
+#endif
             _fixed_setup_free(&((*prms + i)->fixed));
         }
         free(*prms);
@@ -805,9 +811,11 @@ bool energy_prms_populate_from_options(
 
     all_stage_prms->sprst_pairs = NULL;
     all_stage_prms->sprst_points = NULL;
-    all_stage_prms->nmr = NULL;
     all_stage_prms->density = NULL;
     all_stage_prms->fixed = NULL;
+#ifdef NOE
+    all_stage_prms->nmr = NULL;
+#endif
 
     all_stage_prms->nsteps = opts.nsteps;
 
@@ -890,6 +898,7 @@ bool energy_prms_populate_from_options(
 
     if (opts.noe_json) {
         DEBUG_MSG("Parsing %s", opts.noe_json);
+#ifdef NOE
         all_stage_prms->nmr = _noe_setup_read_json_file(opts.noe_json);
 
         if (!all_stage_prms->nmr) {
@@ -897,9 +906,16 @@ bool energy_prms_populate_from_options(
             energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
+#else
+        ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
+        energy_prms_free(&all_stage_prms, nstages);
+        return false;
+#endif
     }
 
     if (opts.noe_txt) {
+        DEBUG_MSG("Parsing %s", opts.noe_txt);
+#ifdef NOE
         if (all_stage_prms->nmr) {
             ERR_MSG("Cannot use NOE txt and json formats at the same time");
             energy_prms_free(&all_stage_prms, nstages);
@@ -913,6 +929,11 @@ bool energy_prms_populate_from_options(
             energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
+#else
+        ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
+        energy_prms_free(&all_stage_prms, nstages);
+        return false;
+#endif
     }
 
     if (opts.density_json) {
@@ -1067,6 +1088,12 @@ bool energy_prms_populate_from_options(
             // NOE
             json_t* stage_noe = json_object_get(stage_desc, "noe");
             if (stage_noe) {
+#ifndef NOE
+                ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
+                error = true;
+                break;
+#else
+
                 DEBUG_MSG("Creating NOE for stage");
                 stage_prms->nmr = _noe_setup_read_json(stage_noe);
                 if (!stage_prms->nmr) {
@@ -1074,6 +1101,7 @@ bool energy_prms_populate_from_options(
                     error = true;
                     break;
                 }
+#endif
             }
         }
 
