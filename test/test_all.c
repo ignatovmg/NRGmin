@@ -5,6 +5,8 @@
 #include "setup.h"
 
 
+char msg[512];
+
 // These functions are defined only in newer versions of check
 #ifndef ck_assert_double_eq_tol
 #define ck_assert_double_eq_tol(x, y, tol) do { \
