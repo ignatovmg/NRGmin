@@ -6,6 +6,7 @@
 #include <fenv.h>
 
 #include "mol2/gbsa.h"
+#include "mol2/genborn.h"
 #include "mol2/minimize.h"
 #include "mol2/pdb.h"
 
@@ -136,9 +137,9 @@ int main(int argc, char **argv) {
 
                 update_nblst(ag, &ag_setup);
 
-                // Set up GBSA
+                // Set up ACE
                 struct acesetup ace_setup;
-                if (stage_prms->gbsa) {
+                if (stage_prms->ace) {
                     ace_setup.efac = 0.5;
                     ace_ini(ag, &ace_setup);
                     ace_fixedupdate(ag, &ag_setup, &ace_setup);
@@ -146,6 +147,14 @@ int main(int argc, char **argv) {
                     stage_prms->ace_setup = &ace_setup;
                 } else {
                     stage_prms->ace_setup = NULL;
+                }
+
+                // Set up GBSA
+                if (stage_prms->gbsa) {
+                    if (!mol_init_gb(ag)) {
+                        ERR_MSG("Failed to initialize GBSA for model %zu", modeli);
+                        exit(EXIT_FAILURE);
+                    }
                 }
 
                 stage_prms->ag_setup = &ag_setup;
@@ -216,6 +225,12 @@ int main(int argc, char **argv) {
 
                 if (stage_prms->ace_setup) {
                     destroy_acesetup(stage_prms->ace_setup);
+                }
+                if (stage_prms->gbsa) {
+                    if (!mol_gb_delete_metadata(ag)) {
+                        ERR_MSG("Failed to delete GenBorn metadata for model %zu", modeli);
+                        exit(EXIT_FAILURE);
+                    }
                 }
                 free(stage_prms);
             }

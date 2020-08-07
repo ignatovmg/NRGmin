@@ -81,6 +81,7 @@ struct options options_get_default()
             .vdw03 = 1,
             .eleng = 1,
             .elengs03 = 1,
+            .ace = 0,
             .gbsa = 0,
 
             .verbosity = DEBUG,
@@ -126,7 +127,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             dict, &error, JSON_STRICT,
 
             "{s?i, s?i, s?i "
-            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
+            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
 
@@ -144,6 +145,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "vdw03", &opts->vdw03,
             "eleng", &opts->eleng,
             "elengs03", &opts->elengs03,
+            "ace", &opts->ace,
             "gbsa", &opts->gbsa,
             "fix_receptor", &opts->fix_receptor,
             "fix_ligand", &opts->fix_ligand,
@@ -214,6 +216,10 @@ static int _check_prms(struct options *opts)
     if (opts->num_threads < 0) {
         ERR_MSG("Number of threads can't be negative");
         return 1;
+    }
+
+    if (opts->gbsa && opts->ace) {
+        WRN_MSG("You're using GBSA and ACE at the same time");
     }
 
     if (opts->json || opts->pdb || opts->psf || opts->prm || opts->rtf) {
@@ -344,6 +350,8 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                     {"elengs03-off",         no_argument,  &prms.elengs03,         0},
                     {"gbsa-on",              no_argument,  &prms.gbsa,             1},
                     {"gbsa-off",             no_argument,  &prms.gbsa,             0},
+                    {"ace-on",               no_argument,  &prms.ace,              1},
+                    {"ace-off",              no_argument,  &prms.ace,              0},
 
                     {"fix-receptor",         no_argument,  &prms.fix_receptor,     1},
                     {"fix-ligand",           no_argument,  &prms.fix_ligand,       1},
@@ -482,7 +490,7 @@ void usage_message(char *const *argv) {
            "\n"
            "    --nsteps Number of minimization steps\n"
            "\n"
-           "    Energy terms switches. Everything is on by default except for GBSA\n"
+           "    Energy terms switches. Everything is on by default except for GBSA and ACE\n"
            "\n"
            "    --bonds-on/--bonds-off Bonds energy term\n"
            "    --angles-on/--angles-off Angles\n"
@@ -493,6 +501,7 @@ void usage_message(char *const *argv) {
            "    --eleng-on/--eleng-off Coulomb electrostatics\n"
            "    --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics\n"
            "    --gbsa-on/gbsa-off GBSA\n"
+           "    --ace-on/ace-off ACE\n"
            "\n"
            "    Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)\n"
            "\n"

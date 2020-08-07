@@ -4,6 +4,7 @@
 
 #include "mol2/benergy.h"
 #include "mol2/gbsa.h"
+#include "mol2/genborn.h"
 #include "mol2/nbenergy.h"
 #include "mol2/fitting.h"
 
@@ -45,6 +46,12 @@ lbfgsfloatval_t energy_func(
     if (energy_prm->ace_setup != NULL) {
         term_energy = 0.0;
         aceeng(energy_prm->ag, &term_energy, energy_prm->ace_setup, energy_prm->ag_setup);
+        json_object_set_new(energy_dict, "ace", json_real(term_energy));
+        total_energy += term_energy;
+    }
+
+    if (energy_prm->gbsa) {
+        term_energy = mol_gb_energy(energy_prm->ag, 25.0, energy_prm->ag_setup, MOL_GENBORN_OBC_2);
         json_object_set_new(energy_dict, "gbsa", json_real(term_energy));
         total_energy += term_energy;
     }

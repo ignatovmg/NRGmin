@@ -57,7 +57,8 @@ Examples of different minimization setups can be found in examples/energy_setup.
     --impropers-on/--impropers-on Impropers
     --vdw-on/--vdw-off VDW
     --vdw03-on/--vdw03-off 1-4 VDW
-    --gbsa-on/gbsa-off GBSA
+    --ace-on/--ace-off ACE
+    --gbsa-on/--gbsa-off Generalized Born
 
     Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)
 

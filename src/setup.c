@@ -827,6 +827,7 @@ bool energy_prms_populate_from_options(
     all_stage_prms->vdw03 = opts.vdw03;
     all_stage_prms->eleng = opts.eleng;
     all_stage_prms->elengs03 = opts.elengs03;
+    all_stage_prms->ace = opts.ace;
     all_stage_prms->gbsa = opts.gbsa;
 
     all_stage_prms->score_only = opts.score_only;
@@ -997,7 +998,7 @@ bool energy_prms_populate_from_options(
             DEBUG_MSG("Unpacking options");
             int code = json_unpack_ex(
                     stage_desc, &j_error, 0,
-                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
+                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
                     "bonds", &stage_prms->bonds,
                     "angles", &stage_prms->angles,
                     "dihedrals", &stage_prms->dihedrals,
@@ -1006,6 +1007,7 @@ bool energy_prms_populate_from_options(
                     "vdw03", &stage_prms->vdw03,
                     "eleng", &stage_prms->eleng,
                     "elengs03", &stage_prms->elengs03,
+                    "ace", &stage_prms->ace,
                     "gbsa", &stage_prms->gbsa,
                     "fix_receptor", &stage_fix_rec,
                     "fix_ligand", &stage_fix_lig,
@@ -1016,6 +1018,10 @@ bool energy_prms_populate_from_options(
                 JSON_ERR_MSG(j_error, "Couldn't parse stage flags in json");
                 error = true;
                 break;
+            }
+
+            if (stage_prms->ace && stage_prms->gbsa) {
+                WRN_MSG("You're using GBSA and ACE at the same time (stage %zu)", stage_id);
             }
 
             if ((stage_fix_rec || stage_fix_lig) && !opts.separate) {

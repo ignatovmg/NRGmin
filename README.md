@@ -58,7 +58,7 @@ minimization for multiple models using the flag `--num-threads`
 Energy function setup is flexible, so you can switch terms on and off
 
 ```
-./nrgmin --json mol.json --vdw-off --gbsa-on
+./nrgmin --json mol.json --vdw-off --ace-on
 ```
 
 And add restraining potentials
@@ -118,7 +118,7 @@ set there as well.
     {
       "nsteps": 1000,
       "vdw03": false,
-      "gbsa": true,
+      "ace": true,
       "pointsprings": [
         {
           "weight": 10,
@@ -198,7 +198,8 @@ Energy terms switches. Everything is on by default except for GBSA
             --impropers-on/--impropers-on Impropers
             --vdw-on/--vdw-off VDW
             --vdw03-on/--vdw03-off 1-4 VDW
-            --gbsa-on/gbsa-off GBSA
+            --ace-on/--ace-off ACE
+            --gbsa-on/--gbsa-off Generalized Born
         
 Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)
         
