@@ -155,8 +155,6 @@ static struct mol_atom_group_list *_read_ag_list(
     } else if (ag_json != NULL) {
         DEBUG_MSG("Using geometry and coordinates from %s", json);
         ag_list = mol_atom_group_list_create(1);
-        //free(ag_json->gradients);
-        //ag_json->gradients = NULL;
         ag_list->members[0] = *ag_json;
         free(ag_json);
 
@@ -182,8 +180,6 @@ static struct mol_atom_group_list* _merge_ag_lists(
 
     for (size_t i = 0; i < ag_list->size; i++) {
         struct mol_atom_group* _join = mol_atom_group_join(&ag1->members[i], &ag2->members[i]);
-        //free(_join->gradients);
-        //_join->gradients = NULL;
         ag_list->members[i] = *_join;
         free(_join);
     }
@@ -362,6 +358,9 @@ static void _pairsprings_setup_free(struct pairsprings_setup **sprst) {
 
 
 static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
+    WRN_MSG("You are reading pairsprings in txt format. This is a legacy "
+            "format and will be removed in the future versions.");
+
     FILE *fp;
     FOPEN_ELSE(fp, path, "r") {
         return NULL;
@@ -482,6 +481,9 @@ static void _pointsprings_setup_free(struct pointsprings_setup **sprst) {
 
 
 static struct pointsprings_setup *_pointsprings_setup_read_txt(const char *path) {
+    WRN_MSG("You are reading pointsprings in txt format. This is a legacy "
+            "format and will be removed in the future versions.");
+
     FILE *fp;
     FOPEN_ELSE(fp, path, "r") {
         return NULL;
@@ -567,7 +569,7 @@ static struct pointsprings_setup *_pointsprings_setup_read_json(const json_t *ro
         }
 
         json_t* atoms = json_object_get(spring, "atoms");
-        if (!atoms || !json_is_array(atoms)) {
+        if (!json_is_array(atoms)) {
             ERR_MSG("Can't read pointspring atoms from json");
             free(sprs);
             return NULL;
@@ -685,6 +687,9 @@ static void _noe_setup_free(struct noe_setup **noe) {
 
 
 static struct noe_setup *_noe_setup_read_txt(const char *path) {
+    WRN_MSG("You are reading NOE in txt format. This is a legacy "
+            "format and will be removed in the future versions.");
+
     char line[512];
     FILE *f;
     FOPEN_ELSE(f, path, "r") {
@@ -715,7 +720,7 @@ static struct noe_setup *_noe_setup_read_txt(const char *path) {
 
     READ_WORD(f, word, line);
     bool mask_on = false;
-    if (strcmp(word, "on\0") == 0) {
+    if (strcmp(word, "on") == 0) {
         mask_on = true;
     } else if (strcmp(word, "off\0") != 0) {
         ERR_MSG("Wrong value (on/off)");
@@ -960,7 +965,7 @@ bool energy_prms_populate_from_options(
         }
 
         setup = json_object_get(setup_root, "stages");
-        if (setup && !json_is_array(setup)) {
+        if (!json_is_array(setup)) {
             ERR_MSG("Key 'stages' must point to a dictionary");
             json_decref(setup_root);
             energy_prms_free(&all_stage_prms, nstages);
@@ -1014,6 +1019,12 @@ bool energy_prms_populate_from_options(
 
             if (code != 0) {
                 JSON_ERR_MSG(j_error, "Couldn't parse stage flags in json");
+                error = true;
+                break;
+            }
+
+            if (stage_prms->nsteps < 1) {
+                ERR_MSG("Field nsteps must be positive (%i <= 0)", stage_prms->nsteps);
                 error = true;
                 break;
             }

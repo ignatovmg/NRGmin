@@ -51,7 +51,6 @@ int main(int argc, char **argv) {
     if (opts_error) {
         ERR_MSG("Couldn't parse options");
         options_free(opts);
-        usage_message(argv);
         exit(EXIT_FAILURE);
     }
     if (opts.help) {

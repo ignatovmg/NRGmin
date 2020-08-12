@@ -180,39 +180,31 @@ lbfgsfloatval_t energy_func(
 
 
 void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    size_t i, i1, i2, nat;
-    double xtot, ytot, ztot, fk;
-    struct mol_vector3 g;
-
-    for (i = 0; i < sprst->nsprings; i++) {
-        nat = sprst->springs[i].natoms;
+    for (size_t i = 0; i < sprst->nsprings; i++) {
+        size_t nat = sprst->springs[i].natoms;
 
         if (nat > 0) {
-            xtot = 0.0;
-            ytot = 0.0;
-            ztot = 0.0;
+            struct mol_vector3 tot_vec = {0, 0, 0};
+            struct mol_vector3 g;
 
-            for (i1 = 0; i1 < nat; i1++) {
-                i2 = sprst->springs[i].atoms[i1];
-                xtot += ag->coords[i2].X;
-                ytot += ag->coords[i2].Y;
-                ztot += ag->coords[i2].Z;
+            for (size_t i1 = 0; i1 < nat; i1++) {
+                size_t i2 = sprst->springs[i].atoms[i1];
+                MOL_VEC_ADD(tot_vec, tot_vec, ag->coords[i2]);
             }
 
-            xtot = xtot / nat - sprst->springs[i].X0;
-            ytot = ytot / nat - sprst->springs[i].Y0;
-            ztot = ztot / nat - sprst->springs[i].Z0;
+            MOL_VEC_DIV_SCALAR(tot_vec, tot_vec, nat);
+            tot_vec.X -= sprst->springs[i].X0;
+            tot_vec.Y -= sprst->springs[i].Y0;
+            tot_vec.Z -= sprst->springs[i].Z0;
 
-            fk = sprst->springs[i].weight;
-            (*een) += fk * (xtot * xtot + ytot * ytot + ztot * ztot);
+            double fk = sprst->springs[i].weight;
+            (*een) += fk * MOL_VEC_SQ_NORM(tot_vec);
 
             fk = 2 * fk / nat;
-            g.X = xtot * fk;
-            g.Y = ytot * fk;
-            g.Z = ztot * fk;
+            MOL_VEC_MULT_SCALAR(g, tot_vec, fk);
 
-            for (i1 = 0; i1 < nat; i1++) {
-                i2 = sprst->springs[i].atoms[i1];
+            for (size_t i1 = 0; i1 < nat; i1++) {
+                size_t i2 = sprst->springs[i].atoms[i1];
                 MOL_VEC_SUB(ag->gradients[i2], ag->gradients[i2], g);
             }
         }
@@ -221,38 +213,28 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
 
 
 void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    size_t i, i1, i2;
-    double xtot, ytot, ztot, fk, d, d2, ln, er, coef, delta;
-    struct mol_vector3 g;
+    for (size_t i = 0; i < sprst->nsprings; i++) {
+        struct mol_vector3 g;
+        double ln = sprst->springs[i].length;
+        double er = sprst->springs[i].error;
+        double fk = sprst->springs[i].weight / 2.0; //TODO: remove the two here after we are done with NOE testing
 
-    for (i = 0; i < sprst->nsprings; i++) {
-        ln = sprst->springs[i].length;
-        er = sprst->springs[i].error;
-        fk = sprst->springs[i].weight / 2.0;
+        size_t i1 = sprst->springs[i].atoms[0];
+        size_t i2 = sprst->springs[i].atoms[1];
 
-        i1 = sprst->springs[i].atoms[0];
-        i2 = sprst->springs[i].atoms[1];
+        struct mol_vector3 tot_vec;
+        MOL_VEC_SUB(tot_vec, ag->coords[i2], ag->coords[i1]);
+        double d = sqrt(MOL_VEC_SQ_NORM(tot_vec));
 
-        xtot = ag->coords[i2].X - ag->coords[i1].X;
-        ytot = ag->coords[i2].Y - ag->coords[i1].Y;
-        ztot = ag->coords[i2].Z - ag->coords[i1].Z;
+        double delta = fabs(d - ln);
+        if (delta > er) {
+            delta = (delta - er) * delta / (d - ln);
+            (*een) += fk * delta * delta;
+            double coef = fk * 2.0 * delta / d;
+            MOL_VEC_MULT_SCALAR(g, tot_vec, -coef);
 
-        d2 = xtot * xtot + ytot * ytot + ztot * ztot;
-        d = sqrt(d2);
-
-        delta = fabs(d - ln);
-        delta = (delta > er) ? ((delta - er) * delta / (d - ln)) : 0.0;
-
-        //(*een) += fk * (d - ln) * (d - ln);
-        (*een) += fk * delta * delta;
-        //coef = fk * 2 * (1.0 - ln / d);
-        coef = fk * 2.0 * delta / d;
-
-        g.X = -coef * xtot;
-        g.Y = -coef * ytot;
-        g.Z = -coef * ztot;
-
-        MOL_VEC_SUB(ag->gradients[i1], ag->gradients[i1], g);
-        MOL_VEC_ADD(ag->gradients[i2], ag->gradients[i2], g);
+            MOL_VEC_SUB(ag->gradients[i1], ag->gradients[i1], g);
+            MOL_VEC_ADD(ag->gradients[i2], ag->gradients[i2], g);
+        }
     }
 }
