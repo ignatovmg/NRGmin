@@ -70,7 +70,7 @@ static void test_pairspring_gradients(
     pairspring_energy(sps, mob_ag, &een_orig);
     struct mol_vector3 *old_grad_ptr = mob_ag->gradients;
     double *vect = calloc(3*mob_ag->natoms, sizeof(double));
-    for (int i = 0; i < mob_ag->natoms; i++)
+    for (size_t i = 0; i < mob_ag->natoms; i++)
     {
         vect[3*i] = old_grad_ptr[i].X;
         vect[3*i+1] = old_grad_ptr[i].Y;
@@ -749,6 +749,9 @@ START_TEST(test_pairspring_penalty)
 
             energy_prms_free(&prms, nstages);
             break;
+
+        default:
+            ck_assert(false);
     }
 }
 END_TEST
@@ -775,7 +778,7 @@ Suite *lists_suite(void)
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 10);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
-    tcase_add_test(tcase_real, test_pairspring_penalty);
+    tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 2);
     suite_add_tcase(suite, tcase_real);
 
     return suite;
