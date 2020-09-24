@@ -148,17 +148,28 @@ set there as well.
       ],
       "pairsprings": [
         {
+          "distance": 10,
           "weight": 10,
-          "length": 10,
-          "error": 1,
-          "atom1": 3598,
-          "atom2": 3630
+          "lerror": 1,
+          "rerror": 1,
+          "potential": 2,
+          "average": 0,
+          "group1": [
+            3598
+          ],
+          "group2": [
+            3630
+          ]
         }
       ]
     }
   ]
 }
 ```
+
+### Pairsprings setup dictionary
+
+As can be seen in the example of Master json above, to use the "pairsprings" potential energy in minimization, one dictionary needed to be created for every distance restraint and 8 different parameters need to be assigned in the dictionary: distance, weight, lerror, rerror, potential, average, group1, group2.  The "distance" denotes expected distance between the two sets of atoms. The "lerror" and "rerror" are the left and right tolerance errors from the expected distance respectively. The "weight" is the scale factor for the potential energy function. The "potential " is the type of penalty function for the distance restraints. There are three different types of penalty function: Biharmonic (0), Square-Well (1), Soft-Square (2). The "average" denotes the method to average the distances between the two selected sets of atoms, and two types of averaging can be selected: SUM (0) and R-6 (1). The "group1" and "group2" are two lists of indices that indicate the two sets of atoms in the restraint. If there are more than one atom in either set, the distances of all possible pairs between two groups will be computed. Then the average distance of all the computed distances will be calculated using "average" method. This averaged distance is the calculated distance for this restraint. More details of the description of distance restraints can be found here https://nmr.cit.nih.gov/xplor-nih/xplorMan/node376.html.
 
 ### Examples
 

@@ -35,8 +35,6 @@ char msg[512];
 	} while(0);
 #endif
 
-struct mol_atom_group *test_ag1;
-
 /*static void _compare_arrays_int(const int* x, const int* y, const size_t len)
 {
     for (size_t i = 0; i < len; i++) {
@@ -753,6 +751,8 @@ START_TEST(test_pairspring_penalty)
     struct options opts;
     struct energy_prms* prms;
     size_t nstages;
+    struct mol_atom_group *test_ag1 = mol_read_pdb("30355_best.pdb");
+    test_ag1->gradients = calloc(test_ag1->natoms, sizeof(struct mol_vector3));
 
     switch (_i) {
         case 0:
@@ -785,26 +785,15 @@ START_TEST(test_pairspring_penalty)
         default:
             ck_assert(false);
     }
+    mol_atom_group_free(test_ag1);
 }
 END_TEST
 
-
-void setup_real(void)
-{
-    test_ag1 = mol_read_pdb("30355_best.pdb");
-    test_ag1->gradients = calloc(test_ag1->natoms, sizeof(struct mol_vector3));
-}
-
-void teardown_real(void)
-{
-    mol_atom_group_free(test_ag1);
-}
 
 Suite *lists_suite(void)
 {
     Suite *suite = suite_create("functionality");
     TCase *tcase_real = tcase_create("real");
-    tcase_add_checked_fixture(tcase_real, setup_real, teardown_real);
     tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
     tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
