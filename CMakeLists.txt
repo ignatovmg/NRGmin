@@ -4,36 +4,36 @@ if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
 endif()
 
-if(CMAKE_VERSION VERSION_GREATER 3.9)
-    cmake_policy(SET CMP0069 NEW)
-endif()
+cmake_policy(SET CMP0069 NEW)
 
 project(NRGmin VERSION 1.0
         DESCRIPTION "Energy minimization utility"
         LANGUAGES C)
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 option(BUILD_TESTS    "Build tests"                        ON)
 option(USE_LTO        "Link Time Optimization"             ON)
 option(USE_SANITIZER  "Build with address sanitizer"      OFF)
 option(OPENMP         "Add OPENMP executable"             OFF)
+option(NOE            "Build with NOE feature"             ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
-if (UNIX)
-    add_compile_options(-std=c11)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(-pg -Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
-    endif()
+if (UNIX AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-pg -Wall -Wshadow -Wpointer-arith -Wcast-qual -Winline -Werror -Wextra -Wfatal-errors -Wstrict-prototypes)
 endif()
 
-if(USE_SANITIZER)
+if (USE_SANITIZER)
     set(SANITIZER_FLAGS "-fno-omit-frame-pointer -fsanitize=address,undefined")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  ${SANITIZER_FLAGS}")
+    add_compile_options(${SANITIZER_FLAGS})
+    add_link_options(${SANITIZER_FLAGS})
+endif()
+
+if (NOE)
+    add_definitions(-D NOE)
 endif()
 
 find_package(Jansson REQUIRED)
@@ -49,11 +49,27 @@ set(INCLUDE_LIST
         "${MOL2_INCLUDE_DIRS}"
         "${JANSSON_INCLUDE_DIRS}")
 
+# Read help text from the file and plug it in parse_options.c.in
+file(STRINGS ${PROJECT_SOURCE_DIR}/src/usage.txt USAGE_LINES)
+# Join lines using "\" character. Can't use string(JOIN ..) here,
+# because it exists only in the newer versions of cmake
+set(USAGE_TEXT "")
+list(LENGTH USAGE_LINES USAGE_N_LINES)
+math(EXPR USAGE_LAST_LINE "${USAGE_N_LINES} - 1")
+foreach(LINE_ID RANGE ${USAGE_LAST_LINE})
+    list(GET USAGE_LINES ${LINE_ID} LINE)
+    set(USAGE_TEXT "${USAGE_TEXT}\\n${LINE}")
+endforeach()
+configure_file (
+        "${PROJECT_SOURCE_DIR}/src/parse_options.c.in"
+        "${PROJECT_BINARY_DIR}/parse_options.c"
+)
+
 set(SRC_LIST
         ${PROJECT_SOURCE_DIR}/src/setup.c
-        ${PROJECT_SOURCE_DIR}/src/parse_options.c
         ${PROJECT_SOURCE_DIR}/src/utils.c
-        ${PROJECT_SOURCE_DIR}/src/energy.c)
+        ${PROJECT_SOURCE_DIR}/src/energy.c
+        ${PROJECT_BINARY_DIR}/parse_options.c)
 
 add_executable(nrgmin ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
 

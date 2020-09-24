@@ -13,7 +13,10 @@
 #include "mol2/icharmm.h"
 #include "mol2/pdb.h"
 #include "mol2/fitting.h"
+
+#ifdef NOE
 #include "mol2/noe.h"
+#endif
 
 #include "parse_options.h"
 
@@ -41,9 +44,11 @@ struct energy_prms {
 
     struct pairsprings_setup *sprst_pairs; ///< Pairwise distance restraints
     struct pointsprings_setup *sprst_points; ///< Pointwise distance restraints
-    struct noe_setup *nmr; ///< NOE matrix restraints
     struct density_setup *density; ///< Density fitting
     struct fixed_setup *fixed; ///< Fixed atoms
+#ifdef NOE
+    struct noe_setup *nmr; ///< NOE matrix restraints
+#endif
 
     int nsteps; ///< Max number of steps during minimization
     bool bonds; ///< Flags
@@ -52,16 +57,20 @@ struct energy_prms {
     bool impropers;
     bool vdw;
     bool vdw03;
+    bool eleng;
+    bool elengs03;
     bool gbsa;
 
     bool score_only; ///< Don't perform minimizition and only output energy terms
 };
 
+#ifdef NOE
 struct noe_setup {
     double weight;
     double power;
     struct mol_noe *spec;
 };
+#endif
 
 struct density_setup {
     double weight;

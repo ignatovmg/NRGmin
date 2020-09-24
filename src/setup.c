@@ -117,12 +117,29 @@ static struct mol_atom_group_list *_read_ag_list(
         } else if (psf && prm && rtf) {
             // If json wasn't provided read geometry from prm rtf psf
             DEBUG_MSG("Reading geometry from %s", psf);
-            for (size_t i = 0; i < ag_list->size; i++) {
-                if (!mol_atom_group_read_geometry(&ag_list->members[i], psf, prm, rtf)) {
-                    ERR_MSG("Couldn't fill geometry from psf rtf and prm");
-                    mol_atom_group_list_free(ag_list);
-                }
+            struct mol_atom_group_list* ag_list_copy =  mol_atom_group_list_create(ag_list->size);
+
+            // Fill the geometry for the first model
+            if (!mol_atom_group_read_geometry(&ag_list->members[0], psf, prm, rtf)) {
+                ERR_MSG("Couldn't fill geometry from psf rtf and prm");
+                mol_atom_group_list_free(ag_list);
+                mol_atom_group_list_free(ag_list_copy);
+                return NULL;
             }
+
+            // Copy the first model into each member of ag_list_copy and fill the coordinates from ag_list
+            // this is done for speed up, because reading geomerty for each model separately can be very slow
+            for (size_t i = 0; i < ag_list->size; i++) {
+                struct mol_atom_group* buf = mol_atom_group_copy(&ag_list->members[0]);
+                ag_list_copy->members[i] = *buf;
+                memcpy(ag_list_copy->members[i].coords,
+                        ag_list->members[i].coords,
+                        ag_list->members[i].natoms * sizeof(struct mol_vector3));
+                free(buf);
+            }
+            mol_atom_group_list_free(ag_list);
+            ag_list = ag_list_copy;
+            DEBUG_MSG("Done reading geometry");
 
         } else if (score_only != 0) {
             // if they weren't provided, check the score_only flag
@@ -138,8 +155,6 @@ static struct mol_atom_group_list *_read_ag_list(
     } else if (ag_json != NULL) {
         DEBUG_MSG("Using geometry and coordinates from %s", json);
         ag_list = mol_atom_group_list_create(1);
-        //free(ag_json->gradients);
-        //ag_json->gradients = NULL;
         ag_list->members[0] = *ag_json;
         free(ag_json);
 
@@ -165,8 +180,6 @@ static struct mol_atom_group_list* _merge_ag_lists(
 
     for (size_t i = 0; i < ag_list->size; i++) {
         struct mol_atom_group* _join = mol_atom_group_join(&ag1->members[i], &ag2->members[i]);
-        //free(_join->gradients);
-        //_join->gradients = NULL;
         ag_list->members[i] = *_join;
         free(_join);
     }
@@ -258,17 +271,27 @@ static struct fixed_setup* _fixed_setup_read_txt(const char *path) {
     char *buffer = calloc(linesz, sizeof(char));
 
     while (fgets(buffer, linesz - 1, fp) != NULL) {
-        if (!strncmp(buffer, "ATOM", 4)) nfix++;
+        if (!strncmp(buffer, "ATOM", 4)) {
+            nfix++;
+        }
     }
 
     rewind(fp);
-    size_t* fix = calloc(nfix, sizeof(size_t));
-    size_t na = 0;
+    size_t* fixed_atoms = calloc(nfix, sizeof(size_t));
+    size_t counter = 0;
+    size_t atom_id;
+    char* not_used;
 
     while (fgets(buffer, linesz - 1, fp) != NULL) {
         if (!strncmp(buffer, "ATOM", 4)) {
-            fix[na] = atoi(buffer + 4) - 1;
-            na++;
+            atom_id = strtoul(buffer + 4, &not_used, 10);
+            if (atom_id == 0) {
+                ERR_MSG("Wrong atom serial number encountered in %s, line: %s", path, buffer);
+                free(buffer);
+                fclose(fp);
+                return NULL;
+            }
+            fixed_atoms[counter++] = atom_id - 1;
         }
     }
 
@@ -276,8 +299,8 @@ static struct fixed_setup* _fixed_setup_read_txt(const char *path) {
     fclose(fp);
 
     struct fixed_setup* result = calloc(1, sizeof(struct fixed_setup));
-    result->atoms = calloc(nfix, sizeof(size_t));
-    result->natoms = nfix;
+    result->atoms = fixed_atoms;
+    result->natoms = counter;
 
     return result;
 }
@@ -342,6 +365,9 @@ static void _pairsprings_setup_free(struct pairsprings_setup **sprst) {
 
 
 static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
+    WRN_MSG("You are reading pairsprings in txt format. This is a legacy "
+            "format and will be removed in the future versions.");
+
     FILE *fp;
     FOPEN_ELSE(fp, path, "r") {
         return NULL;
@@ -509,6 +535,9 @@ static void _pointsprings_setup_free(struct pointsprings_setup **sprst) {
 
 
 static struct pointsprings_setup *_pointsprings_setup_read_txt(const char *path) {
+    WRN_MSG("You are reading pointsprings in txt format. This is a legacy "
+            "format and will be removed in the future versions.");
+
     FILE *fp;
     FOPEN_ELSE(fp, path, "r") {
         return NULL;
@@ -594,7 +623,7 @@ static struct pointsprings_setup *_pointsprings_setup_read_json(const json_t *ro
         }
 
         json_t* atoms = json_object_get(spring, "atoms");
-        if (!atoms || !json_is_array(atoms)) {
+        if (!json_is_array(atoms)) {
             ERR_MSG("Can't read pointspring atoms from json");
             free(sprs);
             return NULL;
@@ -686,6 +715,8 @@ _POTENTIAL_SETUP_READ_JSON_FILE(density)
  ****************************************/
 
 
+#ifdef NOE
+
 static void _noe_setup_free(struct noe_setup **noe) {
     if (*noe != NULL) {
         mol_noe_free((*noe)->spec);
@@ -710,6 +741,9 @@ static void _noe_setup_free(struct noe_setup **noe) {
 
 
 static struct noe_setup *_noe_setup_read_txt(const char *path) {
+    WRN_MSG("You are reading NOE in txt format. This is a legacy "
+            "format and will be removed in the future versions.");
+
     char line[512];
     FILE *f;
     FOPEN_ELSE(f, path, "r") {
@@ -740,7 +774,7 @@ static struct noe_setup *_noe_setup_read_txt(const char *path) {
 
     READ_WORD(f, word, line);
     bool mask_on = false;
-    if (strcmp(word, "on\0") == 0) {
+    if (strcmp(word, "on") == 0) {
         mask_on = true;
     } else if (strcmp(word, "off\0") != 0) {
         ERR_MSG("Wrong value (on/off)");
@@ -792,6 +826,8 @@ static struct noe_setup *_noe_setup_read_json(json_t *root) {
 
 _POTENTIAL_SETUP_READ_JSON_FILE(noe)
 
+#endif
+
 
 /* **************************************
  *      Populate energy parameters      *
@@ -805,7 +841,9 @@ void energy_prms_free(struct energy_prms **prms, size_t nstages)
             _pairsprings_setup_free(&((*prms + i)->sprst_pairs));
             _pointsprings_setup_free(&((*prms + i)->sprst_points));
             _density_setup_free(&((*prms + i)->density));
+#ifdef NOE
             _noe_setup_free(&((*prms + i)->nmr));
+#endif
             _fixed_setup_free(&((*prms + i)->fixed));
         }
         free(*prms);
@@ -832,9 +870,11 @@ bool energy_prms_populate_from_options(
 
     all_stage_prms->sprst_pairs = NULL;
     all_stage_prms->sprst_points = NULL;
-    all_stage_prms->nmr = NULL;
     all_stage_prms->density = NULL;
     all_stage_prms->fixed = NULL;
+#ifdef NOE
+    all_stage_prms->nmr = NULL;
+#endif
 
     all_stage_prms->nsteps = opts.nsteps;
 
@@ -844,6 +884,8 @@ bool energy_prms_populate_from_options(
     all_stage_prms->impropers = opts.impropers;
     all_stage_prms->vdw = opts.vdw;
     all_stage_prms->vdw03 = opts.vdw03;
+    all_stage_prms->eleng = opts.eleng;
+    all_stage_prms->elengs03 = opts.elengs03;
     all_stage_prms->gbsa = opts.gbsa;
 
     all_stage_prms->score_only = opts.score_only;
@@ -915,6 +957,7 @@ bool energy_prms_populate_from_options(
 
     if (opts.noe_json) {
         DEBUG_MSG("Parsing %s", opts.noe_json);
+#ifdef NOE
         all_stage_prms->nmr = _noe_setup_read_json_file(opts.noe_json);
 
         if (!all_stage_prms->nmr) {
@@ -922,9 +965,16 @@ bool energy_prms_populate_from_options(
             energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
+#else
+        ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
+        energy_prms_free(&all_stage_prms, nstages);
+        return false;
+#endif
     }
 
     if (opts.noe_txt) {
+        DEBUG_MSG("Parsing %s", opts.noe_txt);
+#ifdef NOE
         if (all_stage_prms->nmr) {
             ERR_MSG("Cannot use NOE txt and json formats at the same time");
             energy_prms_free(&all_stage_prms, nstages);
@@ -938,6 +988,11 @@ bool energy_prms_populate_from_options(
             energy_prms_free(&all_stage_prms, nstages);
             return false;
         }
+#else
+        ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
+        energy_prms_free(&all_stage_prms, nstages);
+        return false;
+#endif
     }
 
     if (opts.density_json) {
@@ -964,7 +1019,7 @@ bool energy_prms_populate_from_options(
         }
 
         setup = json_object_get(setup_root, "stages");
-        if (setup && !json_is_array(setup)) {
+        if (!json_is_array(setup)) {
             ERR_MSG("Key 'stages' must point to a dictionary");
             json_decref(setup_root);
             energy_prms_free(&all_stage_prms, nstages);
@@ -1001,13 +1056,15 @@ bool energy_prms_populate_from_options(
             DEBUG_MSG("Unpacking options");
             int code = json_unpack_ex(
                     stage_desc, &j_error, 0,
-                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
+                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
                     "bonds", &stage_prms->bonds,
                     "angles", &stage_prms->angles,
                     "dihedrals", &stage_prms->dihedrals,
                     "impropers", &stage_prms->impropers,
                     "vdw", &stage_prms->vdw,
                     "vdw03", &stage_prms->vdw03,
+                    "eleng", &stage_prms->eleng,
+                    "elengs03", &stage_prms->elengs03,
                     "gbsa", &stage_prms->gbsa,
                     "fix_receptor", &stage_fix_rec,
                     "fix_ligand", &stage_fix_lig,
@@ -1016,6 +1073,12 @@ bool energy_prms_populate_from_options(
 
             if (code != 0) {
                 JSON_ERR_MSG(j_error, "Couldn't parse stage flags in json");
+                error = true;
+                break;
+            }
+
+            if (stage_prms->nsteps < 1) {
+                ERR_MSG("Field nsteps must be positive (%i <= 0)", stage_prms->nsteps);
                 error = true;
                 break;
             }
@@ -1090,6 +1153,12 @@ bool energy_prms_populate_from_options(
             // NOE
             json_t* stage_noe = json_object_get(stage_desc, "noe");
             if (stage_noe) {
+#ifndef NOE
+                ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
+                error = true;
+                break;
+#else
+
                 DEBUG_MSG("Creating NOE for stage");
                 stage_prms->nmr = _noe_setup_read_json(stage_noe);
                 if (!stage_prms->nmr) {
@@ -1097,6 +1166,7 @@ bool energy_prms_populate_from_options(
                     error = true;
                     break;
                 }
+#endif
             }
         }
 

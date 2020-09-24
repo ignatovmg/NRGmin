@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <jansson.h>
+#include <signal.h>
+#include <setjmp.h>
+#include <fenv.h>
 
 #include "mol2/gbsa.h"
 #include "mol2/minimize.h"
@@ -18,17 +21,36 @@
 #define __TOL__ 5E-4
 
 
+jmp_buf FE_RETURN_LOCATION;
+
+/**
+ * Handler for SIGFPE (floating point exception)
+ */
+void overflow_handler(__attribute__((unused)) int signal_number) {
+    if (feclearexcept(FE_ALL_EXCEPT) != 0){
+        WRN_MSG("Couldn't clear exceptions");
+    }
+
+    longjmp(FE_RETURN_LOCATION, 1);
+}
+
+
 int main(int argc, char **argv) {
     VERBOSITY = DEBUG;
 
+    #ifndef OPENMP
+    // For serial version, SIGFPE will be caught and "exception" field will be added
+    // to the corresponding model entry in output json file. In OMP version SIGFPE
+    // will be switched off
     mol_enable_floating_point_exceptions();
+    signal(SIGFPE, overflow_handler);
+    #endif
 
     bool opts_error;
     struct options opts = options_populate_from_argv(argc, argv, &opts_error);
     if (opts_error) {
         ERR_MSG("Couldn't parse options");
         options_free(opts);
-        usage_message(argv);
         exit(EXIT_FAILURE);
     }
     if (opts.help) {
@@ -50,7 +72,7 @@ int main(int argc, char **argv) {
         json_log_total[i] = json_array();
     }
 
-#ifdef OPENMP
+    #ifdef OPENMP
     if (opts.num_threads > 0) {
         omp_set_num_threads(opts.num_threads);
     }
@@ -63,9 +85,9 @@ int main(int argc, char **argv) {
         if (thread_id == 0) {
             DEBUG_MSG("Using %i threads", num_threads);
         }
-#else
+    #else
         int thread_id = 0;
-#endif
+    #endif
 
         // Create local copy of energy prms for each thread
         struct energy_prms* min_prms;
@@ -79,12 +101,11 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
 
-#ifdef OPENMP
+        #ifdef OPENMP
         // Wait till all threads successfully create min_prms
         #pragma omp barrier
-
         #pragma omp for
-#endif
+        #endif
         for (size_t modeli = 0; modeli < ag_list->size; modeli++) {
             INFO_MSG("Started model %zu", modeli);
 
@@ -97,7 +118,6 @@ int main(int argc, char **argv) {
 
             struct agsetup ag_setup;
             init_nblst(ag, &ag_setup);
-            update_nblst(ag, &ag_setup);
 
             // Run stages of minimization
             for (size_t stage_id = 0; stage_id < nstages; stage_id++) {
@@ -106,6 +126,14 @@ int main(int argc, char **argv) {
                 struct energy_prms *stage_prms = calloc(1, sizeof(struct energy_prms));
                 *stage_prms = min_prms[stage_id];
                 stage_prms->ag = ag;
+
+                if (stage_prms->fixed) {
+                    mol_fixed_update(ag, stage_prms->fixed->natoms, stage_prms->fixed->atoms);
+                } else {
+                    mol_fixed_update(ag, 0, NULL);
+                }
+
+                update_nblst(ag, &ag_setup);
 
                 // Set up GBSA
                 struct acesetup ace_setup;
@@ -119,38 +147,64 @@ int main(int argc, char **argv) {
                     stage_prms->ace_setup = NULL;
                 }
 
-                if (stage_prms->fixed) {
-                    mol_fixed_update(ag, stage_prms->fixed->natoms, stage_prms->fixed->atoms);
-                } else {
-                    mol_fixed_update(ag, 0, NULL);
-                }
-
-                update_nblst(ag, &ag_setup);
-                if (stage_prms->gbsa) {
-                    ace_fixedupdate(ag, &ag_setup, stage_prms->ace_setup);
-                    ace_updatenblst(&ag_setup, stage_prms->ace_setup);
-                }
-
                 stage_prms->ag_setup = &ag_setup;
+                bool sigfpe_caught = false;
 
                 // Minimize energy
                 if (!stage_prms->score_only) {
                     stage_prms->json_log = json_array();
-                    mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
+
+                    if (setjmp(FE_RETURN_LOCATION) == 1) {
+                        // If minimization failed with SIGFPE the execution jumps to this location
+                        WRN_MSG("Floating point exception detected for model %zu during minimization", modeli);
+                        sigfpe_caught = true;
+                        if (stage_prms->json_log && (json_array_size(stage_prms->json_log) > 0)) {
+                            // Add "exception" to the last recorded energy set
+                            json_t *last_energy_dict = json_array_get(stage_prms->json_log, json_array_size(stage_prms->json_log) - 1);
+                            json_object_set_new(last_energy_dict, "exception", json_string("Floating point exception during minimization"));
+                        }
+                    } else {
+                        mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
+                    }
 
                     // Record energy every time it was evaluated
                     if (stage_prms->json_log_setup.print_step) {
-                        json_object_set_new(json_log_stage, "steps", stage_prms->json_log);
-                    } else {
-                        json_decref(stage_prms->json_log);
+                        json_object_set(json_log_stage, "steps", stage_prms->json_log);
                     }
+                    json_decref(stage_prms->json_log);
                     stage_prms->json_log = NULL;
                 }
 
                 // Record final energy
                 if (stage_prms->json_log_setup.print_stage) {
                     stage_prms->json_log = json_array();
-                    energy_func((void *) stage_prms, NULL, NULL, 0, 0);
+
+                    if (sigfpe_caught) {
+                        // if SIGFPE was caught previously during minimization, do not compute the final energy and set "exception" instead
+                        json_t* energy_dict = json_object();
+                        json_object_set_new(
+                                energy_dict,
+                                "exception",
+                                json_string("Floating point exception during minimization"));
+                        json_array_append_new(stage_prms->json_log, energy_dict);
+                    } else {
+                        if (setjmp(FE_RETURN_LOCATION) == 1) {
+                            // If energy evalution failed with SIGFPE, the execution jumps to this location
+                            WRN_MSG("Floating point exception detected for model %zu during final energy evaluation", modeli);
+                            sigfpe_caught = true;
+
+                            if (stage_prms->json_log) {
+                                json_t *last_energy_dict = json_array_get(stage_prms->json_log, 0);
+                                json_object_set_new(
+                                        last_energy_dict,
+                                        "exception",
+                                        json_string("Floating point exception during final energy evaluation"));
+                            }
+                        } else {
+                            energy_func((void *) stage_prms, NULL, NULL, 0, 0);
+                        }
+                    }
+
                     json_t *final_energy = json_deep_copy(json_array_get(stage_prms->json_log, 0));
                     json_object_set_new(json_log_stage, "final", final_energy);
                     json_decref(stage_prms->json_log);
@@ -171,26 +225,28 @@ int main(int argc, char **argv) {
 
         energy_prms_free(&min_prms, nstages);
 
-#ifdef OPENMP
+    #ifdef OPENMP
     }
-#endif
+    #endif
 
     // Write minimized models
-    FILE* out_pdb;
-    FOPEN_ELSE(out_pdb, opts.out_pdb, "w") {
-        options_free(opts);
-        mol_atom_group_list_free(ag_list);
-        exit(EXIT_FAILURE);
-    }
-
-    DEBUG_MSG("Writing minimized models to %s", opts.out_pdb);
-    for (size_t modeli = 0; modeli < ag_list->size; modeli++) {
-        if (ag_list->size > 1) {
-            fprintf(out_pdb, "MODEL %zu\n", (modeli + 1));
+    if (!opts.score_only) {
+        FILE *out_pdb;
+        FOPEN_ELSE(out_pdb, opts.out_pdb, "w") {
+            options_free(opts);
+            mol_atom_group_list_free(ag_list);
+            exit(EXIT_FAILURE);
         }
-        mol_fwrite_pdb(out_pdb, &ag_list->members[modeli]);
-        if (ag_list->size > 1) {
-            fprintf(out_pdb, "ENDMDL\n");
+
+        DEBUG_MSG("Writing minimized models to %s", opts.out_pdb);
+        for (size_t modeli = 0; modeli < ag_list->size; modeli++) {
+            if (ag_list->size > 1) {
+                fprintf(out_pdb, "MODEL %zu\n", (modeli + 1));
+            }
+            mol_fwrite_pdb(out_pdb, &ag_list->members[modeli]);
+            if (ag_list->size > 1) {
+                fprintf(out_pdb, "ENDMDL\n");
+            }
         }
     }
 

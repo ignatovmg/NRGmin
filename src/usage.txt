@@ -5,8 +5,8 @@ Rec/lig mode is used, when structure is passed using rec-* lig-* arguments,
 and single file mode is enabled for the opposite. Structure can be passed
 using a set of 4 files pdb, psf, rtf, prm or as a single json file which
 contains coordinates as well as force field parameters. Also and pair of
-json and pdb can be passed, if one want to use geometry from json and
-coordinates from pdb.
+json and pdb can be passed, if one want to use topology and forcefield parameters
+from json and coordinates from pdb.
 
 All flags can be as well filled by passing a global setup file to --setup-json,
 so this one argument is enough to run minimization.
@@ -25,7 +25,7 @@ Examples of different minimization setups can be found in examples/energy_setup.
 
     Single file mode:
 
-    --psf Geometry
+    --psf Geometry in CHARMM (old) format
     --prm Forcefield parameters
     --rtf Topology file with residues description
     --pdb Atom coordinates (can contain multiple models)
@@ -33,12 +33,12 @@ Examples of different minimization setups can be found in examples/energy_setup.
 
     Parameters for rec/lig mode
 
-    --rec-psf Receptor geometry
+    --rec-psf Receptor geometry in CHARMM (old) format
     --rec-prm Receptor forcefield parameters
     --rec-rtf Receptor topology file
     --rec-pdb Receptor atom coordinates (can contain multiple models)
     --rec-json Receptor json file with coordinates, geometry and force field parameters
-    --lig-psf Ligand geometry
+    --lig-psf Ligand geometry in CHARMM (old) format
     --lig-prm Ligand forcefield parameters
     --lig-rtf Ligand topology file with residues description
     --lig-pdb Ligand atom coordinates (can contain multiple models)
@@ -57,9 +57,13 @@ Examples of different minimization setups can be found in examples/energy_setup.
     --impropers-on/--impropers-on Impropers
     --vdw-on/--vdw-off VDW
     --vdw03-on/--vdw03-off 1-4 VDW
-    --gbsa-on/gbsa-off GBSA
+    --eleng-on/--eleng-off Coulomb electrostatics
+    --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics
+    --gbsa-on/--gbsa-off GBSA
 
-    Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)
+    Fixed atoms (in rec/lig mode atom groups are concatenated,
+                 which increases ligand atom IDs by the number
+                 of receptor atoms)
 
     --fixed-pdb PDB file with fixed atoms. Only atom ID is read (lines starting with ATOM)
     --fix-receptor Fix receptor atoms (works only in rec/lig mode)
@@ -70,7 +74,7 @@ Examples of different minimization setups can be found in examples/energy_setup.
     --pair-springs-txt Text file setup for pairwise restraints
     --point-springs-txt Text file setup for pointwise restraints
 
-    NOE setup
+    NOE setup (available with -DNOE=ON during build)
 
     --noe-txt Text file setup for NOE
     --noe-json Json file setup for NOE
@@ -88,5 +92,6 @@ Examples of different minimization setups can be found in examples/energy_setup.
     Miscellaneous
 
     --num-threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads
-    --score-only Score only without doing minimization
+    --score-only Score without doing minimization
     --help Show this message and exit
+

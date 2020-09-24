@@ -3,7 +3,9 @@ Utility for molecular mechanics energy minimization
 
 ## Installation ###
 
-1. Install [libmol2](https://bitbucket.org/bu-structure/libmol2/src/master)
+1. Install [libmol2](https://bitbucket.org/bu-structure/libmol2/src/master) 
+(verified to work with commit 
+[918978d](https://bitbucket.org/bu-structure/libmol2/src/918978da2c8b3929702df9f7738b1eec60190056/))
 
 2. Build minimization executable 
 
@@ -13,8 +15,20 @@ Utility for molecular mechanics energy minimization
        
 3. The binary is in `build/nrgmin`
 
-4. If you want to build with OpenMP, add `-DOPENMP=ON` to `cmake` command, it will create additional executable
+4. To build OpenMP enabled binary, add `-DOPENMP=YES` to `cmake` command, it will create additional executable
    `build/nrgmin.omp`. `--num-threads` controls the number of OpenMP threads.
+   
+CMake flags:  
+   
+   * `BUILD_TESTS` — set to `YES` to enable tests, and to `NO` if you don't need them.
+   
+   * `USE_LTO` – set to `YES` for Link Time Optimization.
+   
+   * `USE_SANITIZER` — enable AddressSanitizer. Not recommended for release builds, since it complicates linking to other projects.
+   
+   * `OPENMP` — set to `YES` to create a multithreaded binary `nrgmin.omp` in addition to a serial one.
+   
+   * `NOE` — set to `NO` if you want to drop NOE (NMR) calculation capability (e.g. if libmol2 was build without NOE).
 
 ## How to run
 
@@ -198,6 +212,8 @@ Energy terms switches. Everything is on by default except for GBSA
             --impropers-on/--impropers-on Impropers
             --vdw-on/--vdw-off VDW
             --vdw03-on/--vdw03-off 1-4 VDW
+            --eleng-on/--eleng-off Coulomb electrostatics
+            --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics
             --gbsa-on/gbsa-off GBSA
         
 Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)

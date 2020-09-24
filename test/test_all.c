@@ -11,6 +11,8 @@
 #include "parse_options.h"
 #include "energy.h"
 
+char msg[512];
+
 // These functions are defined only in newer versions of check
 #ifndef ck_assert_double_eq_tol
 #define ck_assert_double_eq_tol(x, y, tol) do { \
@@ -518,6 +520,7 @@ START_TEST(test_energy_prm_from_flags)
             opts = options_get_default();
             opts.noe_json = "noe.json";
 
+#ifdef NOE
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_double_eq_tol(prms->nmr->weight, 1000, 10e-3);
@@ -525,6 +528,10 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert_int_eq(prms->nmr->spec->size, 2);
             ck_assert_double_eq_tol(prms->nmr->spec->exp[1], -0.074589, 10e-3);
             energy_prms_free(&prms, nstages);
+#else
+            ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_null(prms);
+#endif
             break;
 
         case 9:
@@ -537,6 +544,19 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert_double_eq_tol(prms[0].density->weight, 1000, 0.001);
             ck_assert_double_eq_tol(prms[0].density->prms.radius, 2, 0.001);
             ck_assert_int_eq(prms[0].density->ag->natoms, 42);
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 10:
+            // Pass fixed pdb
+            opts = options_get_default();
+            opts.fixed_pdb = "BACE_4_lig_far.pdb";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+            ck_assert_int_eq(prms[0].fixed->natoms, 42);
+            _compare_arrays_size_t(prms[0].fixed->atoms, (size_t[]){3598, 3599, 3600, 3601, 3602, 3603}, 6);
+
             energy_prms_free(&prms, nstages);
             break;
     }
@@ -631,10 +651,15 @@ START_TEST(test_energy_prm_from_json)
             opts = options_get_default();
             opts.setup_json = "setup_noe.json";
 
+#ifdef NOE
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms[0].nmr->spec->size, 2);
             energy_prms_free(&prms, nstages);
+#else
+            ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_null(prms);
+#endif
             break;
 
         case 8:
@@ -676,8 +701,11 @@ START_TEST(test_energy_prm_from_json)
             opts.separate = true;
             opts.rec_natoms = 1000;
             opts.lig_natoms = 100;
+#ifdef NOE
             opts.setup_json = "setup_all.json";
-
+#else
+            opts.setup_json = "setup_all_no_noe.json";
+#endif
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(nstages, 3);
@@ -691,19 +719,23 @@ START_TEST(test_energy_prm_from_json)
             ck_assert_ptr_nonnull(prms[1].fixed);
             ck_assert_ptr_null(prms[2].fixed);
 
+#ifdef NOE
             ck_assert_ptr_null(prms[0].nmr);
             ck_assert_ptr_nonnull(prms[1].nmr);
             ck_assert_ptr_null(prms[2].nmr);
+#endif
 
             ck_assert_ptr_null(prms[0].sprst_pairs);
             ck_assert_ptr_nonnull(prms[1].sprst_pairs);
             ck_assert_ptr_nonnull(prms[2].sprst_pairs);
 
             // Check some random values from the setup to make sure it was parsed properly
+#ifdef NOE
             ck_assert_double_eq_tol(prms[1].nmr->power, 1./3., 10e-3);
             ck_assert_double_eq_tol(prms[1].nmr->weight, 1000, 10e-3);
             ck_assert_ptr_nonnull(prms[1].nmr->spec);
             ck_assert_int_eq(prms[1].nmr->spec->size, 2);
+#endif
             ck_assert_int_eq(prms[2].sprst_points->springs[0].atoms[3], 4);
             ck_assert_int_eq(prms[1].sprst_pairs->springs[0].group2[0], 4);
 
@@ -776,7 +808,7 @@ Suite *lists_suite(void)
     tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
     tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
-    tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 10);
+    tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 11);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
     tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 2);
     suite_add_tcase(suite, tcase_real);
