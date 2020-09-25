@@ -104,7 +104,6 @@ static void test_pairspring_gradients(
         mob_ag->coords[i].Z = oldcrd;
     }
 
-    char msg[256];
     for (size_t i = 0; i < mob_ag->natoms; i++) {
         sprintf(msg,
                 "\n(atom: %ld) calc: (%lf, %lf, %lf): numerical: (%lf, %lf, %lf)\n",
@@ -769,9 +768,9 @@ START_TEST(test_pairspring_penalty)
             break;
 
         case 1:
-            // test pairsprings energy with json input
+            // pairsprings energy with json input: Square-well
             opts = options_get_default();
-            opts.setup_json = "355w1.json";
+            opts.setup_json = "30355w1_Square.json";
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
@@ -781,6 +780,35 @@ START_TEST(test_pairspring_penalty)
 
             energy_prms_free(&prms, nstages);
             break;
+
+        case 2:
+            // pairsprings energy with json input: Biharmonic
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Biharmonic.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            mol_zero_gradients(test_ag1);
+            test_pairspring_gradients(test_ag1, prms->sprst_pairs, 10e-5, 10e-3);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 3:
+            // pairsprings energy with json input: Soft-square
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Soft.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            mol_zero_gradients(test_ag1);
+            test_pairspring_gradients(test_ag1, prms->sprst_pairs, 10e-5, 10e-3);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
 
         default:
             ck_assert(false);
@@ -799,7 +827,7 @@ Suite *lists_suite(void)
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 11);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
-    tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 2);
+    tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 4);
     suite_add_tcase(suite, tcase_real);
 
     return suite;
