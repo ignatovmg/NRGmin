@@ -6,8 +6,8 @@
         {
           "distance": 3.5,
           "weight": 30.0,
-          "lerror": 0.1,
-          "rerror": 0.1,
+          "lerror": 0.5,
+          "rerror": 0.5,
           "potential": 2,
           "average": 0,
           "group1": [

@@ -1,0 +1,23 @@
+{
+  "stages": [
+    {
+      "nsteps": 1000,
+      "pairsprings": [
+        {
+          "distance": 3.5,
+          "weight": 30.0,
+          "lerror": 0.5,
+          "rerror": 0.5,
+          "potential": 1,
+          "average": 0,
+          "group1": [
+            4
+          ],
+          "group2": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}
