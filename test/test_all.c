@@ -1,9 +1,15 @@
 #include <stdio.h>
 #include <check.h>
+#include <jansson.h>
 
-#include "parse_options.h"
+#include "mol2/benergy.h"
+#include "mol2/pdb.h"
+#include "mol2/vector.h"
+#include "mol2/atom_group.h"
+#include "utils.h"
 #include "setup.h"
-
+#include "parse_options.h"
+#include "energy.h"
 
 char msg[512];
 
@@ -29,7 +35,6 @@ char msg[512];
 	} while(0);
 #endif
 
-
 /*static void _compare_arrays_int(const int* x, const int* y, const size_t len)
 {
     for (size_t i = 0; i < len; i++) {
@@ -51,6 +56,68 @@ static void _compare_arrays_size_t(const size_t* x, const size_t* y, const size_
     }
 }*/
 
+
+static void test_pairspring_gradients(
+        struct mol_atom_group *mob_ag,
+        const struct pairsprings_setup *sps,
+        const double delta,
+        const double tol)
+{
+    struct mol_vector3 *num_grad = calloc(mob_ag->natoms, sizeof(struct mol_vector3));
+
+    mol_zero_gradients(mob_ag);
+    lbfgsfloatval_t een_orig;
+    pairspring_energy(sps, mob_ag, &een_orig);
+    struct mol_vector3 *old_grad_ptr = mob_ag->gradients;
+    double *vect = calloc(3*mob_ag->natoms, sizeof(double));
+    for (size_t i = 0; i < mob_ag->natoms; i++)
+    {
+        vect[3*i] = old_grad_ptr[i].X;
+        vect[3*i+1] = old_grad_ptr[i].Y;
+        vect[3*i+2] = old_grad_ptr[i].Z;
+    }
+
+    mol_zero_gradients(mob_ag);
+
+    double oldcrd;
+    lbfgsfloatval_t een_x, een_y, een_z;
+    for (size_t i = 0; i < mob_ag->natoms; i++) {
+        een_x = 0;
+        een_y = 0;
+        een_z = 0;
+        oldcrd = mob_ag->coords[i].X;
+        mob_ag->coords[i].X = oldcrd + delta;
+        pairspring_energy(sps, mob_ag, &een_x);
+        num_grad[i].X = (een_orig - een_x) / delta;
+        mob_ag->coords[i].X = oldcrd;
+
+        oldcrd = mob_ag->coords[i].Y;
+        mob_ag->coords[i].Y = oldcrd + delta;
+        pairspring_energy(sps, mob_ag, &een_y);
+        num_grad[i].Y = (een_orig - een_y) / delta;
+        mob_ag->coords[i].Y = oldcrd;
+
+        oldcrd = mob_ag->coords[i].Z;
+        mob_ag->coords[i].Z = oldcrd + delta;
+        pairspring_energy(sps, mob_ag, &een_z);
+        num_grad[i].Z = (een_orig - een_z) / delta;
+        mob_ag->coords[i].Z = oldcrd;
+    }
+
+    for (size_t i = 0; i < mob_ag->natoms; i++) {
+        sprintf(msg,
+                "\n(atom: %ld) calc: (%lf, %lf, %lf): numerical: (%lf, %lf, %lf)\n",
+                i,
+                vect[3*i], vect[3*i+1], vect[3*i+2],
+                num_grad[i].X, num_grad[i].Y, num_grad[i].Z);
+
+        ck_assert_msg(fabs(vect[3*i] - num_grad[i].X) < tol, msg);
+        ck_assert_msg(fabs(vect[3*i+1] - num_grad[i].Y) < tol, msg);
+        ck_assert_msg(fabs(vect[3*i+2] - num_grad[i].Z) < tol, msg);
+    }
+    free(num_grad);
+    free(vect);
+}
 
 START_TEST(test_check_getopt_success)
 {
@@ -422,14 +489,16 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms->sprst_pairs->nsprings, 1);
+            ck_assert_int_eq(prms->sprst_pairs->springs->group_size1, 1);
+            ck_assert_int_eq(prms->sprst_pairs->springs->group_size2, 1);
             ck_assert_double_eq_tol(prms->sprst_pairs->springs->weight, 5.0, 10e-3);
-            ck_assert_double_eq_tol(prms->sprst_pairs->springs->error, 2.0, 10e-3);
-            ck_assert_double_eq_tol(prms->sprst_pairs->springs->length, 5.0, 10e-3);
-
-            _compare_arrays_size_t(
-                    prms->sprst_pairs->springs->atoms,
-                    (size_t[]){101, 3598},
-                    2);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->lerror, 2.0, 10e-3);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->rerror, 2.0, 10e-3);
+            ck_assert_double_eq_tol(prms->sprst_pairs->springs->distance, 5.0, 10e-3);
+            ck_assert_int_eq(prms->sprst_pairs->springs->average, 0);
+            ck_assert_int_eq(prms->sprst_pairs->springs->potential, 2);
+            ck_assert_int_eq(prms->sprst_pairs->springs->group1[0], 101);
+            ck_assert_int_eq(prms->sprst_pairs->springs->group2[0], 3598);
 
             energy_prms_free(&prms, nstages);
             break;
@@ -540,6 +609,7 @@ START_TEST(test_energy_prm_from_json)
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
+
             energy_prms_free(&prms, nstages);
             break;
 
@@ -664,7 +734,7 @@ START_TEST(test_energy_prm_from_json)
             ck_assert_int_eq(prms[1].nmr->spec->size, 2);
 #endif
             ck_assert_int_eq(prms[2].sprst_points->springs[0].atoms[3], 4);
-            ck_assert_int_eq(prms[1].sprst_pairs->springs[0].atoms[1], 5);
+            ck_assert_int_eq(prms[1].sprst_pairs->springs[0].group2[0], 4);
 
             energy_prms_free(&prms, nstages);
             break;
@@ -675,16 +745,130 @@ START_TEST(test_energy_prm_from_json)
 }
 
 
+START_TEST(test_pairspring_penalty)
+{
+    struct options opts;
+    struct energy_prms* prms;
+    size_t nstages;
+    lbfgsfloatval_t een_1;
+    struct mol_atom_group *test_ag1 = mol_read_pdb("30355_best.pdb");
+    test_ag1->gradients = calloc(test_ag1->natoms, sizeof(struct mol_vector3));
+
+    switch (_i) {
+        case 0:
+            // pairsprings energy gradient with txt input
+            opts = options_get_default();
+            opts.pair_springs_txt = "355w1.txt";
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            mol_zero_gradients(test_ag1);
+            test_pairspring_gradients(test_ag1, prms->sprst_pairs, 10e-5, 10e-3);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 1:
+            // pairsprings energy gradient with json input: Square-well
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Square.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            mol_zero_gradients(test_ag1);
+            test_pairspring_gradients(test_ag1, prms->sprst_pairs, 10e-5, 10e-3);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 2:
+            // pairsprings energy gradient with input: Biharmonic
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Biharmonic.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            mol_zero_gradients(test_ag1);
+            test_pairspring_gradients(test_ag1, prms->sprst_pairs, 10e-5, 10e-3);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 3:
+            // pairsprings energy gradient with input: Soft-square
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Soft.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            mol_zero_gradients(test_ag1);
+            test_pairspring_gradients(test_ag1, prms->sprst_pairs, 10e-5, 10e-3);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 4:
+            // pairsprings potential energy: Square-well
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Square.json";
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            pairspring_energy(prms->sprst_pairs, test_ag1, &een_1);
+            ck_assert_double_eq_tol(een_1, 0.1989060, 10e-7);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 5:
+            // pairsprings potential energy: Biharmonic
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Biharmonic.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            pairspring_energy(prms->sprst_pairs, test_ag1, &een_1);
+            ck_assert_double_eq_tol(een_1, 12.0922, 10e-5);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 6:
+            // pairsprings potential energy: Soft-square
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Soft.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            pairspring_energy(prms->sprst_pairs, test_ag1, &een_1);
+            ck_assert_double_eq_tol(een_1, 0.1989060, 10e-7);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        default:
+            ck_assert(false);
+    }
+    mol_atom_group_free(test_ag1);
+}
+END_TEST
+
+
 Suite *lists_suite(void)
 {
     Suite *suite = suite_create("functionality");
     TCase *tcase_real = tcase_create("real");
-    //tcase_add_checked_fixture(tcase_real, setup_real, teardown_real);
     tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
     tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 11);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
+    tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 7);
     suite_add_tcase(suite, tcase_real);
 
     return suite;

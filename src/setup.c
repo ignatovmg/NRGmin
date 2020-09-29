@@ -350,6 +350,13 @@ static struct fixed_setup* _fixed_setup_atom_range(const size_t start_atom, cons
 
 static void _pairsprings_setup_free(struct pairsprings_setup **sprst) {
     if (*sprst != NULL) {
+        size_t i;
+        for (i = 0;  i < (*sprst)->nsprings; i++) {
+            if ((*sprst)->springs[i].group1 != NULL) {
+                free((*sprst)->springs[i].group1);
+                free((*sprst)->springs[i].group2);
+            }
+        }
         free((*sprst)->springs);
         free(*sprst);
         *sprst = NULL;
@@ -384,14 +391,14 @@ static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
     size_t aid1, aid2;
     while (id < sprst->nsprings) {
         size_t c = fscanf(fp,
-                "%lf %lf %lf %zu %s %zu %s",
-                &sprs[id].length,
-                &sprs[id].error,
-                &sprs[id].weight,
-                &aid1,
-                name1,
-                &aid2,
-                name2);
+                          "%lf %lf %lf %zu %s %zu %s",
+                          &sprs[id].distance,
+                          &sprs[id].lerror,
+                          &sprs[id].weight,
+                          &aid1,
+                          name1,
+                          &aid2,
+                          name2);
 
         if (c != 7) {
             ERR_MSG("Each line in pairsprings setup must have 7 tokens");
@@ -400,9 +407,15 @@ static struct pairsprings_setup *_pairsprings_setup_read_txt(const char *path) {
             fclose(fp);
             return NULL;
         }
-
-        sprs[id].atoms[0] = aid1 - 1;
-        sprs[id].atoms[1] = aid2 - 1;
+        sprs[id].rerror = sprs[id].lerror;
+        sprs[id].group_size1 = 1;
+        sprs[id].group_size2 = 1;
+        sprs[id].group1 = calloc(1, sizeof(size_t));
+        sprs[id].group2 = calloc(1, sizeof(size_t));
+        sprs[id].group1[0] = aid1 - 1;
+        sprs[id].group2[0] = aid2 - 1;
+        sprs[id].average = 0;
+        sprs[id].potential = 2;
 
         id++;
     }
@@ -417,30 +430,71 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
         ERR_MSG("Pairsprings json setup must be an array");
         return NULL;
     }
-
     size_t nsprings = json_array_size(root);
     struct pairspring* spring_set = calloc(nsprings, sizeof(struct pairspring));
 
     bool error = false;
     size_t counter;
     json_t* spring;
+    json_t* g1;
+    json_t* g2;
 
+    size_t len1, len2, i;
     json_array_foreach(root, counter, spring) {
         json_error_t j_error;
-
         int result = json_unpack_ex(
                 spring, &j_error, 0,
-                "{s:F, s:F, s:F, s:i, s:i}",
-                "length", &spring_set[counter].length,
-                "error", &spring_set[counter].error,
+                "{s:F, s:F, s:F, s:F, s:i, s:i}",
+                "distance", &spring_set[counter].distance,
+                "lerror", &spring_set[counter].lerror,
+                "rerror", &spring_set[counter].rerror,
                 "weight", &spring_set[counter].weight,
-                "atom1", &spring_set[counter].atoms[0],
-                "atom2", &spring_set[counter].atoms[1]);
+                "potential", &spring_set[counter].potential,
+                "average", &spring_set[counter].average);
 
         if (result != 0) {
             JSON_ERR_MSG(j_error, "Wrong pairspring setup json format");
             error = true;
             break;
+        }
+        if (spring_set[counter].average >1 || spring_set[counter].average <0) {
+            ERR_MSG("The average should be 0 (SUM), or 1 (R-6).");
+            error = true;
+            break;
+        }
+
+        if (spring_set[counter].potential>2 || spring_set[counter].potential <0) {
+            ERR_MSG("Potential in pairsprings should be one of 0 (SQUARE-WEll), 1 (BIHARMONIC), 2 (SOFT-SQUARE).");
+            error = true;
+            break;
+        }
+        g1 = json_object_get(spring, "group1");
+        g2 = json_object_get(spring, "group2");
+        len1 = json_array_size(g1);
+        len2 = json_array_size(g2);
+        if (len1==0 || len2==0) {
+            ERR_MSG("Wrong pairspring setup group size.");
+            error = true;
+            break;
+        }
+        spring_set[counter].group_size1 = len1;
+        spring_set[counter].group_size2 = len2;
+        spring_set[counter].group1 = calloc(len1, sizeof(size_t));
+        spring_set[counter].group2 = calloc(len2, sizeof(size_t));
+
+        for (i = 0; i < len1; ++i) {
+            if (json_is_integer(json_array_get(g1, i))) {
+                spring_set[counter].group1[i] = json_integer_value(json_array_get(g1, i)) - 1;
+            } else {
+                ERR_MSG("Index in group1 must be interger");
+            }
+        }
+        for (i = 0; i < len2; ++i) {
+            if (json_is_integer(json_array_get(g2, i))) {
+                spring_set[counter].group2[i] = json_integer_value(json_array_get(g2, i)) - 1;
+            } else {
+                ERR_MSG("Index in group2 must be interger");
+            }
         }
     }
 
