@@ -750,12 +750,13 @@ START_TEST(test_pairspring_penalty)
     struct options opts;
     struct energy_prms* prms;
     size_t nstages;
+    lbfgsfloatval_t een_1;
     struct mol_atom_group *test_ag1 = mol_read_pdb("30355_best.pdb");
     test_ag1->gradients = calloc(test_ag1->natoms, sizeof(struct mol_vector3));
 
     switch (_i) {
         case 0:
-            // test pairsprings energy with txt input
+            // pairsprings energy gradient with txt input
             opts = options_get_default();
             opts.pair_springs_txt = "355w1.txt";
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
@@ -768,7 +769,7 @@ START_TEST(test_pairspring_penalty)
             break;
 
         case 1:
-            // pairsprings energy with json input: Square-well
+            // pairsprings energy gradient with json input: Square-well
             opts = options_get_default();
             opts.setup_json = "30355w1_Square.json";
 
@@ -782,7 +783,7 @@ START_TEST(test_pairspring_penalty)
             break;
 
         case 2:
-            // pairsprings energy with json input: Biharmonic
+            // pairsprings energy gradient with input: Biharmonic
             opts = options_get_default();
             opts.setup_json = "30355w1_Biharmonic.json";
 
@@ -796,7 +797,7 @@ START_TEST(test_pairspring_penalty)
             break;
 
         case 3:
-            // pairsprings energy with json input: Soft-square
+            // pairsprings energy gradient with input: Soft-square
             opts = options_get_default();
             opts.setup_json = "30355w1_Soft.json";
 
@@ -809,6 +810,46 @@ START_TEST(test_pairspring_penalty)
             energy_prms_free(&prms, nstages);
             break;
 
+        case 4:
+            // pairsprings potential energy: Square-well
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Square.json";
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            pairspring_energy(prms->sprst_pairs, test_ag1, &een_1);
+            ck_assert_double_eq_tol(een_1, 0.1989060, 10e-7);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 5:
+            // pairsprings potential energy: Biharmonic
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Biharmonic.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            pairspring_energy(prms->sprst_pairs, test_ag1, &een_1);
+            ck_assert_double_eq_tol(een_1, 12.0922, 10e-5);
+
+            energy_prms_free(&prms, nstages);
+            break;
+
+        case 6:
+            // pairsprings potential energy: Soft-square
+            opts = options_get_default();
+            opts.setup_json = "30355w1_Soft.json";
+
+            ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
+            ck_assert_ptr_nonnull(prms);
+
+            pairspring_energy(prms->sprst_pairs, test_ag1, &een_1);
+            ck_assert_double_eq_tol(een_1, 0.1989060, 10e-7);
+
+            energy_prms_free(&prms, nstages);
+            break;
 
         default:
             ck_assert(false);
@@ -827,7 +868,7 @@ Suite *lists_suite(void)
     tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 11);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
-    tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 4);
+    tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 7);
     suite_add_tcase(suite, tcase_real);
 
     return suite;
