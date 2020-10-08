@@ -523,7 +523,7 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert_double_eq_tol(prms->nmr->weight, 1000, 10e-3);
             ck_assert_double_eq_tol(prms->nmr->power, 1. / 6., 10e-3);
             ck_assert_int_eq(prms->nmr->spec->size, 2);
-            ck_assert_double_eq_tol(prms->nmr->spec->exp[1], -0.074589, 10e-3);
+            ck_assert_double_eq_tol(prms->nmr->spec->exp->peaks[1].volume, -0.074589, 10e-3);
             energy_prms_free(&prms, nstages);
 #else
             ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));
