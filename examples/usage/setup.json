@@ -35,11 +35,18 @@
       ],
       "pairsprings": [
         {
-          "weight": 10,
-          "length": 10,
-          "error": 1,
-          "atom1": 3598,
-          "atom2": 3630
+          "distance": 10.0,
+          "weight": 10.0,
+          "lerror": 1.0,
+          "rerror": 1.0,
+          "potential": 2,
+          "average": 0,
+          "group1": [
+            3598
+          ],
+          "group2": [
+            3630
+          ]
         }
       ]
     },

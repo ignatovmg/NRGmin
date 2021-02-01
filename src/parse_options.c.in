@@ -189,7 +189,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
 }
 
 
-static int _check_prms(struct options *opts)
+static bool _check_flags_and_fill_from_json(struct options *opts)
 {
     bool full = false;
     bool rec_sep = false;
@@ -201,12 +201,12 @@ static int _check_prms(struct options *opts)
     if (opts->setup_json) {
         json_t* setup = read_json_file(opts->setup_json);
         if (!setup) {
-            return 1;
+            return false;
         }
 
         if (!_fill_prms_from_json(opts, setup)) {
             json_decref(setup);
-            return 1;
+            return false;
         }
         opts->setup_json_root = setup;
 
@@ -215,7 +215,7 @@ static int _check_prms(struct options *opts)
 
     if (opts->num_threads < 0) {
         ERR_MSG("Number of threads can't be negative");
-        return 1;
+        return false;
     }
 
     if (opts->gbsa && opts->ace) {
@@ -227,37 +227,37 @@ static int _check_prms(struct options *opts)
         opts->separate = false;
 
         if (!(opts->json || (opts->pdb && opts->psf && opts->prm && opts->rtf))) {
-            ERR_MSG("Json and/or pdb, psf, prm and rtf must be provided");
-            return 1;
+            ERR_MSG("Json and/or {pdb, psf, prm and rtf} must be provided");
+            return false;
         }
 
         if (opts->fix_receptor) {
             ERR_MSG("Can't fix the receptor when using single file mode");
-            return 1;
+            return false;
         }
 
         if (opts->fix_ligand) {
             ERR_MSG("Can't fix the ligand when using single file mode");
-            return 1;
+            return false;
         }
     }
 
     if (opts->rec_pdb || opts->rec_psf || opts->rec_prm || opts->rec_rtf || opts->rec_json) {
         if (full) {
             ERR_MSG("You can't provide options for rec/lig mode and single file mode at the same time");
-            return 1;
+            return false;
         }
 
         if (!(opts->rec_json || (opts->rec_pdb && opts->rec_psf && opts->rec_prm && opts->rec_rtf))) {
             ERR_MSG("Json and/or pdb, psf, prm and rtf must be provided for receptor");
-            return 1;
+            return false;
         }
 
         rec_sep = true;
 
         if (!(opts->lig_json || (opts->lig_pdb && opts->lig_psf && opts->lig_prm && opts->lig_rtf))) {
             ERR_MSG("Json and/or pdb, psf, prm and rtf must be provided for ligand");
-            return 1;
+            return false;
         }
 
         lig_sep = true;
@@ -266,22 +266,22 @@ static int _check_prms(struct options *opts)
 
     if (!(full || (rec_sep && lig_sep))) {
         ERR_MSG("The molecule wasn't provided");
-        return 1;
+        return false;
     }
 
-    if (opts->nsteps < 0) {
-        ERR_MSG("Number of steps can't be negative");
-        return 1;
+    if (opts->nsteps < 1) {
+        ERR_MSG("Number of steps must be positive");
+        return false;
     }
 
 #ifndef NOE
     if (opts->noe_txt || opts->noe_json) {
         ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
-        return 1;
+        return false;
     }
 #endif
 
-    return 0;
+    return true;
 }
 
 
@@ -372,9 +372,6 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
         switch (opt) {
             case 0:
-                if (long_options[option_index].flag != 0)
-                    break;
-                //DEBUG_MSG("Option %s = %s", long_options[option_index].name, optarg);
                 break;
 
             case 'h':
@@ -384,6 +381,7 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
             case '?':
                 *error = true;
+                ERR_MSG("Unrecognized option encountered");
                 return prms;
 
             default:
@@ -417,17 +415,29 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
         _FILL_PARAM(prms.setup_json, optarg);
 
         if (strcmp("nsteps", long_options[option_index].name) == 0) {
-            prms.nsteps = atoi(optarg);
+            if (sscanf(optarg, "%i", &prms.nsteps) != 1) {
+                ERR_MSG("Wrong value provided for --%s", long_options[option_index].name);
+                *error = true;
+                return prms;
+            }
         }
         if (strcmp("verbosity", long_options[option_index].name) == 0) {
-            prms.verbosity = atoi(optarg);
+            if (sscanf(optarg, "%i", &prms.verbosity) != 1) {
+                ERR_MSG("Wrong value provided for --%s", long_options[option_index].name);
+                *error = true;
+                return prms;
+            }
         }
         if (strcmp("num-threads", long_options[option_index].name) == 0) {
-            prms.num_threads = atoi(optarg);
+            if (sscanf(optarg, "%i", &prms.num_threads) != 1) {
+                ERR_MSG("Wrong value provided for --%s", long_options[option_index].name);
+                *error = true;
+                return prms;
+            }
         }
     }
 
-    if (_check_prms(&prms) != 0) {
+    if (!_check_flags_and_fill_from_json(&prms)) {
         *error = true;
         return prms;
     }

@@ -12,6 +12,7 @@
 #include "mol2/noe.h"
 #endif
 
+#include "utils.h"
 
 lbfgsfloatval_t energy_func(
         void *restrict prm,
@@ -19,6 +20,10 @@ lbfgsfloatval_t energy_func(
         double *restrict gradient,
         const int array_size,
         __attribute__((unused)) const lbfgsfloatval_t step) {
+
+    static const double scale_vdw_s03 = 1.0;
+    static const double scale_coul_s03 = 0.8333333;
+    static const double eeps = 80.0;
 
     lbfgsfloatval_t total_energy = 0.0;
     lbfgsfloatval_t term_energy;
@@ -51,25 +56,24 @@ lbfgsfloatval_t energy_func(
     }
 
     if (energy_prm->gbsa) {
-        term_energy = mol_gb_energy(energy_prm->ag, 25.0, energy_prm->ag_setup, MOL_GENBORN_OBC_2);
+        term_energy = mol_gb_energy(energy_prm->ag, 25.0, energy_prm->ag_setup, MOL_GENBORN_OBC_2, false);
         json_object_set_new(energy_dict, "gbsa", json_real(term_energy));
         total_energy += term_energy;
     }
 
-    double ele_eps = 1.0;
     if (energy_prm->eleng) {
         term_energy = 0.0;
-        eleng(energy_prm->ag, ele_eps, &term_energy, energy_prm->ag_setup->nblst);
+        eleng(energy_prm->ag, eeps, &term_energy, energy_prm->ag_setup->nblst);
         json_object_set_new(energy_dict, "eleng", json_real(term_energy));
         total_energy += term_energy;
     }
 
     if (energy_prm->elengs03) {
         term_energy = 0.0;
-        elengs03(1.0,
+        elengs03(scale_coul_s03,
                 energy_prm->ag_setup->nblst->nbcof,
                 energy_prm->ag,
-                ele_eps,
+                eeps,
                 &term_energy,
                 energy_prm->ag_setup->nf03,
                 energy_prm->ag_setup->listf03);
@@ -87,7 +91,7 @@ lbfgsfloatval_t energy_func(
     if (energy_prm->vdw03) {
         term_energy = 0.0;
         vdwengs03(
-                1.0,
+                scale_vdw_s03,
                 energy_prm->ag_setup->nblst->nbcof,
                 energy_prm->ag, &term_energy,
                 energy_prm->ag_setup->nf03,
@@ -187,39 +191,31 @@ lbfgsfloatval_t energy_func(
 
 
 void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    size_t i, i1, i2, nat;
-    double xtot, ytot, ztot, fk;
-    struct mol_vector3 g;
-
-    for (i = 0; i < sprst->nsprings; i++) {
-        nat = sprst->springs[i].natoms;
+    for (size_t i = 0; i < sprst->nsprings; i++) {
+        size_t nat = sprst->springs[i].natoms;
 
         if (nat > 0) {
-            xtot = 0.0;
-            ytot = 0.0;
-            ztot = 0.0;
+            struct mol_vector3 tot_vec = {0, 0, 0};
+            struct mol_vector3 g;
 
-            for (i1 = 0; i1 < nat; i1++) {
-                i2 = sprst->springs[i].atoms[i1];
-                xtot += ag->coords[i2].X;
-                ytot += ag->coords[i2].Y;
-                ztot += ag->coords[i2].Z;
+            for (size_t i1 = 0; i1 < nat; i1++) {
+                size_t i2 = sprst->springs[i].atoms[i1];
+                MOL_VEC_ADD(tot_vec, tot_vec, ag->coords[i2]);
             }
 
-            xtot = xtot / nat - sprst->springs[i].X0;
-            ytot = ytot / nat - sprst->springs[i].Y0;
-            ztot = ztot / nat - sprst->springs[i].Z0;
+            MOL_VEC_DIV_SCALAR(tot_vec, tot_vec, nat);
+            tot_vec.X -= sprst->springs[i].X0;
+            tot_vec.Y -= sprst->springs[i].Y0;
+            tot_vec.Z -= sprst->springs[i].Z0;
 
-            fk = sprst->springs[i].weight;
-            (*een) += fk * (xtot * xtot + ytot * ytot + ztot * ztot);
+            double fk = sprst->springs[i].weight;
+            (*een) += fk * MOL_VEC_SQ_NORM(tot_vec);
 
             fk = 2 * fk / nat;
-            g.X = xtot * fk;
-            g.Y = ytot * fk;
-            g.Z = ztot * fk;
+            MOL_VEC_MULT_SCALAR(g, tot_vec, fk);
 
-            for (i1 = 0; i1 < nat; i1++) {
-                i2 = sprst->springs[i].atoms[i1];
+            for (size_t i1 = 0; i1 < nat; i1++) {
+                size_t i2 = sprst->springs[i].atoms[i1];
                 MOL_VEC_SUB(ag->gradients[i2], ag->gradients[i2], g);
             }
         }
@@ -228,38 +224,123 @@ void pointspring_energy(const struct pointsprings_setup *sprst, struct mol_atom_
 
 
 void pairspring_energy(const struct pairsprings_setup *sprst, struct mol_atom_group *ag, double *een) {
-    size_t i, i1, i2;
-    double xtot, ytot, ztot, fk, d, d2, ln, er, coef, delta;
+    size_t i, j, k, idx1, idx2, lni1, lni2, nm;
+    double *xtot_a, *ytot_a, *ztot_a, *d_a;
+    double xtot, ytot, ztot, d, d2, aved, sumd;
+    double delta, coef, ln, ler, rer, fk, hk, gradx, grady, gradz;
+    int potential, averaging;
     struct mol_vector3 g;
 
-    for (i = 0; i < sprst->nsprings; i++) {
-        ln = sprst->springs[i].length;
-        er = sprst->springs[i].error;
-        fk = sprst->springs[i].weight / 2.0;
+    for (i = 0; i < sprst -> nsprings; i++) {
+        ln = sprst->springs[i].distance;
+        ler = sprst->springs[i].lerror;
+        rer = sprst->springs[i].rerror;
+        fk = sprst->springs[i].weight;
 
-        i1 = sprst->springs[i].atoms[0];
-        i2 = sprst->springs[i].atoms[1];
+        // start to calculate the average distance over two groups
+        lni1 = sprst->springs[i].group_size1;
+        lni2 = sprst->springs[i].group_size2;
+        xtot_a = calloc(lni1 * lni2, sizeof(double));
+        ytot_a = calloc(lni1 * lni2, sizeof(double));
+        ztot_a = calloc(lni1 * lni2, sizeof(double));
+        d_a = calloc(lni1 * lni2, sizeof(double));
 
-        xtot = ag->coords[i2].X - ag->coords[i1].X;
-        ytot = ag->coords[i2].Y - ag->coords[i1].Y;
-        ztot = ag->coords[i2].Z - ag->coords[i1].Z;
+        aved = 0;
+        for (j = 0; j < lni1; j++) {
+            idx1 = sprst->springs[i].group1[j];
+            for (k = 0; k < lni2; k++) {
+                idx2 = sprst->springs[i].group2[k];
+                xtot = ag->coords[idx2].X - ag->coords[idx1].X;
+                ytot = ag->coords[idx2].Y - ag->coords[idx1].Y;
+                ztot = ag->coords[idx2].Z - ag->coords[idx1].Z;
+                d2 = xtot * xtot + ytot * ytot + ztot * ztot;
+                d = sqrt(d2);
+                aved += pow(d, -6.0);
+                xtot_a[lni2 * j + k] = xtot;
+                ytot_a[lni2 * j + k] = ytot;
+                ztot_a[lni2 * j + k] = ztot;
+                d_a[lni2 * j + k] = d;
+            }
+        }
+        sumd = aved;
+        averaging = sprst->springs[i].average;
+        if (averaging == 0) {
+            aved = pow(aved, -1.0 / 6.0);
+            nm = 1;
+        } else if (averaging == 1) {  // R6 average
+            aved = pow(aved / lni1 / lni2, -1.0 / 6);
+            nm = lni1 * lni2;
+        }
+        delta = aved - ln;
 
-        d2 = xtot * xtot + ytot * ytot + ztot * ztot;
-        d = sqrt(d2);
+        potential = sprst->springs[i].potential;
+        if (potential == 0) {  // square-well
+            if (delta < 0) {
+                delta = (delta < -ler) ? (delta + ler) : 0.0;
+            } else {
+                delta = (delta > rer) ? (delta - rer) : 0.0;
+            }
+            (*een) += fk * delta * delta;
+            coef = fk * 2.0 * delta * pow(nm, 1.0 / 6.0) * pow(sumd, -7.0 / 6.0);
+        } else if (potential == 1) {  // biharmonic, temperature=300
+            if (delta < 0) {
+                hk = fk * 300 * 0.0019872041 / (2 * ler * ler);
+            } else {
+                hk = fk * 300 * 0.0019872041 / (2 * rer * rer);
+            }
+            hk = fmin(1000, hk);
+            (*een) += hk * delta * delta;
+            coef = hk * 2.0 * delta * pow(nm, 1.0 / 6.0) * pow(sumd, -7.0 / 6.0);
+        } else if (potential == 2) {  // soft-square
+            if (delta < 0) {
+                delta = (delta < -ler) ? (delta + ler) : 0.0;
+            } else {
+                delta = (delta > rer) ? (delta - rer) : 0.0;
+            }
 
-        delta = fabs(d - ln);
-        delta = (delta > er) ? ((delta - er) * delta / (d - ln)) : 0.0;
-
-        //(*een) += fk * (d - ln) * (d - ln);
-        (*een) += fk * delta * delta;
-        //coef = fk * 2 * (1.0 - ln / d);
-        coef = fk * 2.0 * delta / d;
-
-        g.X = -coef * xtot;
-        g.Y = -coef * ytot;
-        g.Z = -coef * ztot;
-
-        MOL_VEC_SUB(ag->gradients[i1], ag->gradients[i1], g);
-        MOL_VEC_ADD(ag->gradients[i2], ag->gradients[i2], g);
+            if (delta <= 3.0) {  // here the switch bound is 3.0
+                (*een) += fk * delta * delta;
+                coef = fk * 2.0 * delta * pow(nm, 1.0 / 6.0) * pow(sumd, -7.0 / 6.0);
+            } else {  //delta > 3.0
+                (*een) += fk * (delta - 45 / delta + 21);
+                coef = fk * (1 + 45 / (delta * delta)) * pow(nm, 1.0 / 6) * pow(sumd, -7.0 / 6);
+            }
+        }
+        // calculate and update gradients first groups
+        for (j = 0; j < lni1; j++) {
+            idx1 = sprst->springs[i].group1[j];
+            gradx = 0;
+            grady = 0;
+            gradz = 0;
+            for (k = 0; k < lni2; k++) {
+                gradx += coef * xtot_a[j * lni2 + k] * pow(d_a[j * lni2 + k], -8.0);
+                grady += coef * ytot_a[j * lni2 + k] * pow(d_a[j * lni2 + k], -8.0);
+                gradz += coef * ztot_a[j * lni2 + k] * pow(d_a[j * lni2 + k], -8.0);
+            }
+            g.X = -gradx;
+            g.Y = -grady;
+            g.Z = -gradz;
+            MOL_VEC_SUB(ag->gradients[idx1], ag->gradients[idx1], g);
+        }
+        // calculate and update gradients second groups
+        for (k = 0; k < lni2; k++) {
+            idx2 = sprst->springs[i].group2[k];
+            gradx = 0;
+            grady = 0;
+            gradz = 0;
+            for (j = 0; j < lni1; j++) {
+                gradx += coef * xtot_a[j * lni2 + k] * pow(d_a[j * lni2 + k], -8.0);
+                grady += coef * ytot_a[j * lni2 + k] * pow(d_a[j * lni2 + k], -8.0);
+                gradz += coef * ztot_a[j * lni2 + k] * pow(d_a[j * lni2 + k], -8.0);
+            }
+            g.X = -gradx;
+            g.Y = -grady;
+            g.Z = -gradz;
+            MOL_VEC_ADD(ag->gradients[idx2], ag->gradients[idx2], g);
+        }
+        free(xtot_a);
+        free(ytot_a);
+        free(ztot_a);
+        free(d_a);
     }
 }

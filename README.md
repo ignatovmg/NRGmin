@@ -3,7 +3,9 @@ Utility for molecular mechanics energy minimization
 
 ## Installation ###
 
-1. Install [libmol2](https://bitbucket.org/bu-structure/libmol2/src/master)
+1. Install [libmol2](https://bitbucket.org/bu-structure/libmol2/src/master) 
+(verified to work with commit 
+[918978d](https://bitbucket.org/bu-structure/libmol2/src/918978da2c8b3929702df9f7738b1eec60190056/))
 
 2. Build minimization executable 
 
@@ -13,8 +15,20 @@ Utility for molecular mechanics energy minimization
        
 3. The binary is in `build/nrgmin`
 
-4. If you want to build with OpenMP, add `-DOPENMP=ON` to `cmake` command, it will create additional executable
+4. To build OpenMP enabled binary, add `-DOPENMP=YES` to `cmake` command, it will create additional executable
    `build/nrgmin.omp`. `--num-threads` controls the number of OpenMP threads.
+   
+CMake flags:  
+   
+   * `BUILD_TESTS` — set to `YES` to enable tests, and to `NO` if you don't need them.
+   
+   * `USE_LTO` – set to `YES` for Link Time Optimization.
+   
+   * `USE_SANITIZER` — enable AddressSanitizer. Not recommended for release builds, since it complicates linking to other projects.
+   
+   * `OPENMP` — set to `YES` to create a multithreaded binary `nrgmin.omp` in addition to a serial one.
+   
+   * `NOE` — set to `NO` if you want to drop NOE (NMR) calculation capability (e.g. if libmol2 was build without NOE).
 
 ## How to run
 
@@ -134,17 +148,28 @@ set there as well.
       ],
       "pairsprings": [
         {
+          "distance": 10,
           "weight": 10,
-          "length": 10,
-          "error": 1,
-          "atom1": 3598,
-          "atom2": 3630
+          "lerror": 1,
+          "rerror": 1,
+          "potential": 2,
+          "average": 0,
+          "group1": [
+            3598
+          ],
+          "group2": [
+            3630
+          ]
         }
       ]
     }
   ]
 }
 ```
+
+### Pairsprings setup dictionary
+
+As can be seen in the example of Master json above, to use the "pairsprings" potential energy in minimization, one dictionary needed to be created for every distance restraint and 8 different parameters need to be assigned in the dictionary: distance, weight, lerror, rerror, potential, average, group1, group2.  The "distance" denotes expected distance between the two sets of atoms. The "lerror" and "rerror" are the left and right tolerance errors from the expected distance respectively. The "weight" is the scale factor for the potential energy function. The "potential " is the type of penalty function for the distance restraints. There are three different types of penalty function: Square-Well (0), Biharmonic (1), Soft-Square (2). The "average" denotes the method to average the distances between the two selected sets of atoms, and two types of averaging can be selected: SUM (0) and R-6 (1). The "group1" and "group2" are two lists of indices that indicate the two sets of atoms in the restraint. If there are more than one atom in either set, the distances of all possible pairs between two groups will be computed. Then the average distance of all the computed distances will be calculated using "average" method. This averaged distance is the calculated distance for this restraint. More details of the description of distance restraints can be found here https://nmr.cit.nih.gov/xplor-nih/xplorMan/node376.html.
 
 ### Examples
 
@@ -198,8 +223,9 @@ Energy terms switches. Everything is on by default except for GBSA
             --impropers-on/--impropers-on Impropers
             --vdw-on/--vdw-off VDW
             --vdw03-on/--vdw03-off 1-4 VDW
-            --ace-on/--ace-off ACE
-            --gbsa-on/--gbsa-off Generalized Born
+            --eleng-on/--eleng-off Coulomb electrostatics
+            --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics
+            --gbsa-on/gbsa-off GBSA
         
 Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)
         
