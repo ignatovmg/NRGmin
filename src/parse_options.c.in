@@ -39,6 +39,8 @@ struct options options_get_default()
             .separate = false,
             .rec_natoms = 0,
             .lig_natoms = 0,
+            .num_models = 0,
+            .ag_list = NULL,
 
             .psf = NULL,
             .prm = NULL,

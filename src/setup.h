@@ -117,6 +117,7 @@ struct fixed_setup {
 struct fixed_setup_multi {
 	size_t size;
 	struct fixed_setup** setups;
+	size_t ref_count;
 };
 
 

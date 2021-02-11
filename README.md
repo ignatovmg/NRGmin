@@ -51,20 +51,40 @@ Or as a json file
 As well as in a rec/lig mode:
 
 ```
-./nrgmin ---rec-pdb rec.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+./nrgmin --rec-pdb rec.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
 ```
 
 If you want to use parameters from json file and coordinates from pdb
 
 ```
-./nrgmin ---rec-pdb rec.pdb --rec-json rec.json --lig-pdb lig.pdb --lig-json lig.json
+./nrgmin --rec-pdb rec.pdb --rec-json rec.json --lig-pdb lig.pdb --lig-json lig.json
 ```
 
-PDB file can contain multiple models (the number of models must match in rec/lig mode). `nrgmin.omp` parallelizes
-minimization for multiple models using the flag `--num-threads`
+#### Multiple models, multithreading
+
+PDB file can contain multiple models. `nrgmin.omp` parallelizes minimization for multiple models 
+using the flag `--num-threads`. All available cores are used by default.
 
 ```
 ./nrgmin.omp --json mol.json --pdb mol_10models.pdb --num-threads 10
+```
+
+In `rec/lig` mode the receptor can contain a single model and the ligand and can have N models 
+and vice versa. In this case the receptor model is copied N times and merged with the ligand models. 
+Otherwise, the number of receptor and ligand models must match. Therefore, the following will work:
+
+```
+./nrgmin.omp --rec-pdb rec_1model.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+
+./nrgmin.omp --rec-pdb rec_10models.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+
+./nrgmin.omp --rec-pdb rec_10models.pdb --lig-pdb lig_1model.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+```
+
+And the following will not:
+
+```
+./nrgmin.omp --rec-pdb rec_3models.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
 ```
 
 ### Energy function

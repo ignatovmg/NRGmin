@@ -370,18 +370,35 @@ START_TEST(test_mol_atom_group_list_from_options)
             ck_assert_int_eq(ag_list->size, 2);
             break;
 
-        /*case 6:
-            // Fail with wrong prm file (this produces segfault, because of buggy mol_atom_group_read_geometry)
-            opts = options_get_default();
-            opts.pdb = "BACE_4_rec.pdb";
-            opts.psf = "BACE_4_rec.pdb";
-            opts.prm = "BACE_4_rec_parm.prm";
-            opts.rtf = "BACE_4_rec_pdbamino.rtf";
-            opts.separate = false;
+		case 7:
+			// Fail with 3 models in rec and 2 models in lig
+			opts = options_get_default();
+			opts.rec_pdb = "BACE_4_rec_3models.pdb";
+			opts.rec_psf = "BACE_4_rec.psf";
+			opts.rec_prm = "BACE_4_rec_parm.prm";
+			opts.rec_rtf = "BACE_4_rec_pdbamino.rtf";
+			opts.lig_pdb = "BACE_4_lig_2models_far.pdb";
+			opts.lig_json = "BACE_4_lig.json";
+			opts.separate = true;
 
-            ag_list = mol_atom_group_list_from_options(&opts);
-            ck_assert_ptr_null(ag_list);
-            */
+			ag_list = mol_atom_group_list_from_options(&opts);
+			ck_assert_ptr_null(ag_list);
+			break;
+
+		case 8:
+			// Pass with 3 models in rec and 1 models in lig
+			opts = options_get_default();
+			opts.rec_pdb = "BACE_4_rec_3models.pdb";
+			opts.rec_psf = "BACE_4_rec.psf";
+			opts.rec_prm = "BACE_4_rec_parm.prm";
+			opts.rec_rtf = "BACE_4_rec_pdbamino.rtf";
+			opts.lig_json = "BACE_4_lig.json";
+			opts.separate = true;
+
+			ag_list = mol_atom_group_list_from_options(&opts);
+			ck_assert_ptr_nonnull(ag_list);
+			ck_assert_int_eq(ag_list->size, 3);
+			break;
     }
 }
 
@@ -877,7 +894,7 @@ Suite *lists_suite(void)
     TCase *tcase_real = tcase_create("real");
     tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
     tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
-    tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
+    tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 9);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 11);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 12);
     tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 7);

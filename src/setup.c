@@ -30,6 +30,33 @@
  ****************************************/
 
 
+static struct mol_atom_group_list *_mol_atom_group_list_from_pdb(const char* pdb)
+{
+	DEBUG_MSG("Reading %s", pdb);
+	DEBUG_MSG("Trying to read %s as a multimodel one (with MODEL records)", pdb);
+	struct mol_atom_group_list *ag_list = mol_read_pdb_models(pdb);
+
+	// If not multimodel, try to read as a single model
+	if (ag_list == NULL) {
+		DEBUG_MSG("File %s doesn't have MODEL records, reading as single model", pdb);
+		struct mol_atom_group* ag_single = mol_read_pdb(pdb);
+
+		// If both single and multi-model failed - give up
+		if (ag_single == NULL) {
+			ERR_MSG("Failed parsing %s", pdb);
+			return NULL;
+		}
+
+		ag_list = mol_atom_group_list_create(1);
+		ag_list->members[0] = *ag_single;
+		free(ag_single);
+	}
+
+	DEBUG_MSG("Succesfully parsed %s (%zu models)", pdb, ag_list->size);
+	return ag_list;
+}
+
+
 static struct mol_atom_group_list *_read_ag_list(
         const char *prm,
         const char *rtf,
@@ -42,39 +69,28 @@ static struct mol_atom_group_list *_read_ag_list(
     struct mol_atom_group_list* ag_list = NULL;
     struct mol_atom_group* ag_json = NULL;
 
+    const char* mol_name;
+
     // Read molecule from json
     if (json != NULL) {
         DEBUG_MSG("Reading json file %s", json);
+		mol_name = json;
         ag_json = mol_read_json(json);
 
         if (ag_json == NULL) {
-            ERR_MSG("Failed reading %s", json);
-            return NULL;
-        }
+			ERR_MSG("Failed reading %s", json);
+			return NULL;
+		}
     }
 
     // Read molecule from pdb
     if (pdb != NULL) {
-        DEBUG_MSG("Reading %s", pdb);
-        DEBUG_MSG("Trying to read %s as a multimodel one (with MODEL records)", pdb);
-        ag_list = mol_read_pdb_models(pdb);
-
-        // If not multimodel, try to read as a single model
-        if (ag_list == NULL) {
-            DEBUG_MSG("File %s doesn't have MODEL records. Reading as a regular pdb file", pdb);
-            struct mol_atom_group* ag_single = mol_read_pdb(pdb);
-
-            // If both single and multi-model failed - give up
-            if (ag_single == NULL) {
-                ERR_MSG("Failed reading %s", pdb);
-                mol_atom_group_free(ag_json);
-                return NULL;
-            }
-
-            ag_list = mol_atom_group_list_create(1);
-            ag_list->members[0] = *ag_single;
-            free(ag_single);
-        }
+		mol_name = pdb;
+        ag_list = _mol_atom_group_list_from_pdb(pdb);
+        if (!ag_list) {
+			mol_atom_group_free(ag_json);
+			return NULL;
+		}
 
         // If json was provied too then merge geometry from json and coords from pdb
         if (ag_json != NULL) {
@@ -143,11 +159,11 @@ static struct mol_atom_group_list *_read_ag_list(
 
         } else if (score_only != 0) {
             // if they weren't provided, check the score_only flag
-            WRN_MSG("Geometry for the molecule is not provided, computing only non-parametric terms");
+            WRN_MSG("Geometry for %s is not provided, computing only non-parametric terms", mol_name);
 
         } else {
             // Give up if nothing worked
-            ERR_MSG("Force field and geometry are not provided");
+            ERR_MSG("Force field and geometry are not provided for %s", mol_name);
             mol_atom_group_list_free(ag_list);
             return NULL;
         }
@@ -167,12 +183,45 @@ static struct mol_atom_group_list *_read_ag_list(
 }
 
 
+/*
+ * Copy single model in ag_list N times
+ */
+static bool _expand_mol_atom_group_list(struct mol_atom_group_list* ag_list, const size_t num_models)
+{
+	if (ag_list->size != 1) {
+		ERR_MSG("Cannot expand atom group list of size != 1");
+		return false;
+	}
+	struct mol_atom_group* model = mol_atom_group_copy(ag_list->members);
+	mol_atom_group_free(ag_list->members);
+
+	ag_list->size = num_models;
+	ag_list->members = calloc(num_models, sizeof(struct mol_atom_group));
+	for (size_t i = 0; i < num_models; i++) {
+		struct mol_atom_group* buf = mol_atom_group_copy(model);
+		ag_list->members[i] = *buf;
+		free(buf);
+	}
+	mol_atom_group_free(model);
+	return true;
+}
+
+
 static struct mol_atom_group_list* _merge_ag_lists(
-        const struct mol_atom_group_list* ag1,
-        const struct mol_atom_group_list* ag2) {
+        struct mol_atom_group_list* ag1,
+        struct mol_atom_group_list* ag2) {
     if (ag1->size != ag2->size) {
-        ERR_MSG("Receptor and ligand have different numbers of models (%zu, %zu)", ag1->size, ag2->size);
-        return NULL;
+		size_t num_models = MAX(ag1->size, ag2->size);
+    	if (ag1->size == 1) {
+    		DEBUG_MSG("Using the same receptor model with %zu ligand models", num_models);
+    		_expand_mol_atom_group_list(ag1, num_models);
+    	} else if (ag2->size == 1) {
+			DEBUG_MSG("Using the same ligand model with %zu receptor models", num_models);
+			_expand_mol_atom_group_list(ag2, num_models);
+    	} else {
+			ERR_MSG("Receptor and ligand have different numbers of models (%zu, %zu)", ag1->size, ag2->size);
+			return NULL;
+		}
     }
 
     DEBUG_MSG("Using models assembled from receptor and ligand models provided separately");
@@ -257,6 +306,7 @@ static void _fixed_setup_free(struct fixed_setup **fixed)
     if (*fixed != NULL) {
         if ((*fixed)->atoms) {
             free((*fixed)->atoms);
+			(*fixed)->atoms = NULL;
         }
         free(*fixed);
         *fixed = NULL;
@@ -269,6 +319,7 @@ static struct fixed_setup_multi* _fixed_setup_multi_create(size_t size)
 	struct fixed_setup_multi* out = calloc(1, sizeof(struct fixed_setup_multi*));
 	out->size = size;
 	out->setups = calloc(size, sizeof(struct fixed_setup*));
+	out->ref_count = 1;
 	return out;
 }
 
@@ -276,11 +327,17 @@ static struct fixed_setup_multi* _fixed_setup_multi_create(size_t size)
 static void _fixed_setup_multi_free(struct fixed_setup_multi **fixed)
 {
 	if (*fixed != NULL) {
-		for (size_t i = 0; i < (*fixed)->size; i++) {
-			_fixed_setup_free((*fixed)->setups + i);
+		(*fixed)->ref_count -= 1;
+		if ((*fixed)->ref_count == 0) {
+			if ((*fixed)->setups != NULL) {
+				for (size_t i = 0; i < (*fixed)->size; i++) {
+					_fixed_setup_free((*fixed)->setups + i);
+				}
+				free((*fixed)->setups);
+				(*fixed)->setups = NULL;
+			}
+			free(*fixed);
 		}
-		free((*fixed)->setups);
-		free(*fixed);
 		*fixed = NULL;
 	}
 }
@@ -323,13 +380,13 @@ static struct fixed_setup_multi* _fixed_setup_multi_read_from_pdb(const char* fi
 		return NULL;
 	}
 
-	struct mol_atom_group_list* fix_ag = _read_ag_list(NULL, NULL, fix_pdb, NULL, NULL, true);
+	struct mol_atom_group_list* fix_ag = _mol_atom_group_list_from_pdb(fix_pdb);
 	if (!fix_ag) {
-		ERR_MSG("Could not read fixed pdb");
+		ERR_MSG("Could not parse %s", fix_pdb);
 		return NULL;
 	}
 
-	if ((fix_ag->size != 1) || (fix_ag->size != ag->size)) {
+	if ((fix_ag->size != 1) && (fix_ag->size != ag->size)) {
 		mol_atom_group_list_free(fix_ag);
 		ERR_MSG("Number of models in fixed pdb must equal 1 or match the input pdb");
 		return NULL;
@@ -420,9 +477,12 @@ static void _pairsprings_setup_free(struct pairsprings_setup **sprst) {
             if ((*sprst)->springs[i].group1 != NULL) {
                 free((*sprst)->springs[i].group1);
                 free((*sprst)->springs[i].group2);
+				(*sprst)->springs[i].group1 = NULL;
+				(*sprst)->springs[i].group2 = NULL;
             }
         }
         free((*sprst)->springs);
+		(*sprst)->springs = NULL;
         free(*sprst);
         *sprst = NULL;
     }
@@ -590,9 +650,11 @@ static void _pointsprings_setup_free(struct pointsprings_setup **sprst) {
         for (size_t i = 0; i < (*sprst)->nsprings; i++) {
             if ((*sprst)->springs[i].atoms != NULL) {
                 free((*sprst)->springs[i].atoms);
+				(*sprst)->springs[i].atoms = NULL;
             }
         }
         free((*sprst)->springs);
+		(*sprst)->springs = NULL;
         free(*sprst);
         *sprst = NULL;
     }
@@ -1096,13 +1158,19 @@ bool energy_prms_populate_from_options(
         nstages = json_array_size(setup);
         DEBUG_MSG("Found %zu stages", nstages);
 
-        // copy default params to each stage
+        // copy global params to each stage
         struct energy_prms* buffer = calloc(nstages, sizeof(struct energy_prms));
         for (size_t i = 0; i < nstages; i++) {
             // TODO: need to recursive copy of setups, because later on the
             //       pointers can be overwritten and never be freed
             memcpy(buffer + i, all_stage_prms, sizeof(struct energy_prms));
+            if (all_stage_prms->fixed != NULL) {
+				all_stage_prms->fixed->ref_count += 1;
+            }
         }
+		if (all_stage_prms->fixed != NULL) {
+			all_stage_prms->fixed->ref_count -= 1;
+		}
         free(all_stage_prms);
         all_stage_prms = buffer;
 
@@ -1162,9 +1230,10 @@ bool energy_prms_populate_from_options(
             }
 
             // Read fixed atoms
+            // TODO: Dangling pointers can be left here, needs fixing
             if (stage_fixed) {
                 DEBUG_MSG("Creating fixed atoms for stage");
-                _fixed_setup_multi_free(&stage_prms->fixed);
+				_fixed_setup_multi_free(&stage_prms->fixed);
                 stage_prms->fixed = _fixed_setup_multi_read_json(stage_fixed, opts.num_models);
                 if (!stage_prms->fixed) {
                     ERR_MSG("Couldn't parse fixed atoms from %s", opts.setup_json);
@@ -1172,7 +1241,7 @@ bool energy_prms_populate_from_options(
                     break;
                 }
             } else if (stage_fix_rec) {
-                _fixed_setup_multi_free(&stage_prms->fixed);
+				_fixed_setup_multi_free(&stage_prms->fixed);
                 stage_prms->fixed = _fixed_setup_multi_atom_range(opts.num_models, 0, opts.rec_natoms);
             } else if (stage_fix_lig) {
 				_fixed_setup_multi_free(&stage_prms->fixed);
