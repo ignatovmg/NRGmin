@@ -101,6 +101,23 @@ To see all flags:
 ./nrgmin -h
 ```
 
+### Freezing atoms
+Atoms can be frozen in several ways:   
+
+1. `--fix-receptor` and `--fix-ligand` flags can be used in `rec/lig` mode
+   
+
+2. `--fixed-pdb` flag can be used to pass fixed atoms. Atoms in the minimized 
+   atom group will be frozen, if they are closer than 0.01 A to any of the atoms in
+   `--fixed-pdb`. `--fixed-pdb` can contain multiple models, in which case the
+   number of models should match the number of models in the minimized atom group. 
+   If it contains only one model and the minimized atom group has several, 
+   then the same `--fixed-pdb` will be applied to all the models in the minimized 
+   atom group.
+
+
+3. Field `fixed` in `--setup-json` can specify IDs of frozen atoms (for example `fixed: [0, 1, 3, 4]`)
+
 
 ### Master json file format for --setup-json
 
@@ -229,7 +246,7 @@ Energy terms switches. Everything is on by default except for GBSA
         
 Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)
         
-            --fixed-pdb PDB file with fixed atoms. Only atom ID is read (lines starting with ATOM)
+            --fixed-pdb PDB file with fixed atoms
             --fix-receptor Fix receptor atoms (works only in rec/lig mode)
             --fix-ligand Fix ligand atoms (works only in rec/lig mode)
         

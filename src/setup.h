@@ -45,7 +45,7 @@ struct energy_prms {
     struct pairsprings_setup *sprst_pairs; ///< Pairwise distance restraints
     struct pointsprings_setup *sprst_points; ///< Pointwise distance restraints
     struct density_setup *density; ///< Density fitting
-    struct fixed_setup *fixed; ///< Fixed atoms
+    struct fixed_setup_multi *fixed; ///< Fixed atoms for all models
 #ifdef NOE
     struct noe_setup *nmr; ///< NOE matrix restraints
 #endif
@@ -112,6 +112,11 @@ struct pointsprings_setup {
 struct fixed_setup {
     size_t natoms;
     size_t *atoms;
+};
+
+struct fixed_setup_multi {
+	size_t size;
+	struct fixed_setup** setups;
 };
 
 

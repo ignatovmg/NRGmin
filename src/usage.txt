@@ -65,7 +65,7 @@ Examples of different minimization setups can be found in examples/energy_setup.
                  which increases ligand atom IDs by the number
                  of receptor atoms)
 
-    --fixed-pdb PDB file with fixed atoms. Only atom ID is read (lines starting with ATOM)
+    --fixed-pdb PDB file with fixed atoms
     --fix-receptor Fix receptor atoms (works only in rec/lig mode)
     --fix-ligand Fix ligand atoms (works only in rec/lig mode)
 

@@ -31,6 +31,8 @@ struct options {
     bool separate; ///< Receptor and ligand provided separately
     size_t rec_natoms; ///< Number of atoms in receptor (set to zero in single file mode)
     size_t lig_natoms; ///< Number of atoms in ligand (set to zero in single file mode)
+    struct mol_atom_group_list *ag_list; ///< Atom group to minimize
+    size_t num_models;
 
     ///< Parameters for single file mode
     char* psf;
