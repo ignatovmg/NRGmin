@@ -32,6 +32,7 @@ struct options options_get_default()
             .out_pdb = "out.pdb",
             .out_json = "out.json",
             .out_prefix = NULL,
+            ._out_dyn = false,
 
             .print_step = false,
             .print_stage = true,
@@ -105,8 +106,12 @@ void options_free(struct options opts)
         json_decref(opts.setup_json_root);
     }
     if (opts.out_prefix != NULL) {
-		free(opts.out_pdb);
-		free(opts.out_json);
+    	if (opts.out_pdb && opts._out_dyn) {
+			free(opts.out_pdb);
+		}
+		if (opts.out_json && opts._out_dyn) {
+			free(opts.out_json);
+		}
     }
 }
 
@@ -301,6 +306,7 @@ static bool _check_flags_and_fill_from_json(struct options *opts)
 		memcpy(opts->out_json, opts->out_prefix, out_len * sizeof(char));
 		memcpy(opts->out_pdb + out_len - 1,  ".pdb", 5 * sizeof(char));
 		memcpy(opts->out_json + out_len - 1,  ".json", 6 * sizeof(char));
+		opts->_out_dyn = true;
     }
 
 #ifndef NOE

@@ -24,6 +24,7 @@ struct options {
     char* out_pdb; ///< Where to write the minimized molecule(s)
     char* out_json; ///< Log file with energy terms
     char* out_prefix; ///< Sets the above two options
+    bool _out_dyn;
 
     int print_step; ///< Log energies for every step
     int print_stage; ///< Log energies for every stage
