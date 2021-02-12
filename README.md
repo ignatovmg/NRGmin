@@ -220,6 +220,7 @@ Output control:
         
             --out-pdb Where to write the minimized molecule(s)
             --out-json Log file with energy terms
+            --out-prefix Overrides the above two options
             --print-step Log energies for every step
             --print-stage Log energies for every stage
             --print-noe-matrix Log NOE matrix is NOE calculation is on
@@ -264,9 +265,9 @@ Energy terms switches. Everything is on by default except for GBSA
             --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics
             --gbsa-on/gbsa-off GBSA
         
-Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)
+Fixed atoms
         
-            --fixed-pdb PDB file with fixed atoms
+            --fixed-pdb PDB file with fixed atoms (uses coordinates, not atom IDs)
             --fix-receptor Fix receptor atoms (works only in rec/lig mode)
             --fix-ligand Fix ligand atoms (works only in rec/lig mode)
         
