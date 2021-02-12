@@ -51,17 +51,17 @@ struct energy_prms {
 #endif
 
     int nsteps; ///< Max number of steps during minimization
-    bool bonds; ///< Flags
-    bool angles;
-    bool dihedrals;
-    bool impropers;
-    bool vdw;
-    bool vdw03;
-    bool eleng;
-    bool elengs03;
-    bool gbsa;
+    int bonds; ///< Flags
+	int angles;
+	int dihedrals;
+	int impropers;
+	int vdw;
+	int vdw03;
+	int eleng;
+	int elengs03;
+	int gbsa;
 
-    bool score_only; ///< Don't perform minimizition and only output energy terms
+	int score_only; ///< Don't perform minimizition and only output energy terms
 };
 
 #ifdef NOE
