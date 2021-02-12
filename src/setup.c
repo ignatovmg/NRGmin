@@ -316,7 +316,7 @@ static void _fixed_setup_free(struct fixed_setup **fixed)
 
 static struct fixed_setup_multi* _fixed_setup_multi_create(size_t size)
 {
-	struct fixed_setup_multi* out = calloc(1, sizeof(struct fixed_setup_multi*));
+	struct fixed_setup_multi* out = calloc(1, sizeof(struct fixed_setup_multi));
 	out->size = size;
 	out->setups = calloc(size, sizeof(struct fixed_setup*));
 	out->ref_count = 1;
