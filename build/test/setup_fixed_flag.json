@@ -1,0 +1,8 @@
+{
+  "stages": [
+    {
+      "nsteps": 1000,
+      "fix_receptor": true
+    }
+  ]
+}
