@@ -370,18 +370,35 @@ START_TEST(test_mol_atom_group_list_from_options)
             ck_assert_int_eq(ag_list->size, 2);
             break;
 
-        /*case 6:
-            // Fail with wrong prm file (this produces segfault, because of buggy mol_atom_group_read_geometry)
-            opts = options_get_default();
-            opts.pdb = "BACE_4_rec.pdb";
-            opts.psf = "BACE_4_rec.pdb";
-            opts.prm = "BACE_4_rec_parm.prm";
-            opts.rtf = "BACE_4_rec_pdbamino.rtf";
-            opts.separate = false;
+		case 7:
+			// Fail with 3 models in rec and 2 models in lig
+			opts = options_get_default();
+			opts.rec_pdb = "BACE_4_rec_3models.pdb";
+			opts.rec_psf = "BACE_4_rec.psf";
+			opts.rec_prm = "BACE_4_rec_parm.prm";
+			opts.rec_rtf = "BACE_4_rec_pdbamino.rtf";
+			opts.lig_pdb = "BACE_4_lig_2models_far.pdb";
+			opts.lig_json = "BACE_4_lig.json";
+			opts.separate = true;
 
-            ag_list = mol_atom_group_list_from_options(&opts);
-            ck_assert_ptr_null(ag_list);
-            */
+			ag_list = mol_atom_group_list_from_options(&opts);
+			ck_assert_ptr_null(ag_list);
+			break;
+
+		case 8:
+			// Pass with 3 models in rec and 1 models in lig
+			opts = options_get_default();
+			opts.rec_pdb = "BACE_4_rec_3models.pdb";
+			opts.rec_psf = "BACE_4_rec.psf";
+			opts.rec_prm = "BACE_4_rec_parm.prm";
+			opts.rec_rtf = "BACE_4_rec_pdbamino.rtf";
+			opts.lig_json = "BACE_4_lig.json";
+			opts.separate = true;
+
+			ag_list = mol_atom_group_list_from_options(&opts);
+			ck_assert_ptr_nonnull(ag_list);
+			ck_assert_int_eq(ag_list->size, 3);
+			break;
     }
 }
 
@@ -400,11 +417,12 @@ START_TEST(test_energy_prm_from_flags)
             opts.rec_natoms = 1000;
             opts.lig_natoms = 100;
             opts.fix_receptor = true;
+            opts.num_models = 1;
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
-            ck_assert_int_eq(prms[0].fixed->natoms, 1000);
-            _compare_arrays_size_t(prms[0].fixed->atoms, (size_t[]){0, 1, 2, 3, 4}, 5);
+            ck_assert_int_eq(prms[0].fixed->setups[0]->natoms, 1000);
+            _compare_arrays_size_t(prms[0].fixed->setups[0]->atoms, (size_t[]){0, 1, 2, 3, 4}, 5);
 
             energy_prms_free(&prms, nstages);
             break;
@@ -416,11 +434,12 @@ START_TEST(test_energy_prm_from_flags)
             opts.rec_natoms = 1000;
             opts.lig_natoms = 100;
             opts.fix_ligand = true;
+			opts.num_models = 1;
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
-            ck_assert_int_eq(prms[0].fixed->natoms, 100);
-            _compare_arrays_size_t(prms[0].fixed->atoms, (size_t[]){1000, 1001, 1002, 1003, 1004}, 5);
+            ck_assert_int_eq(prms[0].fixed->setups[0]->natoms, 100);
+            _compare_arrays_size_t(prms[0].fixed->setups[0]->atoms, (size_t[]){1000, 1001, 1002, 1003, 1004}, 5);
 
             energy_prms_free(&prms, nstages);
             break;
@@ -441,11 +460,14 @@ START_TEST(test_energy_prm_from_flags)
         case 3:
             // Pass with fix pdb
             opts = options_get_default();
+			opts.pdb = "BACE_4_rec.pdb";
+			opts.score_only = true;
             opts.fixed_pdb = "BACE_4_rec.pdb";
-
+			ck_assert_ptr_nonnull(mol_atom_group_list_from_options(&opts));
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
-            ck_assert_int_eq(prms->fixed->natoms, 3598);
+            ck_assert_int_eq(prms->fixed->setups[0]->natoms, 3598);
+            mol_atom_group_list_free(opts.ag_list);
             energy_prms_free(&prms, nstages);
             break;
 
@@ -547,14 +569,18 @@ START_TEST(test_energy_prm_from_flags)
         case 10:
             // Pass fixed pdb
             opts = options_get_default();
-            opts.fixed_pdb = "BACE_4_lig_far.pdb";
+            opts.pdb = "BACE_4_lig_far.pdb";
+            opts.score_only = true;
+            opts.fixed_pdb = "BACE_4_lig_far_fixed.pdb";
 
+			ck_assert_ptr_nonnull(mol_atom_group_list_from_options(&opts));
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
-            ck_assert_int_eq(prms[0].fixed->natoms, 42);
-            _compare_arrays_size_t(prms[0].fixed->atoms, (size_t[]){3598, 3599, 3600, 3601, 3602, 3603}, 6);
+            ck_assert_int_eq(prms[0].fixed->setups[0]->natoms, 20);
+            _compare_arrays_size_t(prms[0].fixed->setups[0]->atoms, (size_t[]){15, 16, 17, 18, 19, 20}, 6);
 
             energy_prms_free(&prms, nstages);
+            mol_atom_group_list_free(opts.ag_list);
             break;
     }
 }
@@ -573,10 +599,11 @@ START_TEST(test_energy_prm_from_json)
             opts.separate = true;
             opts.rec_natoms = 1000;
             opts.setup_json = "setup_fixed_flag.json";
+			opts.num_models = 1;
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
-            ck_assert_int_eq(prms->fixed->natoms, opts.rec_natoms);
+            ck_assert_int_eq(prms->fixed->setups[0]->natoms, opts.rec_natoms);
             energy_prms_free(&prms, nstages);
             break;
 
@@ -585,6 +612,7 @@ START_TEST(test_energy_prm_from_json)
             opts = options_get_default();
             opts.separate = false;
             opts.setup_json = "setup_fixed_flag.json";
+			opts.num_models = 1;
 
             ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_null(prms);
@@ -594,11 +622,12 @@ START_TEST(test_energy_prm_from_json)
             // Pass fix rec
             opts = options_get_default();
             opts.setup_json = "setup_fixed_json.json";
+			opts.num_models = 1;
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
-            ck_assert_int_eq(prms->fixed->natoms, 7);
-            _compare_arrays_size_t((size_t[]){0,1,2,3,4,8,2000}, prms->fixed->atoms, 7);
+            ck_assert_int_eq(prms->fixed->setups[0]->natoms, 7);
+            _compare_arrays_size_t((size_t[]){0,1,2,3,4,8,2000}, prms->fixed->setups[0]->atoms, 7);
             energy_prms_free(&prms, nstages);
             break;
 
@@ -865,7 +894,7 @@ Suite *lists_suite(void)
     TCase *tcase_real = tcase_create("real");
     tcase_add_loop_test(tcase_real, test_check_getopt_success, 0, 8);
     tcase_add_loop_test(tcase_real, test_check_getopt_failure, 0, 8);
-    tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 7);
+    tcase_add_loop_test(tcase_real, test_mol_atom_group_list_from_options, 0, 9);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_flags, 0, 11);
     tcase_add_loop_test(tcase_real, test_energy_prm_from_json, 0, 11);
     tcase_add_loop_test(tcase_real, test_pairspring_penalty, 0, 7);

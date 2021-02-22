@@ -51,20 +51,40 @@ Or as a json file
 As well as in a rec/lig mode:
 
 ```
-./nrgmin ---rec-pdb rec.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+./nrgmin --rec-pdb rec.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
 ```
 
 If you want to use parameters from json file and coordinates from pdb
 
 ```
-./nrgmin ---rec-pdb rec.pdb --rec-json rec.json --lig-pdb lig.pdb --lig-json lig.json
+./nrgmin --rec-pdb rec.pdb --rec-json rec.json --lig-pdb lig.pdb --lig-json lig.json
 ```
 
-PDB file can contain multiple models (the number of models must match in rec/lig mode). `nrgmin.omp` parallelizes
-minimization for multiple models using the flag `--num-threads`
+#### Multiple models, multithreading
+
+PDB file can contain multiple models. `nrgmin.omp` parallelizes minimization for multiple models 
+using the flag `--num-threads`. All available cores are used by default.
 
 ```
 ./nrgmin.omp --json mol.json --pdb mol_10models.pdb --num-threads 10
+```
+
+In `rec/lig` mode the receptor can contain a single model and the ligand and can have N models 
+and vice versa. In this case the receptor model is copied N times and merged with the ligand models. 
+Otherwise, the number of receptor and ligand models must match. Therefore, the following will work:
+
+```
+./nrgmin.omp --rec-pdb rec_1model.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+
+./nrgmin.omp --rec-pdb rec_10models.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+
+./nrgmin.omp --rec-pdb rec_10models.pdb --lig-pdb lig_1model.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+```
+
+And the following will not:
+
+```
+./nrgmin.omp --rec-pdb rec_3models.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
 ```
 
 ### Energy function
@@ -100,6 +120,23 @@ To see all flags:
 ```
 ./nrgmin -h
 ```
+
+### Freezing atoms
+Atoms can be frozen in several ways:   
+
+1. `--fix-receptor` and `--fix-ligand` flags can be used in `rec/lig` mode
+   
+
+2. `--fixed-pdb` flag can be used to pass fixed atoms. Atoms in the minimized 
+   atom group will be frozen, if they are closer than 0.01 A to any of the atoms in
+   `--fixed-pdb`. `--fixed-pdb` can contain multiple models, in which case the
+   number of models should match the number of models in the minimized atom group. 
+   If it contains only one model and the minimized atom group has several, 
+   then the same `--fixed-pdb` will be applied to all the models in the minimized 
+   atom group.
+
+
+3. Field `fixed` in `--setup-json` can specify IDs of frozen atoms (for example `fixed: [0, 1, 3, 4]`)
 
 
 ### Master json file format for --setup-json
@@ -183,6 +220,7 @@ Output control:
         
             --out-pdb Where to write the minimized molecule(s)
             --out-json Log file with energy terms
+            --out-prefix Overrides the above two options
             --print-step Log energies for every step
             --print-stage Log energies for every stage
             --print-noe-matrix Log NOE matrix is NOE calculation is on
@@ -227,9 +265,9 @@ Energy terms switches. Everything is on by default except for GBSA
             --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics
             --gbsa-on/gbsa-off GBSA
         
-Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)
+Fixed atoms
         
-            --fixed-pdb PDB file with fixed atoms. Only atom ID is read (lines starting with ATOM)
+            --fixed-pdb PDB file with fixed atoms (uses coordinates, not atom IDs)
             --fix-receptor Fix receptor atoms (works only in rec/lig mode)
             --fix-ligand Fix ligand atoms (works only in rec/lig mode)
         

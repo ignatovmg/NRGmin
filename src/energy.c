@@ -61,14 +61,14 @@ lbfgsfloatval_t energy_func(
         total_energy += term_energy;
     }
 
-    if (energy_prm->eleng) {
+    if (energy_prm->eleng != 0) {
         term_energy = 0.0;
         eleng(energy_prm->ag, eeps, &term_energy, energy_prm->ag_setup->nblst);
         json_object_set_new(energy_dict, "eleng", json_real(term_energy));
         total_energy += term_energy;
     }
 
-    if (energy_prm->elengs03) {
+    if (energy_prm->elengs03 != 0) {
         term_energy = 0.0;
         elengs03(scale_coul_s03,
                 energy_prm->ag_setup->nblst->nbcof,
@@ -81,14 +81,14 @@ lbfgsfloatval_t energy_func(
         total_energy += term_energy;
     }
 
-    if (energy_prm->vdw) {
+    if (energy_prm->vdw != 0) {
         term_energy = 0.0;
         vdweng(energy_prm->ag, &term_energy, energy_prm->ag_setup->nblst);
         json_object_set_new(energy_dict, "vdw", json_real(term_energy));
         total_energy += term_energy;
     }
 
-    if (energy_prm->vdw03) {
+    if (energy_prm->vdw03 != 0) {
         term_energy = 0.0;
         vdwengs03(
                 scale_vdw_s03,
@@ -100,28 +100,28 @@ lbfgsfloatval_t energy_func(
         total_energy += term_energy;
     }
 
-    if (energy_prm->bonds) {
+    if (energy_prm->bonds != 0) {
         term_energy = 0.0;
         beng(energy_prm->ag, &term_energy);
         json_object_set_new(energy_dict, "bonds", json_real(term_energy));
         total_energy += term_energy;
     }
 
-    if (energy_prm->angles) {
+    if (energy_prm->angles != 0) {
         term_energy = 0.0;
         aeng(energy_prm->ag, &term_energy);
         json_object_set_new(energy_dict, "angles", json_real(term_energy));
         total_energy += term_energy;
     }
 
-    if (energy_prm->dihedrals) {
+    if (energy_prm->dihedrals != 0) {
         term_energy = 0.0;
         teng(energy_prm->ag, &term_energy);
         json_object_set_new(energy_dict, "dihedrals", json_real(term_energy));
         total_energy += term_energy;
     }
 
-    if (energy_prm->impropers) {
+    if (energy_prm->impropers != 0) {
         term_energy = 0.0;
         ieng(energy_prm->ag, &term_energy);
         json_object_set_new(energy_dict, "impropers", json_real(term_energy));

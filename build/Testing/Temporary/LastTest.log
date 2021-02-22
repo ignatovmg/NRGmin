@@ -1,0 +1,149 @@
+Start testing: Feb 22 18:02 EST
+----------------------------------------------------------
+1/1 Testing: test_all
+1/1 Test: test_all
+Command: "/home/thu/Downloads/nrgmin/build/test/test_all"
+Directory: /home/thu/Downloads/nrgmin/build/test
+"test_all" start time: Feb 22 18:02 EST
+Output:
+----------------------------------------------------------
+Running suite(s): functionality
+sham: option '-a' is ambiguous; possibilities: '-angles-on' '-angles-off' '-ace-on' '-ace-off'
+[1;31m[Error] (/home/thu/Downloads/nrgmin/build/parse_options.c:426, options_populate_from_argv):
+
+        Unrecognized option encountered
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/build/parse_options.c:254, _check_flags_and_fill_from_json):
+
+        Json and/or {pdb, psf, prm and rtf} must be provided
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/build/parse_options.c:271, _check_flags_and_fill_from_json):
+
+        You can't provide options for rec/lig mode and single file mode at the same time
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/build/parse_options.c:297, _check_flags_and_fill_from_json):
+
+        Number of steps must be a positive number
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/build/parse_options.c:276, _check_flags_and_fill_from_json):
+
+        Json and/or pdb, psf, prm and rtf must be provided for receptor
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/build/parse_options.c:283, _check_flags_and_fill_from_json):
+
+        Json and/or pdb, psf, prm and rtf must be provided for ligand
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/build/parse_options.c:259, _check_flags_and_fill_from_json):
+
+        Can't fix the receptor when using single file mode
+
+[0m[1;31m[Json parse error] (/home/thu/Downloads/nrgmin/build/parse_options.c:197, _fill_prms_from_json):
+
+        Couldn't parse setup from json
+
+        Source: <validation>
+        Message: 1 object item(s) left unpacked: wrong_argument_name
+        Line: 1
+        Column: 212
+
+[0mERROR in libmol2 function mol_read_pdb_models (pdb.c:221): No models found in BACE_4_rec.pdb
+ERROR in libmol2 function mol_read_pdb_models (pdb.c:221): No models found in BACE_4_rec.pdb
+ERROR in libmol2 function mol_read_pdb_models (pdb.c:221): No models found in BACE_4_rec.pdb
+[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:118, _read_ag_list):
+
+        Model 0 in BACE_4_rec.pdb and BACE_4_lig.json have different atom numbers (3598, 42)
+
+[0mERROR in libmol2 function mol_read_pdb_models (pdb.c:221): No models found in BACE_4_rec.pdb
+[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:166, _read_ag_list):
+
+        Force field and geometry are not provided for BACE_4_rec.pdb
+
+[0mERROR in libmol2 function mol_read_pdb_models (pdb.c:221): No models found in BACE_4_rec.pdb
+[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:222, _merge_ag_lists):
+
+        Receptor and ligand have different numbers of models (3, 2)
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1027, energy_prms_populate_from_options):
+
+        Different fixed atoms flags can't be combined
+
+[0mERROR in libmol2 function mol_read_pdb_models (pdb.c:221): No models found in BACE_4_rec.pdb
+ERROR in libmol2 function mol_read_pdb_models (pdb.c:221): No models found in BACE_4_rec.pdb
+[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:710, _pointsprings_setup_read_txt):
+
+        Wrong pointsprings setup format
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1080, energy_prms_populate_from_options):
+
+        Couldn't parse pointsprings from pointsprings_xl_invalid.txt
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:529, _pairsprings_setup_read_txt):
+
+        Each line in pairsprings setup must have 7 tokens
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1069, energy_prms_populate_from_options):
+
+        Couldn't parse pairsprings from pairsprings_invalid.txt
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1097, energy_prms_populate_from_options):
+
+        Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1221, energy_prms_populate_from_options):
+
+        You can't provide fix-* flags in a single file mode
+
+[0m[1;31m[Json parse error] (/home/thu/Downloads/nrgmin/src/setup.c:581, _pairsprings_setup_read_json):
+
+        Wrong pairspring setup json format
+
+        Source: <validation>
+        Message: Object item not found: weight
+        Line: 1
+        Column: 19
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1258, energy_prms_populate_from_options):
+
+        Couldn't parse pairsprings from setup_pairsprings_invalid.json
+
+[0m[1;31m[Json parse error] (/home/thu/Downloads/nrgmin/src/setup.c:747, _pointsprings_setup_read_json):
+
+        Couldn't parse json pointspring
+
+        Source: <validation>
+        Message: Array index 2 out of range
+        Line: 1
+        Column: 14
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1270, energy_prms_populate_from_options):
+
+        Couldn't parse poinsprings from setup_pointsprings_invalid.json
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1292, energy_prms_populate_from_options):
+
+        Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1292, energy_prms_populate_from_options):
+
+        Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting
+
+[0mmol_read_pdb: No such file or directory
+ERROR in libmol2 function mol_read_pdb (pdb.c:138): Unable to open non_existant.pdb
+[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:827, _density_setup_read_json):
+
+        Couldn't read atom group in density setup
+
+[0m[1;31m[Error] (/home/thu/Downloads/nrgmin/src/setup.c:1282, energy_prms_populate_from_options):
+
+        Couldn't parse density from setup_density_invalid.json
+
+[0m100%: Checks: 55, Failures: 0, Errors: 0
+<end of output>
+Test time =   3.94 sec
+----------------------------------------------------------
+Test Passed.
+"test_all" end time: Feb 22 18:02 EST
+"test_all" time elapsed: 00:00:03
+----------------------------------------------------------
+
+End testing: Feb 22 18:02 EST
