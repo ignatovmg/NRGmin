@@ -64,4 +64,6 @@ test/CMakeFiles/test_all.dir/test_all.c.o: /home/thu/lib/cmake/mol2/../../../inc
 test/CMakeFiles/test_all.dir/test_all.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/minimize.h
 test/CMakeFiles/test_all.dir/test_all.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/pdb.h
 test/CMakeFiles/test_all.dir/test_all.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/vector.h
+test/CMakeFiles/test_all.dir/test_all.c.o: /usr/local/include/check.h
+test/CMakeFiles/test_all.dir/test_all.c.o: /usr/local/include/check_stdint.h
 

@@ -111,9 +111,9 @@ static void test_pairspring_gradients(
                 vect[3*i], vect[3*i+1], vect[3*i+2],
                 num_grad[i].X, num_grad[i].Y, num_grad[i].Z);
 
-        ck_assert_msg(fabs(vect[3*i] - num_grad[i].X) < tol, msg);
-        ck_assert_msg(fabs(vect[3*i+1] - num_grad[i].Y) < tol, msg);
-        ck_assert_msg(fabs(vect[3*i+2] - num_grad[i].Z) < tol, msg);
+        ck_assert_msg(fabs(vect[3*i] - num_grad[i].X) < tol, "%s", msg);
+        ck_assert_msg(fabs(vect[3*i+1] - num_grad[i].Y) < tol, "%s", msg);
+        ck_assert_msg(fabs(vect[3*i+2] - num_grad[i].Z) < tol, "%s", msg);
     }
     free(num_grad);
     free(vect);
@@ -545,7 +545,7 @@ START_TEST(test_energy_prm_from_flags)
             ck_assert_double_eq_tol(prms->nmr->weight, 1000, 10e-3);
             ck_assert_double_eq_tol(prms->nmr->power, 1. / 6., 10e-3);
             ck_assert_int_eq(prms->nmr->spec->size, 2);
-            ck_assert_double_eq_tol(prms->nmr->spec->exp->peaks[1].volume, -0.074589, 10e-3);
+            ck_assert_double_eq_tol(prms->nmr->spec->exp[1], -0.074589, 10e-3);
             energy_prms_free(&prms, nstages);
 #else
             ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));

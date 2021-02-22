@@ -6,5 +6,5 @@ C_FLAGS = -O3 -DNDEBUG   -std=c11
 
 C_DEFINES = 
 
-C_INCLUDES = -I/home/thu/Downloads/nrgmin/src -I/home/thu/lib/cmake/mol2/../../../include -isystem /home/thu/include 
+C_INCLUDES = -I/home/thu/Downloads/nrgmin/src -I/usr/local/include -I/home/thu/lib/cmake/mol2/../../../include -isystem /home/thu/include 
 

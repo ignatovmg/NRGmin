@@ -38,7 +38,7 @@ struct json_log_setup {
 struct energy_prms {
     struct mol_atom_group *ag; ///< Minimized atom group
     struct agsetup *ag_setup; ///< Atom group setup
-    struct acesetup *ace_setup; ///< GBSA setup
+    struct acesetup *ace_setup; ///< ACE setup
     json_t* json_log; ///< Energy terms are written here every time energy function is envoked
     struct json_log_setup json_log_setup; ///< json log file parameters
 

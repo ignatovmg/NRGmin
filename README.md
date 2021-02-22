@@ -92,7 +92,7 @@ And the following will not:
 Energy function setup is flexible, so you can switch terms on and off
 
 ```
-./nrgmin --json mol.json --vdw-off --gbsa-on
+./nrgmin --json mol.json --vdw-off --ace-on
 ```
 
 And add restraining potentials
@@ -169,7 +169,7 @@ set there as well.
     {
       "nsteps": 1000,
       "vdw03": false,
-      "gbsa": true,
+      "ace": true,
       "pointsprings": [
         {
           "weight": 10,
