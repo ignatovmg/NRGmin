@@ -14,6 +14,7 @@ CMakeFiles/nrgmin.dir/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/
 CMakeFiles/nrgmin.dir/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/benergy.h
 CMakeFiles/nrgmin.dir/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/fitting.h
 CMakeFiles/nrgmin.dir/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/gbsa.h
+CMakeFiles/nrgmin.dir/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/genborn.h
 CMakeFiles/nrgmin.dir/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/geometry.h
 CMakeFiles/nrgmin.dir/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/hashes.h
 CMakeFiles/nrgmin.dir/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/icharmm.h
@@ -35,6 +36,7 @@ CMakeFiles/nrgmin.dir/src/minimize.c.o: /home/thu/lib/cmake/mol2/../../../includ
 CMakeFiles/nrgmin.dir/src/minimize.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/benergy.h
 CMakeFiles/nrgmin.dir/src/minimize.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/fitting.h
 CMakeFiles/nrgmin.dir/src/minimize.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/gbsa.h
+CMakeFiles/nrgmin.dir/src/minimize.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/genborn.h
 CMakeFiles/nrgmin.dir/src/minimize.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/geometry.h
 CMakeFiles/nrgmin.dir/src/minimize.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/hashes.h
 CMakeFiles/nrgmin.dir/src/minimize.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/icharmm.h

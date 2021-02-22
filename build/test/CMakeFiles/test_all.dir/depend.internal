@@ -15,6 +15,7 @@ test/CMakeFiles/test_all.dir/__/src/energy.c.o
  /home/thu/lib/cmake/mol2/../../../include/mol2/benergy.h
  /home/thu/lib/cmake/mol2/../../../include/mol2/fitting.h
  /home/thu/lib/cmake/mol2/../../../include/mol2/gbsa.h
+ /home/thu/lib/cmake/mol2/../../../include/mol2/genborn.h
  /home/thu/lib/cmake/mol2/../../../include/mol2/geometry.h
  /home/thu/lib/cmake/mol2/../../../include/mol2/hashes.h
  /home/thu/lib/cmake/mol2/../../../include/mol2/icharmm.h

@@ -14,6 +14,7 @@ test/CMakeFiles/test_all.dir/__/src/energy.c.o: /home/thu/lib/cmake/mol2/../../.
 test/CMakeFiles/test_all.dir/__/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/benergy.h
 test/CMakeFiles/test_all.dir/__/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/fitting.h
 test/CMakeFiles/test_all.dir/__/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/gbsa.h
+test/CMakeFiles/test_all.dir/__/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/genborn.h
 test/CMakeFiles/test_all.dir/__/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/geometry.h
 test/CMakeFiles/test_all.dir/__/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/hashes.h
 test/CMakeFiles/test_all.dir/__/src/energy.c.o: /home/thu/lib/cmake/mol2/../../../include/mol2/icharmm.h

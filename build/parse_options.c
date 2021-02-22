@@ -85,6 +85,7 @@ struct options options_get_default()
             .vdw03 = 1,
             .eleng = 1,
             .elengs03 = 1,
+            .ace = 0,
             .gbsa = 0,
 
             .verbosity = DEBUG,
@@ -138,7 +139,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             dict, &error, JSON_STRICT,
 
             "{s?i, s?i, s?i "
-            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
+            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
 
@@ -156,6 +157,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "vdw03", &opts->vdw03,
             "eleng", &opts->eleng,
             "elengs03", &opts->elengs03,
+            "ace", &opts->ace,
             "gbsa", &opts->gbsa,
             "fix_receptor", &opts->fix_receptor,
             "fix_ligand", &opts->fix_ligand,
@@ -238,6 +240,10 @@ static bool _check_flags_and_fill_from_json(struct options *opts)
     if (opts->num_threads < 0) {
         ERR_MSG("Number of threads can't be negative");
         return false;
+    }
+
+    if (opts->gbsa && opts->ace) {
+        WRN_MSG("You're using GBSA and ACE at the same time");
     }
 
     if (opts->json || opts->pdb || opts->psf || opts->prm || opts->rtf) {
@@ -386,6 +392,8 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                     {"elengs03-off",         no_argument,  &prms.elengs03,         0},
                     {"gbsa-on",              no_argument,  &prms.gbsa,             1},
                     {"gbsa-off",             no_argument,  &prms.gbsa,             0},
+                    {"ace-on",               no_argument,  &prms.ace,              1},
+                    {"ace-off",              no_argument,  &prms.ace,              0},
 
                     {"fix-receptor",         no_argument,  &prms.fix_receptor,     1},
                     {"fix-ligand",           no_argument,  &prms.fix_ligand,       1},
@@ -484,5 +492,101 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
 void usage_message(char *const *argv) {
     fprintf(stderr, "\nUsage %s [ options ]\n\n", argv[0]);
-    fprintf(stderr, "\nEnergy minimization using LBFGS.\n\nA molecule can be passed using two modes: single file mode or rec/lig mode.\nRec/lig mode is used, when structure is passed using rec-* lig-* arguments,\nand single file mode is enabled for the opposite. Structure can be passed\nusing a set of 4 files pdb, psf, rtf, prm or as a single json file which\ncontains coordinates as well as force field parameters. Also and pair of\njson and pdb can be passed, if one want to use topology and forcefield parameters\nfrom json and coordinates from pdb.\n\nAll flags can be as well filled by passing a global setup file to --setup-json,\nso this one argument is enough to run minimization.\n\nExamples of different minimization setups can be found in examples/energy_setup.\n\n    Output control:\n\n    --out-pdb Where to write the minimized molecule(s)\n    --out-json Log file with energy terms\n    --out-prefix Overrides the above two options\n    --print-step Log energies for every step\n    --print-stage Log energies for every stage\n    --print-noe-matrix Log NOE matrix is NOE calculation is on\n    --verbosity 0 - QUIET, 1 - ERROR, 2 - WARNING, 3 - INFO, >=4 - DEBUG\n\n\n    Single file mode:\n\n    --psf Geometry in CHARMM (old) format\n    --prm Forcefield parameters\n    --rtf Topology file with residues description\n    --pdb Atom coordinates (can contain multiple models)\n    --json Json file with coordinates, geometry and force field parameters\n\n    Parameters for rec/lig mode\n\n    --rec-psf Receptor geometry in CHARMM (old) format\n    --rec-prm Receptor forcefield parameters\n    --rec-rtf Receptor topology file\n    --rec-pdb Receptor atom coordinates (can contain multiple models)\n    --rec-json Receptor json file with coordinates, geometry and force field parameters\n    --lig-psf Ligand geometry in CHARMM (old) format\n    --lig-prm Ligand forcefield parameters\n    --lig-rtf Ligand topology file with residues description\n    --lig-pdb Ligand atom coordinates (can contain multiple models)\n    --lig-json Ligand json file with coordinates, geometry and force field parameters\n\n\n    Minimization setup\n\n    --nsteps Number of minimization steps\n\n    Energy terms switches. Everything is on by default except for GBSA\n\n    --bonds-on/--bonds-off Bonds energy term\n    --angles-on/--angles-off Angles\n    --dihedrals-on/--dihedrals-off Dihedrals\n    --impropers-on/--impropers-on Impropers\n    --vdw-on/--vdw-off VDW\n    --vdw03-on/--vdw03-off 1-4 VDW\n    --eleng-on/--eleng-off Coulomb electrostatics\n    --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics\n    --gbsa-on/--gbsa-off GBSA\n\n    Fixed atoms\n\n    --fixed-pdb PDB file with fixed atoms (uses coordinates, not atom IDs)\n    --fix-receptor Fix receptor atoms (works only in rec/lig mode)\n    --fix-ligand Fix ligand atoms (works only in rec/lig mode)\n\n    Distance restraints\n\n    --pair-springs-txt Text file setup for pairwise restraints\n    --point-springs-txt Text file setup for pointwise restraints\n\n    NOE setup (available with -DNOE=ON during build)\n\n    --noe-txt Text file setup for NOE\n    --noe-json Json file setup for NOE\n\n    Density setup\n\n    --density-json Json file setup for density fitting\n\n    Global setup in json format\n\n    --setup-json This file duplicates all the other options. It also allows for\n                 multistage minimization protocol, where each stage can have\n                 different minimization terms\n\n    Miscellaneous\n\n    --num-threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads\n    --score-only Score without doing minimization\n    --help Show this message and exit\n");
+    fprintf(stderr, "Energy minimization using LBFGS.\n"
+           "\n"
+           "A molecule can be passed using two modes: single file mode or rec/lig mode.\n"
+           "Rec/lig mode is used, when structure is passed using rec-* lig-* arguments,\n"
+           "and single file mode is enabled for the opposite. Structure can be passed\n"
+           "using a set of 4 files pdb, psf, rtf, prm or as a single json file which\n"
+           "contains coordinates as well as force field parameters. Also and pair of\n"
+           "json and pdb can be passed, if one want to use geometry from json and\n"
+           "coordinates from pdb.\n"
+           "\n"
+           "All flags can be as well filled by passing a global setup file to --setup-json,\n"
+           "so this one argument is enough to run minimization.\n"
+           "\n"
+           "Examples of different minimization setups can be found in examples/energy_setup.\n"
+           "\n"
+           "    Output control:\n"
+           "\n"
+           "    --out-pdb Where to write the minimized molecule(s)\n"
+           "    --out-json Log file with energy terms\n"
+           "    --print-step Log energies for every step\n"
+           "    --print-stage Log energies for every stage\n"
+           "    --print-noe-matrix Log NOE matrix is NOE calculation is on\n"
+           "    --verbosity 0 - QUIET, 1 - ERROR, 2 - WARNING, 3 - INFO, >=4 - DEBUG\n"
+           "\n"
+           "\n"
+           "    Single file mode:\n"
+           "\n"
+           "    --psf Geometry\n"
+           "    --prm Forcefield parameters\n"
+           "    --rtf Topology file with residues description\n"
+           "    --pdb Atom coordinates (can contain multiple models)\n"
+           "    --json Json file with coordinates, geometry and force field parameters\n"
+           "\n"
+           "    Parameters for rec/lig mode\n"
+           "\n"
+           "    --rec-psf Receptor geometry\n"
+           "    --rec-prm Receptor forcefield parameters\n"
+           "    --rec-rtf Receptor topology file\n"
+           "    --rec-pdb Receptor atom coordinates (can contain multiple models)\n"
+           "    --rec-json Receptor json file with coordinates, geometry and force field parameters\n"
+           "    --lig-psf Ligand geometry\n"
+           "    --lig-prm Ligand forcefield parameters\n"
+           "    --lig-rtf Ligand topology file with residues description\n"
+           "    --lig-pdb Ligand atom coordinates (can contain multiple models)\n"
+           "    --lig-json Ligand json file with coordinates, geometry and force field parameters\n"
+           "\n"
+           "\n"
+           "    Minimization setup\n"
+           "\n"
+           "    --nsteps Number of minimization steps\n"
+           "\n"
+           "    Energy terms switches. Everything is on by default except for GBSA and ACE\n"
+           "\n"
+           "    --bonds-on/--bonds-off Bonds energy term\n"
+           "    --angles-on/--angles-off Angles\n"
+           "    --dihedrals-on/--dihedrals-off Dihedrals\n"
+           "    --impropers-on/--impropers-on Impropers\n"
+           "    --vdw-on/--vdw-off VDW\n"
+           "    --vdw03-on/--vdw03-off 1-4 VDW\n"
+           "    --eleng-on/--eleng-off Coulomb electrostatics\n"
+           "    --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics\n"
+           "    --gbsa-on/gbsa-off GBSA\n"
+           "    --ace-on/ace-off ACE\n"
+           "\n"
+           "    Fixed atoms (in rec/lig mode ligand atom IDs must be increased by the number of receptor atoms)\n"
+           "\n"
+           "    --fixed-pdb PDB file with fixed atoms. Only atom ID is read (lines starting with ATOM)\n"
+           "    --fix-receptor Fix receptor atoms (works only in rec/lig mode)\n"
+           "    --fix-ligand Fix ligand atoms (works only in rec/lig mode)\n"
+           "\n"
+           "    Distance restraints\n"
+           "\n"
+           "    --pair-springs-txt Text file setup for pairwise restraints\n"
+           "    --point-springs-txt Text file setup for pointwise restraints\n"
+           "\n"
+#ifdef NOE
+           "    NOE setup\n"
+           "\n"
+           "    --noe-txt Text file setup for NOE\n"
+           "    --noe-json Json file setup for NOE\n"
+           "\n"
+#endif
+           "    Density setup\n"
+           "\n"
+           "    --density-json Json file setup for density fitting\n"
+           "\n"
+           "    Global setup in json format\n"
+           "\n"
+           "    --setup-json This file duplicates all the other options. It also allows for\n"
+           "                 multistage minimization protocol, where each stage can have\n"
+           "                 different minimization terms\n"
+           "\n"
+           "    Miscellaneous\n"
+           "\n"
+           "    --num-threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads\n"
+           "    --score-only Score only without doing minimization\n"
+           "    --help Show this message and exit\n\n");
 }

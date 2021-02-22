@@ -60,7 +60,7 @@ struct energy_prms {
 	int eleng;
 	int elengs03;
 	int gbsa;
-
+	int ace;
 	int score_only; ///< Don't perform minimizition and only output energy terms
 };
 

@@ -41,6 +41,8 @@ mol2/benergy.h
 /home/thu/Downloads/nrgmin/src/mol2/benergy.h
 mol2/gbsa.h
 /home/thu/Downloads/nrgmin/src/mol2/gbsa.h
+mol2/genborn.h
+/home/thu/Downloads/nrgmin/src/mol2/genborn.h
 mol2/nbenergy.h
 /home/thu/Downloads/nrgmin/src/mol2/nbenergy.h
 mol2/fitting.h
@@ -71,6 +73,8 @@ fenv.h
 -
 mol2/gbsa.h
 /home/thu/Downloads/nrgmin/src/mol2/gbsa.h
+mol2/genborn.h
+/home/thu/Downloads/nrgmin/src/mol2/genborn.h
 mol2/minimize.h
 /home/thu/Downloads/nrgmin/src/mol2/minimize.h
 mol2/pdb.h
@@ -173,6 +177,20 @@ atom_group.h
 /home/thu/lib/cmake/mol2/../../../include/mol2/atom_group.h
 benergy.h
 /home/thu/lib/cmake/mol2/../../../include/mol2/benergy.h
+nbenergy.h
+/home/thu/lib/cmake/mol2/../../../include/mol2/nbenergy.h
+
+/home/thu/lib/cmake/mol2/../../../include/mol2/genborn.h
+stdio.h
+-
+math.h
+-
+stdlib.h
+-
+assert.h
+-
+atom_group.h
+/home/thu/lib/cmake/mol2/../../../include/mol2/atom_group.h
 nbenergy.h
 /home/thu/lib/cmake/mol2/../../../include/mol2/nbenergy.h
 
