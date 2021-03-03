@@ -55,7 +55,8 @@ lbfgsfloatval_t energy_func(
         total_energy += term_energy;
     }
 
-    if (energy_prm->gbsa) {
+    if (energy_prm->gbsa != 0) {
+	energy_prm->ag_setup->nblst->nbcut = 13.0;
         term_energy = mol_gb_energy(energy_prm->ag, 25.0, energy_prm->ag_setup, MOL_GENBORN_OBC_2, false);
         json_object_set_new(energy_dict, "gbsa", json_real(term_energy));
         total_energy += term_energy;

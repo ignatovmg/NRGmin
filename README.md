@@ -4,8 +4,10 @@ Utility for molecular mechanics energy minimization
 ## Installation ###
 
 1. Install [libmol2](https://bitbucket.org/bu-structure/libmol2/src/master) 
-(verified to work with commit 
-[918978d](https://bitbucket.org/bu-structure/libmol2/src/918978da2c8b3929702df9f7738b1eec60190056/))
+(verified to work with commit without NOE
+[90b174e](https://bitbucket.org/bu-structure/libmol2/commits/90b174ebae0523bed7eda11b0c3fce23adb9d376)
+Check version: 0.14
+Jansson version: 2.12)
 
 2. Build minimization executable 
 

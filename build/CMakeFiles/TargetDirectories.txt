@@ -1,8 +1,0 @@
-/home/thu/Downloads/nrgmin/build/CMakeFiles/rebuild_cache.dir
-/home/thu/Downloads/nrgmin/build/CMakeFiles/edit_cache.dir
-/home/thu/Downloads/nrgmin/build/CMakeFiles/nrgmin.dir
-/home/thu/Downloads/nrgmin/build/CMakeFiles/test.dir
-/home/thu/Downloads/nrgmin/build/test/CMakeFiles/rebuild_cache.dir
-/home/thu/Downloads/nrgmin/build/test/CMakeFiles/edit_cache.dir
-/home/thu/Downloads/nrgmin/build/test/CMakeFiles/test_all.dir
-/home/thu/Downloads/nrgmin/build/test/CMakeFiles/test.dir

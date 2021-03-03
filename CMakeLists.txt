@@ -115,7 +115,6 @@ endif()
 
 if (BUILD_TESTS)
     find_package(Check REQUIRED)
-	message("asdfljk ${CHECK_VERSION}")
     enable_testing()
     add_subdirectory("test")
 endif()

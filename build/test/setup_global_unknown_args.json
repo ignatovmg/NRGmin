@@ -1,9 +1,0 @@
-{
-  "options": {
-    "pdb": "test.pdb",
-    "json": "test.json",
-    "nsteps": 100,
-    "bonds": false,
-    "wrong_argument_name": false
-  }
-}
