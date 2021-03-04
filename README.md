@@ -1,18 +1,14 @@
 # NRGmin 
 Utility for molecular mechanics energy minimization
 
-## Installation ###
+## Installation (Linux only)
 
-1. Install [libmol2](https://bitbucket.org/bu-structure/libmol2/src/master) 
-(verified to work with commit without NOE
-[90b174e](https://bitbucket.org/bu-structure/libmol2/commits/90b174ebae0523bed7eda11b0c3fce23adb9d376)
-Check version: 0.14
-Jansson version: 2.12)
+1. Install [libmol2](https://bitbucket.org/bu-structure/libmol2/src/master) (verified to work with commit [90b174e](https://bitbucket.org/bu-structure/libmol2/commits/90b174ebae0523bed7eda11b0c3fce23adb9d376), Check version: 0.14, Jansson version: 2.12)
 
 2. Build minimization executable 
 
         mkdir build && cd build
-        cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON ..
+        cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DNOE=OFF ..
         make && make test
        
 3. The binary is in `build/nrgmin`

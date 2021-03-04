@@ -337,8 +337,8 @@ static void _fixed_setup_multi_free(struct fixed_setup_multi **fixed)
                 (*fixed)->setups = NULL;
             }
             free(*fixed);
+            *fixed = NULL;
         }
-        *fixed = NULL;
     }
 }
 
@@ -457,8 +457,8 @@ static struct fixed_setup* _fixed_setup_atom_range(const size_t start_atom, cons
 static struct fixed_setup_multi* _fixed_setup_multi_atom_range(size_t size, const size_t start_atom, const size_t end_atom)
 {
     struct fixed_setup_multi* out = _fixed_setup_multi_create(size);
-    struct fixed_setup* buf = _fixed_setup_atom_range(start_atom, end_atom);
     for (size_t i = 0; i < size; i++) {
+        struct fixed_setup* buf = _fixed_setup_atom_range(start_atom, end_atom);
         out->setups[i] = buf;
     }
     return out;

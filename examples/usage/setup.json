@@ -9,17 +9,17 @@
   },
   "stages": [
     {
-      "nsteps": 1000,
+      "nsteps": 100,
       "fix_ligand": true
     },
     {
-      "nsteps": 1000,
+      "nsteps": 100,
       "fix_receptor": true
     },
     {
-      "nsteps": 1000,
+      "fix_receptor": true,
+      "nsteps": 100,
       "vdw03": false,
-      "gbsa": true,
       "pointsprings": [
         {
           "weight": 10,
@@ -51,7 +51,7 @@
       ]
     },
     {
-      "nsteps": 1000,
+      "nsteps": 100,
       "density": {
         "weight": 1000,
         "atom_radius": 2.0,

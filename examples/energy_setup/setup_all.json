@@ -2,7 +2,7 @@
     "options": {
         "vdw03": false,
         "gbsa": true,
-        "fix-receptor": true
+        "fix_receptor": true
     },
     "stages": [
         {
