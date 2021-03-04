@@ -16,30 +16,30 @@ char msg[512];
 // These functions are defined only in newer versions of check
 #ifndef ck_assert_double_eq_tol
 #define ck_assert_double_eq_tol(x, y, tol) do { \
-	sprintf(msg, "Calculated: %lf, Reference: %lf, Tolerance %lf (line %i)\n", x, y, tol, __LINE__); \
-	ck_assert_msg(fabs((x) - (y)) <= (tol), msg); \
-	} while(0);
+    sprintf(msg, "Calculated: %lf, Reference: %lf, Tolerance %lf (line %i)\n", x, y, tol, __LINE__); \
+    ck_assert_msg(fabs((x) - (y)) <= (tol), msg); \
+    } while(0);
 #endif
 
 #ifndef ck_assert_ptr_nonnull
 #define ck_assert_ptr_nonnull(x) do { \
-	sprintf(msg, "Pointer is NULL (line %i)\n", __LINE__); \
-	ck_assert_msg((x) != NULL, msg); \
-	} while(0);
+    sprintf(msg, "Pointer is NULL (line %i)\n", __LINE__); \
+    ck_assert_msg((x) != NULL, msg); \
+    } while(0);
 #endif
 
 #ifndef ck_assert_ptr_null
 #define ck_assert_ptr_null(x) do { \
-	sprintf(msg, "Pointer is not NULL (line %i)\n", __LINE__); \
-	ck_assert_msg((x) == NULL, msg); \
-	} while(0);
+    sprintf(msg, "Pointer is not NULL (line %i)\n", __LINE__); \
+    ck_assert_msg((x) == NULL, msg); \
+    } while(0);
 #endif
 
 /*static void _compare_arrays_int(const int* x, const int* y, const size_t len)
 {
     for (size_t i = 0; i < len; i++) {
-	    ck_assert_int_eq(x[i], y[i]);
-	}
+        ck_assert_int_eq(x[i], y[i]);
+    }
 }*/
 
 static void _compare_arrays_size_t(const size_t* x, const size_t* y, const size_t len)
@@ -121,11 +121,11 @@ static void test_pairspring_gradients(
 
 START_TEST(test_check_getopt_success)
 {
-	bool error;
-	struct options opts;
+    bool error;
+    struct options opts;
 
-	switch (_i) {
-	    case 0:
+    switch (_i) {
+        case 0:
             opts = options_populate_from_argv(3, (char *[]) {"sham", "sham", "-h"}, &error);
             ck_assert(!error);
             ck_assert(opts.help);
@@ -279,9 +279,9 @@ START_TEST(test_mol_atom_group_list_from_options)
     struct options opts;
     struct mol_atom_group_list *ag_list;
 
-	switch (_i) {
-	    case 0:
-	        // Pass single pdb
+    switch (_i) {
+        case 0:
+            // Pass single pdb
             opts = options_get_default();
             opts.pdb = "BACE_4_rec.pdb";
             opts.psf = "BACE_4_rec.psf";
@@ -296,8 +296,8 @@ START_TEST(test_mol_atom_group_list_from_options)
             mol_atom_group_list_free(ag_list);
             break;
 
-	    case 1:
-	        // Pass merge rec and lig
+        case 1:
+            // Pass merge rec and lig
             opts = options_get_default();
             opts.rec_pdb = "BACE_4_rec.pdb";
             opts.rec_psf = "BACE_4_rec.psf";
@@ -314,8 +314,8 @@ START_TEST(test_mol_atom_group_list_from_options)
             mol_atom_group_list_free(ag_list);
             break;
 
-	    case 2:
-	        // Pass single json
+        case 2:
+            // Pass single json
             opts = options_get_default();
             opts.json = "BACE_4_lig.json";
 
@@ -370,35 +370,35 @@ START_TEST(test_mol_atom_group_list_from_options)
             ck_assert_int_eq(ag_list->size, 2);
             break;
 
-		case 7:
-			// Fail with 3 models in rec and 2 models in lig
-			opts = options_get_default();
-			opts.rec_pdb = "BACE_4_rec_3models.pdb";
-			opts.rec_psf = "BACE_4_rec.psf";
-			opts.rec_prm = "BACE_4_rec_parm.prm";
-			opts.rec_rtf = "BACE_4_rec_pdbamino.rtf";
-			opts.lig_pdb = "BACE_4_lig_2models_far.pdb";
-			opts.lig_json = "BACE_4_lig.json";
-			opts.separate = true;
+        case 7:
+            // Fail with 3 models in rec and 2 models in lig
+            opts = options_get_default();
+            opts.rec_pdb = "BACE_4_rec_3models.pdb";
+            opts.rec_psf = "BACE_4_rec.psf";
+            opts.rec_prm = "BACE_4_rec_parm.prm";
+            opts.rec_rtf = "BACE_4_rec_pdbamino.rtf";
+            opts.lig_pdb = "BACE_4_lig_2models_far.pdb";
+            opts.lig_json = "BACE_4_lig.json";
+            opts.separate = true;
 
-			ag_list = mol_atom_group_list_from_options(&opts);
-			ck_assert_ptr_null(ag_list);
-			break;
+            ag_list = mol_atom_group_list_from_options(&opts);
+            ck_assert_ptr_null(ag_list);
+            break;
 
-		case 8:
-			// Pass with 3 models in rec and 1 models in lig
-			opts = options_get_default();
-			opts.rec_pdb = "BACE_4_rec_3models.pdb";
-			opts.rec_psf = "BACE_4_rec.psf";
-			opts.rec_prm = "BACE_4_rec_parm.prm";
-			opts.rec_rtf = "BACE_4_rec_pdbamino.rtf";
-			opts.lig_json = "BACE_4_lig.json";
-			opts.separate = true;
+        case 8:
+            // Pass with 3 models in rec and 1 models in lig
+            opts = options_get_default();
+            opts.rec_pdb = "BACE_4_rec_3models.pdb";
+            opts.rec_psf = "BACE_4_rec.psf";
+            opts.rec_prm = "BACE_4_rec_parm.prm";
+            opts.rec_rtf = "BACE_4_rec_pdbamino.rtf";
+            opts.lig_json = "BACE_4_lig.json";
+            opts.separate = true;
 
-			ag_list = mol_atom_group_list_from_options(&opts);
-			ck_assert_ptr_nonnull(ag_list);
-			ck_assert_int_eq(ag_list->size, 3);
-			break;
+            ag_list = mol_atom_group_list_from_options(&opts);
+            ck_assert_ptr_nonnull(ag_list);
+            ck_assert_int_eq(ag_list->size, 3);
+            break;
     }
 }
 
@@ -434,7 +434,7 @@ START_TEST(test_energy_prm_from_flags)
             opts.rec_natoms = 1000;
             opts.lig_natoms = 100;
             opts.fix_ligand = true;
-			opts.num_models = 1;
+            opts.num_models = 1;
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
@@ -460,10 +460,10 @@ START_TEST(test_energy_prm_from_flags)
         case 3:
             // Pass with fix pdb
             opts = options_get_default();
-			opts.pdb = "BACE_4_rec.pdb";
-			opts.score_only = true;
+            opts.pdb = "BACE_4_rec.pdb";
+            opts.score_only = true;
             opts.fixed_pdb = "BACE_4_rec.pdb";
-			ck_assert_ptr_nonnull(mol_atom_group_list_from_options(&opts));
+            ck_assert_ptr_nonnull(mol_atom_group_list_from_options(&opts));
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms->fixed->setups[0]->natoms, 3598);
@@ -573,7 +573,7 @@ START_TEST(test_energy_prm_from_flags)
             opts.score_only = true;
             opts.fixed_pdb = "BACE_4_lig_far_fixed.pdb";
 
-			ck_assert_ptr_nonnull(mol_atom_group_list_from_options(&opts));
+            ck_assert_ptr_nonnull(mol_atom_group_list_from_options(&opts));
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
             ck_assert_int_eq(prms[0].fixed->setups[0]->natoms, 20);
@@ -599,7 +599,7 @@ START_TEST(test_energy_prm_from_json)
             opts.separate = true;
             opts.rec_natoms = 1000;
             opts.setup_json = "setup_fixed_flag.json";
-			opts.num_models = 1;
+            opts.num_models = 1;
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);
@@ -612,7 +612,7 @@ START_TEST(test_energy_prm_from_json)
             opts = options_get_default();
             opts.separate = false;
             opts.setup_json = "setup_fixed_flag.json";
-			opts.num_models = 1;
+            opts.num_models = 1;
 
             ck_assert(!energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_null(prms);
@@ -622,7 +622,7 @@ START_TEST(test_energy_prm_from_json)
             // Pass fix rec
             opts = options_get_default();
             opts.setup_json = "setup_fixed_json.json";
-			opts.num_models = 1;
+            opts.num_models = 1;
 
             ck_assert(energy_prms_populate_from_options(&prms, &nstages, opts));
             ck_assert_ptr_nonnull(prms);

@@ -106,12 +106,12 @@ void options_free(struct options opts)
         json_decref(opts.setup_json_root);
     }
     if (opts.out_prefix != NULL) {
-    	if (opts.out_pdb && opts._out_dyn) {
-			free(opts.out_pdb);
-		}
-		if (opts.out_json && opts._out_dyn) {
-			free(opts.out_json);
-		}
+        if (opts.out_pdb && opts._out_dyn) {
+            free(opts.out_pdb);
+        }
+        if (opts.out_json && opts._out_dyn) {
+            free(opts.out_json);
+        }
     }
 }
 
@@ -202,12 +202,12 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
 
 static size_t _line_length(const char* s)
 {
-	size_t size = 0;
-	while (1) {
-		if (s[size++] == '\0') {
-			return size;
-		}
-	}
+    size_t size = 0;
+    while (1) {
+        if (s[size++] == '\0') {
+            return size;
+        }
+    }
 }
 
 
@@ -297,16 +297,16 @@ static bool _check_flags_and_fill_from_json(struct options *opts)
     //	return false;
     //}
     if (opts->out_prefix != NULL) {
-    	// Fill out_pdb and out_json if out_prefix is specified. Static arrays are replaced with
-    	// dynamic ones, so they need to be freed in the end
-    	size_t out_len = _line_length(opts->out_prefix);
-		opts->out_pdb  = calloc(out_len + 4, sizeof(char));
-		opts->out_json = calloc(out_len + 5, sizeof(char));
-		memcpy(opts->out_pdb,  opts->out_prefix, out_len * sizeof(char));
-		memcpy(opts->out_json, opts->out_prefix, out_len * sizeof(char));
-		memcpy(opts->out_pdb + out_len - 1,  ".pdb", 5 * sizeof(char));
-		memcpy(opts->out_json + out_len - 1,  ".json", 6 * sizeof(char));
-		opts->_out_dyn = true;
+        // Fill out_pdb and out_json if out_prefix is specified. Static arrays are replaced with
+        // dynamic ones, so they need to be freed in the end
+        size_t out_len = _line_length(opts->out_prefix);
+        opts->out_pdb  = calloc(out_len + 4, sizeof(char));
+        opts->out_json = calloc(out_len + 5, sizeof(char));
+        memcpy(opts->out_pdb,  opts->out_prefix, out_len * sizeof(char));
+        memcpy(opts->out_json, opts->out_prefix, out_len * sizeof(char));
+        memcpy(opts->out_pdb + out_len - 1,  ".pdb", 5 * sizeof(char));
+        memcpy(opts->out_json + out_len - 1,  ".json", 6 * sizeof(char));
+        opts->_out_dyn = true;
     }
 
 #ifndef NOE
@@ -328,7 +328,7 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
             {
                     {"out-pdb",              required_argument, 0,                 0},
                     {"out-json",             required_argument, 0,                 0},
-					{"out-prefix",           required_argument, 0,                 0},
+                    {"out-prefix",           required_argument, 0,                 0},
                     {"verbosity",            required_argument, 0,                 0},
                     {"num-threads",          required_argument, 0,                 0},
 
@@ -425,7 +425,7 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
         _FILL_PARAM(prms.out_pdb, optarg);
         _FILL_PARAM(prms.out_json, optarg);
-		_FILL_PARAM(prms.out_prefix, optarg);
+        _FILL_PARAM(prms.out_prefix, optarg);
         _FILL_PARAM(prms.psf, optarg);
         _FILL_PARAM(prms.prm, optarg);
         _FILL_PARAM(prms.rtf, optarg);
