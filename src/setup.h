@@ -52,16 +52,16 @@ struct energy_prms {
 
     int nsteps; ///< Max number of steps during minimization
     int bonds; ///< Flags
-	int angles;
-	int dihedrals;
-	int impropers;
-	int vdw;
-	int vdw03;
-	int eleng;
-	int elengs03;
-	int gbsa;
-	int ace;
-	int score_only; ///< Don't perform minimizition and only output energy terms
+    int angles;
+    int dihedrals;
+    int impropers;
+    int vdw;
+    int vdw03;
+    int eleng;
+    int elengs03;
+    int gbsa;
+    int ace;
+    int score_only; ///< Don't perform minimizition and only output energy terms
 };
 
 #ifdef NOE
@@ -115,9 +115,9 @@ struct fixed_setup {
 };
 
 struct fixed_setup_multi {
-	size_t size;
-	struct fixed_setup** setups;
-	size_t ref_count;
+    size_t size;
+    struct fixed_setup** setups;
+    size_t ref_count;
 };
 
 

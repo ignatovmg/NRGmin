@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
                 stage_prms->ag = ag;
 
                 if (stage_prms->fixed) {
-		    mol_fixed_update(ag, stage_prms->fixed->setups[modeli]->natoms, stage_prms->fixed->setups[modeli]->atoms);
+                    mol_fixed_update(ag, stage_prms->fixed->setups[modeli]->natoms, stage_prms->fixed->setups[modeli]->atoms);
                 } else {
                     mol_fixed_update(ag, 0, NULL);
                 }
