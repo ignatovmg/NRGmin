@@ -45,23 +45,23 @@ struct energy_prms {
     struct pairsprings_setup *sprst_pairs; ///< Pairwise distance restraints
     struct pointsprings_setup *sprst_points; ///< Pointwise distance restraints
     struct density_setup *density; ///< Density fitting
-    struct fixed_setup *fixed; ///< Fixed atoms
+    struct fixed_setup_multi *fixed; ///< Fixed atoms for all models
 #ifdef NOE
     struct noe_setup *nmr; ///< NOE matrix restraints
 #endif
 
     int nsteps; ///< Max number of steps during minimization
-    bool bonds; ///< Flags
-    bool angles;
-    bool dihedrals;
-    bool impropers;
-    bool vdw;
-    bool vdw03;
-    bool eleng;
-    bool elengs03;
-    bool gbsa;
+    int bonds; ///< Flags
+    int angles;
+    int dihedrals;
+    int impropers;
+    int vdw;
+    int vdw03;
+    int eleng;
+    int elengs03;
+    int gbsa;
 
-    bool score_only; ///< Don't perform minimizition and only output energy terms
+    int score_only; ///< Don't perform minimizition and only output energy terms
 };
 
 #ifdef NOE
@@ -112,6 +112,12 @@ struct pointsprings_setup {
 struct fixed_setup {
     size_t natoms;
     size_t *atoms;
+};
+
+struct fixed_setup_multi {
+    size_t size;
+    struct fixed_setup** setups;
+    size_t ref_count;
 };
 
 

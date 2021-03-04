@@ -23,6 +23,8 @@
 struct options {
     char* out_pdb; ///< Where to write the minimized molecule(s)
     char* out_json; ///< Log file with energy terms
+    char* out_prefix; ///< Sets the above two options
+    bool _out_dyn;
 
     int print_step; ///< Log energies for every step
     int print_stage; ///< Log energies for every stage
@@ -31,6 +33,8 @@ struct options {
     bool separate; ///< Receptor and ligand provided separately
     size_t rec_natoms; ///< Number of atoms in receptor (set to zero in single file mode)
     size_t lig_natoms; ///< Number of atoms in ligand (set to zero in single file mode)
+    struct mol_atom_group_list *ag_list; ///< Atom group to minimize
+    size_t num_models;
 
     ///< Parameters for single file mode
     char* psf;
