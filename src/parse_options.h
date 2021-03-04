@@ -81,6 +81,7 @@ struct options {
     int vdw03;
     int eleng;
     int elengs03;
+    int ace;
     int gbsa;
 
     int fix_receptor; ///< Works only rec/lig mode

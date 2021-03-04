@@ -4,6 +4,7 @@
 
 #include "mol2/benergy.h"
 #include "mol2/gbsa.h"
+#include "mol2/genborn.h"
 #include "mol2/nbenergy.h"
 #include "mol2/fitting.h"
 
@@ -50,6 +51,13 @@ lbfgsfloatval_t energy_func(
     if (energy_prm->ace_setup != NULL) {
         term_energy = 0.0;
         aceeng(energy_prm->ag, &term_energy, energy_prm->ace_setup, energy_prm->ag_setup);
+        json_object_set_new(energy_dict, "ace", json_real(term_energy));
+        total_energy += term_energy;
+    }
+
+    if (energy_prm->gbsa != 0) {
+	energy_prm->ag_setup->nblst->nbcut = 13.0;
+        term_energy = mol_gb_energy(energy_prm->ag, 25.0, energy_prm->ag_setup, MOL_GENBORN_OBC_2, false);
         json_object_set_new(energy_dict, "gbsa", json_real(term_energy));
         total_energy += term_energy;
     }
@@ -137,7 +145,7 @@ lbfgsfloatval_t energy_func(
 
 #ifdef NOE
     if (energy_prm->nmr != NULL) {
-        mol_noe_calc_peaks(energy_prm->nmr->spec, energy_prm->ag, true, true);
+        mol_noe_calc_peaks(energy_prm->nmr->spec, energy_prm->ag, true);
         mol_noe_calc_energy(
                 energy_prm->nmr->spec,
                 energy_prm->ag->gradients,
