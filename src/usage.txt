@@ -75,7 +75,6 @@ Examples of different minimization setups can be found in examples/energy_setup.
 
     NOE setup (available with -DNOE=ON during build)
 
-    --noe-txt Text file setup for NOE
     --noe-json Json file setup for NOE
 
     Density setup

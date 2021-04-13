@@ -61,7 +61,6 @@ struct options {
     char* pair_springs_txt; ///< Text file setup for pairwise restraints
     char* point_springs_txt; ///< Text file setup for pointwise restraints
 
-    char* noe_txt; ///< Text file setup for NOE
     char* noe_json; ///< Json file setup for NOE
 
     char* density_json; ///< Json file setup for density fitting

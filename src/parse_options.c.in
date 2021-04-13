@@ -67,7 +67,6 @@ struct options options_get_default()
             .pair_springs_txt = NULL,
             .point_springs_txt = NULL,
 
-            .noe_txt = NULL,
             .noe_json = NULL,
 
             .density_json = NULL,
@@ -141,7 +140,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "{s?i, s?i, s?i "
             " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
-            " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
+            " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
 
             // integer options
             "nsteps", &opts->nsteps,
@@ -188,7 +187,6 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "fixed_pdb", &opts->fixed_pdb,
             "pair_springs_txt", &opts->pair_springs_txt,
             "point_springs_txt", &opts->point_springs_txt,
-            "noe_txt", &opts->noe_txt,
             "noe_json", &opts->noe_json,
             "density_json", &opts->density_json
     );
@@ -316,7 +314,7 @@ static bool _check_flags_and_fill_from_json(struct options *opts)
     }
 
 #ifndef NOE
-    if (opts->noe_txt || opts->noe_json) {
+    if (opts->noe_json) {
         ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
         return false;
     }
@@ -452,7 +450,6 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
         _FILL_PARAM(prms.fixed_pdb, optarg);
         _FILL_PARAM(prms.pair_springs_txt, optarg);
         _FILL_PARAM(prms.point_springs_txt, optarg);
-        _FILL_PARAM(prms.noe_txt, optarg);
         _FILL_PARAM(prms.noe_json, optarg);
         _FILL_PARAM(prms.density_json, optarg);
         _FILL_PARAM(prms.setup_json, optarg);

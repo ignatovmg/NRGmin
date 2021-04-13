@@ -853,80 +853,6 @@ static void _noe_setup_free(struct noe_setup **noe) {
 }
 
 
-#define READ_WORD(f, word, line) do { \
-    (word) = NULL; \
-    while (fgets(line, 512, f) != NULL) { \
-        if ((line)[0] != '#') { \
-            (word) = strtok((line), " \t\n"); \
-            if ((word) == NULL || (word)[0] == '#') { \
-                ERR_MSG("Line cannot be empty"); \
-            } \
-            break; \
-        } \
-    } \
-} while(0)
-
-
-static struct noe_setup *_noe_setup_read_txt(const char *path) {
-    WRN_MSG("You are reading NOE in txt format. This is a legacy "
-            "format and will be removed in the future versions.");
-
-    char line[512];
-    FILE *f;
-    FOPEN_ELSE(f, path, "r") {
-        return NULL;
-    }
-    struct noe_setup *nmr = calloc(1, sizeof(struct noe_setup));
-
-    char *word;
-    READ_WORD(f, word, line);
-    char groups_path[512];
-    strcpy(groups_path, word);
-
-    READ_WORD(f, word, line);
-    char matrix_path[512];
-    strcpy(matrix_path, word);
-
-    READ_WORD(f, word, line);
-    double freq = atof(word);
-
-    READ_WORD(f, word, line);
-    double corr_time = atof(word);
-
-    READ_WORD(f, word, line);
-    double mix_time = atof(word);
-
-    READ_WORD(f, word, line);
-    double dist_cutoff = atof(word);
-
-    READ_WORD(f, word, line);
-    bool mask_on = false;
-    if (strcmp(word, "on") == 0) {
-        mask_on = true;
-    } else if (strcmp(word, "off\0") != 0) {
-        ERR_MSG("Wrong value (on/off)");
-    }
-
-    READ_WORD(f, word, line);
-    double weight = atof(word);
-
-    fclose(f);
-
-    struct mol_noe_group_list *groups = mol_noe_group_list_read_txt(groups_path);
-    nmr->spec = mol_noe_create(groups, freq, corr_time, mix_time, dist_cutoff);
-    mol_noe_alloc_grad(nmr->spec);
-
-    int *mask = NULL;
-    if (mask_on) {
-        mask = calloc(groups->ngroups * groups->ngroups, sizeof(int));
-    }
-    nmr->spec->exp = mol_noe_matrix_read_txt_stacked(matrix_path, groups->ngroups, mask);
-    nmr->weight = weight;
-
-    return nmr;
-}
-
-
 static struct noe_setup *_noe_setup_read_json(json_t *root) {
     struct mol_noe* noe = mol_noe_from_json_object(root);
     if (!noe) {
@@ -1090,29 +1016,6 @@ bool energy_prms_populate_from_options(
 
         if (!all_stage_prms->nmr) {
             ERR_MSG("Couldn't parse NOE from %s", opts.noe_json);
-            energy_prms_free(&all_stage_prms, nstages);
-            return false;
-        }
-#else
-        ERR_MSG("Rebuild NRGmin with -DNOE=ON to use NOE spectrum fitting");
-        energy_prms_free(&all_stage_prms, nstages);
-        return false;
-#endif
-    }
-
-    if (opts.noe_txt) {
-        DEBUG_MSG("Parsing %s", opts.noe_txt);
-#ifdef NOE
-        if (all_stage_prms->nmr) {
-            ERR_MSG("Cannot use NOE txt and json formats at the same time");
-            energy_prms_free(&all_stage_prms, nstages);
-            return false;
-        }
-
-        all_stage_prms->nmr = _noe_setup_read_txt(opts.noe_txt);
-
-        if (!all_stage_prms->nmr) {
-            ERR_MSG("Couldn't parse NOE from %s", opts.noe_txt);
             energy_prms_free(&all_stage_prms, nstages);
             return false;
         }

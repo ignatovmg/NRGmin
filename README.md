@@ -275,8 +275,7 @@ Distance restraints
             --point-springs-txt Text file setup for pointwise restraints
         
 NOE setup
-        
-            --noe-txt Text file setup for NOE
+
             --noe-json Json file setup for NOE
         
 Density setup
