@@ -145,7 +145,7 @@ lbfgsfloatval_t energy_func(
 
 #ifdef NOE
     if (energy_prm->nmr != NULL) {
-        mol_noe_calc_peaks(energy_prm->nmr->spec, energy_prm->ag, true);
+        mol_noe_calc_peaks(energy_prm->nmr->spec, energy_prm->ag, true, false);
         mol_noe_calc_energy(
                 energy_prm->nmr->spec,
                 energy_prm->ag->gradients,
