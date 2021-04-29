@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
 
             struct agsetup ag_setup;
             init_nblst(ag, &ag_setup);
+            ag_setup.nblst->nbcut = 13.0;
 
             // Run stages of minimization
             for (size_t stage_id = 0; stage_id < nstages; stage_id++) {

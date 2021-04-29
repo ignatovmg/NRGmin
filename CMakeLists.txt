@@ -28,8 +28,8 @@ endif()
 
 if (USE_SANITIZER)
     set(SANITIZER_FLAGS "-fno-omit-frame-pointer -fsanitize=address,undefined")
-    add_compile_options(${SANITIZER_FLAGS})
-    add_link_options(${SANITIZER_FLAGS})
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  ${SANITIZER_FLAGS}")
 endif()
 
 if (NOE)
@@ -65,14 +65,6 @@ configure_file (
         "${PROJECT_BINARY_DIR}/parse_options.c"
 )
 
-set(SRC_LIST
-        ${PROJECT_SOURCE_DIR}/src/setup.c
-        ${PROJECT_SOURCE_DIR}/src/utils.c
-        ${PROJECT_SOURCE_DIR}/src/energy.c
-        ${PROJECT_BINARY_DIR}/parse_options.c)
-
-add_executable(nrgmin ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
-
 if (USE_LTO)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT result)
@@ -80,6 +72,14 @@ if (USE_LTO)
         set(USE_LTO OFF)
     endif()
 endif()
+
+set(SRC_LIST
+        ${PROJECT_SOURCE_DIR}/src/setup.c
+        ${PROJECT_SOURCE_DIR}/src/utils.c
+        ${PROJECT_SOURCE_DIR}/src/energy.c
+        ${PROJECT_BINARY_DIR}/parse_options.c)
+
+add_executable(nrgmin ${PROJECT_SOURCE_DIR}/src/minimize.c ${SRC_LIST})
 
 if (USE_LTO)
     set_target_properties(nrgmin PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
