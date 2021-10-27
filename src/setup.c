@@ -942,6 +942,14 @@ bool energy_prms_populate_from_options(
     all_stage_prms->ace = opts.ace;
     all_stage_prms->gbsa = opts.gbsa;
 
+    all_stage_prms->tol = opts.tol;
+    all_stage_prms->nbcut = opts.nbcut;
+    all_stage_prms->ace_efac = opts.ace_efac;
+    all_stage_prms->scale_vdw_s03 = opts.scale_vdw_s03;
+    all_stage_prms->scale_coul_s03 = opts.scale_coul_s03;
+    all_stage_prms->eeps = opts.eeps;
+    all_stage_prms->gbcut = opts.gbcut;
+
     all_stage_prms->score_only = opts.score_only;
 
     all_stage_prms->json_log_setup.print_step = opts.print_step;
@@ -1093,7 +1101,8 @@ bool energy_prms_populate_from_options(
             DEBUG_MSG("Unpacking options");
             int code = json_unpack_ex(
                     stage_desc, &j_error, 0,
-                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i}",
+                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i, "
+                    " s?f, s?f, s?f, s?f, s?f, s?f, s?f}",
                     "bonds", &stage_prms->bonds,
                     "angles", &stage_prms->angles,
                     "dihedrals", &stage_prms->dihedrals,
@@ -1107,7 +1116,17 @@ bool energy_prms_populate_from_options(
                     "fix_receptor", &stage_fix_rec,
                     "fix_ligand", &stage_fix_lig,
                     "score_only", &stage_prms->score_only,
-                    "nsteps", &stage_prms->nsteps);
+                    "nsteps", &stage_prms->nsteps,
+
+                    // float options
+                    "tol", &stage_prms->tol,
+                    "nbcut", &stage_prms->nbcut,
+                    "ace_efac", &stage_prms->ace_efac,
+                    "scale_vdw_s03", &stage_prms->scale_vdw_s03,
+                    "scale_coul_s03", &stage_prms->scale_coul_s03,
+                    "eeps", &stage_prms->eeps,
+                    "gbcut", &stage_prms->gbcut
+                    );
 
             if (code != 0) {
                 JSON_ERR_MSG(j_error, "Couldn't parse stage flags in json");

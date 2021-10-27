@@ -62,6 +62,14 @@ struct energy_prms {
     int gbsa;
     int ace;
     int score_only; ///< Don't perform minimizition and only output energy terms
+
+    double tol; ///< Tolerance during minimization (default 5e-4)
+    double nbcut; ///< Non-bonded cutoff (default 13.0)
+    double ace_efac; ///< default 0.5
+    double scale_vdw_s03; ///< default 1.0
+    double scale_coul_s03; ///< default 0.8333333
+    double eeps; ///< Water epsilon (default 80.0)
+    double gbcut; ///< GB cutoff for descreening and effective bondii calculation. (default 25.0 from Amber)
 };
 
 #ifdef NOE

@@ -63,6 +63,16 @@ Examples of different minimization setups can be found in examples/energy_setup.
     --ace_on/--ace_off ACE
     --gbsa_on/--gbsa_off GBSA
 
+    Energy parameters.
+
+    --tol Tolerance during minimization (default 5e-4)
+    --nbcut Non-bonded cutoff (default 13.0)
+    --ace_efac ACE efac (default 0.5)
+    --scale_vdw_s03 (default 1.0)
+    --scale_coul_s03 (default 0.8333333)
+    --eeps Water epsilon (default 80.0)
+    --gbcut GB cutoff for descreening and effective bondii calculation. (default 25.0 from Amber)
+
     Fixed atoms
 
     --fixed_pdb PDB file with fixed atoms (uses coordinates, not atom IDs)

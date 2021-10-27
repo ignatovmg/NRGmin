@@ -83,6 +83,14 @@ struct options {
     int ace;
     int gbsa;
 
+    double tol; ///< Tolerance during minimization (default 5e-4)
+    double nbcut; ///< Non-bonded cutoff (default 13.0)
+    double ace_efac; ///< default 0.5
+    double scale_vdw_s03; ///< default 1.0
+    double scale_coul_s03; ///< default 0.8333333
+    double eeps; ///< Water epsilon (default 80.0)
+    double gbcut; ///< GB cutoff for descreening and effective bondii calculation. (default 25.0 from Amber)
+
     int fix_receptor; ///< Works only rec/lig mode
     int fix_ligand; ///< Works only rec/lig mode
     int score_only; ///< Score without doing minimization

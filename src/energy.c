@@ -21,14 +21,14 @@ lbfgsfloatval_t energy_func(
         const int array_size,
         __attribute__((unused)) const lbfgsfloatval_t step) {
 
-    static const double scale_vdw_s03 = 1.0;
-    static const double scale_coul_s03 = 0.8333333;
-    static const double eeps = 80.0;
-
     lbfgsfloatval_t total_energy = 0.0;
     lbfgsfloatval_t term_energy;
 
     struct energy_prms *energy_prm = (struct energy_prms *) prm;
+    const double scale_vdw_s03 = energy_prm->scale_vdw_s03;
+    const double scale_coul_s03 = energy_prm->scale_coul_s03;
+    const double eeps = energy_prm->eeps;
+
     json_t* energy_dict = json_object();
     if (energy_prm->json_log) {
         json_array_append_new(energy_prm->json_log, energy_dict);
@@ -56,7 +56,7 @@ lbfgsfloatval_t energy_func(
     }
 
     if (energy_prm->gbsa != 0) {
-        term_energy = mol_gbsa_energy(energy_prm->ag, 25.0, energy_prm->ag_setup, MOL_GENBORN_OBC_2);
+        term_energy = mol_gbsa_energy(energy_prm->ag, energy_prm->gbcut, energy_prm->ag_setup, MOL_GENBORN_OBC_2);
         json_object_set_new(energy_dict, "gbsa", json_real(term_energy));
         total_energy += term_energy;
     }

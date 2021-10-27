@@ -22,6 +22,17 @@
 } while (0)
 
 
+#define _FILL_DOUBLE_PARAM(arg) do {                                                           \
+    if (strcmp(#arg, long_options[option_index].name) == 0) {                                  \
+        if (sscanf(optarg, "%lf", &prms. arg) != 1) {                                          \
+            ERR_MSG("Wrong value provided for --%s", long_options[option_index].name);         \
+            *error = true;                                                                     \
+            return prms;                                                                       \
+        }                                                                                      \
+    }                                                                                          \
+} while (0)
+
+
 struct options options_get_default()
 {
     struct options prms = {
@@ -83,6 +94,14 @@ struct options options_get_default()
             .ace = 0,
             .gbsa = 0,
 
+            .tol = 5e-4,
+            .nbcut = 13.0,
+            .ace_efac = 0.5,
+            .scale_vdw_s03 = 1.0,
+            .scale_coul_s03 = 0.8333333,
+            .eeps = 80.0,
+            .gbcut = 25.0,
+
             .verbosity = DEBUG,
             .fix_receptor = 0,
             .fix_ligand = 0,
@@ -136,7 +155,8 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "{s?i, s?i, s?i "
             " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
-            " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
+            " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
+            " s?f, s?f, s?f, s?f, s?f, s?f, s?f}",
 
             // integer options
             "nsteps", &opts->nsteps,
@@ -184,7 +204,16 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "pair_springs_txt", &opts->pair_springs_txt,
             "point_springs_txt", &opts->point_springs_txt,
             "noe_json", &opts->noe_json,
-            "density_json", &opts->density_json
+            "density_json", &opts->density_json,
+
+            // float options
+            "tol", &opts->tol,
+            "nbcut", &opts->nbcut,
+            "ace_efac", &opts->ace_efac,
+            "scale_vdw_s03", &opts->scale_vdw_s03,
+            "scale_coul_s03", &opts->scale_coul_s03,
+            "eeps", &opts->eeps,
+            "gbcut", &opts->gbcut
     );
 
     if (code != 0) {
@@ -368,6 +397,14 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
                     {"nsteps",               required_argument, 0,                 0},
 
+                    {"tol",                  required_argument, 0,                 0},
+                    {"nbcut",                required_argument, 0,                 0},
+                    {"ace_efac",             required_argument, 0,                 0},
+                    {"scale_vdw_s03",        required_argument, 0,                 0},
+                    {"scale_coul_s03",       required_argument, 0,                 0},
+                    {"eeps",                 required_argument, 0,                 0},
+                    {"gbcut",                required_argument, 0,                 0},
+
                     {"bonds_on",             no_argument,  &prms.bonds,            1},
                     {"bonds_off",            no_argument,  &prms.bonds,            0},
                     {"angles_on",            no_argument,  &prms.angles,           1},
@@ -471,6 +508,14 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                 return prms;
             }
         }
+
+        _FILL_DOUBLE_PARAM(tol);
+        _FILL_DOUBLE_PARAM(nbcut);
+        _FILL_DOUBLE_PARAM(ace_efac);
+        _FILL_DOUBLE_PARAM(scale_vdw_s03);
+        _FILL_DOUBLE_PARAM(scale_coul_s03);
+        _FILL_DOUBLE_PARAM(eeps);
+        _FILL_DOUBLE_PARAM(gbcut);
     }
 
     if (!_check_flags_and_fill_from_json(&prms)) {
@@ -485,5 +530,5 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
 void usage_message(char *const *argv) {
     fprintf(stderr, "\nUsage %s [ options ]\n\n", argv[0]);
-    fprintf(stderr, "@USAGE_TEXT@");
+    fprintf(stderr, "@USAGE_TEXT@\n\n");
 }
