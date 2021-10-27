@@ -102,5 +102,6 @@ Examples of different minimization setups can be found in examples/energy_setup.
 
     --num_threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads
     --score_only Score without doing minimization
+    --pull_ligand_away Pull ligand 200 A away from rec COM, often combined with --score_only
     --help Show this message and exit
 

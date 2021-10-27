@@ -62,6 +62,7 @@ struct energy_prms {
     int gbsa;
     int ace;
     int score_only; ///< Don't perform minimizition and only output energy terms
+    int pull_ligand_away; ///< Pull ligand 200 A away from rec COM
 
     double tol; ///< Tolerance during minimization (default 5e-4)
     double nbcut; ///< Non-bonded cutoff (default 13.0)
@@ -152,6 +153,12 @@ void energy_prms_free(struct energy_prms **prms, size_t nstages);
  * @return List of atom groups to minimize
  */
 struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *opts);
+
+
+/**
+ * Compute vec = lig_COM - rec_COM and move ligand along it by dist
+ */
+void pull_ligand_away(struct mol_atom_group* ag, size_t rec_size, double dist);
 
 
 #endif //ENERGYMIN_SETUP_H

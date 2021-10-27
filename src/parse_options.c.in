@@ -106,6 +106,7 @@ struct options options_get_default()
             .fix_receptor = 0,
             .fix_ligand = 0,
             .score_only = 0,
+            .pull_ligand_away = 0,
             .help = 0,
 
             .num_threads = 0
@@ -153,7 +154,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             dict, &error, JSON_STRICT,
 
             "{s?i, s?i, s?i "
-            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
+            " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
             " s?f, s?f, s?f, s?f, s?f, s?f, s?f}",
@@ -180,6 +181,7 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "print_step", &opts->print_step,
             "print_stage", &opts->print_stage,
             "print_noe_matrix", &opts->print_noe_matrix,
+            "pull_ligand_away", &opts->pull_ligand_away,
 
             // char options
             "out_pdb", &opts->out_pdb,
@@ -321,6 +323,11 @@ static bool _check_flags_and_fill_from_json(struct options *opts)
         return false;
     }
 
+    if ((!opts->separate) && opts->pull_ligand_away) {
+        ERR_MSG("Option 'pull_ligand_away' can be provided only in rec/lig mode");
+        return false;
+    }
+
     //if (opts->out_prefix && (opts->out_pdb || opts->out_json)) {
     //	ERR_MSG("Flag out-prefix cannot be combined with out-pdb or out-json");
     //	return false;
@@ -429,6 +436,7 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                     {"fix_receptor",         no_argument,  &prms.fix_receptor,     1},
                     {"fix_ligand",           no_argument,  &prms.fix_ligand,       1},
                     {"score_only",           no_argument,  &prms.score_only,       1},
+                    {"pull_ligand_away",     no_argument,  &prms.pull_ligand_away, 1},
                     {"help",                 no_argument,  0,                    'h'},
 
                     {0,                      0,            0,                      0}

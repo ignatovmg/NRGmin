@@ -94,6 +94,7 @@ struct options {
     int fix_receptor; ///< Works only rec/lig mode
     int fix_ligand; ///< Works only rec/lig mode
     int score_only; ///< Score without doing minimization
+    int pull_ligand_away; ///< Pull ligand 200 A away from rec COM
 
     int verbosity; ///< Levels 0 - QUIET, 1 - ERROR, 2 - WARNING, 3- INFO, 4 - DEBUG
 

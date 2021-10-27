@@ -184,6 +184,12 @@ int main(int argc, char **argv) {
                     stage_prms->json_log = NULL;
                 }
 
+                struct mol_atom_group* ag_copy;
+                if (stage_prms->pull_ligand_away) {
+                    ag_copy = mol_atom_group_copy(stage_prms->ag);
+                    pull_ligand_away(stage_prms->ag, opts.rec_natoms, 200);
+                }
+
                 // Record final energy
                 if (stage_prms->json_log_setup.print_stage) {
                     stage_prms->json_log = json_array();
@@ -218,6 +224,11 @@ int main(int argc, char **argv) {
                     json_object_set_new(json_log_stage, "final", final_energy);
                     json_decref(stage_prms->json_log);
                     stage_prms->json_log = NULL;
+                }
+
+                if (stage_prms->pull_ligand_away) {
+                    memcpy(stage_prms->ag->coords, ag_copy->coords, ag_copy->natoms * sizeof(struct mol_vector3));
+                    mol_atom_group_free(ag_copy);
                 }
 
                 json_array_append_new(json_log_model, json_log_stage);

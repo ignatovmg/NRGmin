@@ -951,6 +951,7 @@ bool energy_prms_populate_from_options(
     all_stage_prms->gbcut = opts.gbcut;
 
     all_stage_prms->score_only = opts.score_only;
+    all_stage_prms->pull_ligand_away = opts.pull_ligand_away;
 
     all_stage_prms->json_log_setup.print_step = opts.print_step;
     all_stage_prms->json_log_setup.print_stage = opts.print_stage;
@@ -1101,7 +1102,7 @@ bool energy_prms_populate_from_options(
             DEBUG_MSG("Unpacking options");
             int code = json_unpack_ex(
                     stage_desc, &j_error, 0,
-                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i, "
+                    "{s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s:i, "
                     " s?f, s?f, s?f, s?f, s?f, s?f, s?f}",
                     "bonds", &stage_prms->bonds,
                     "angles", &stage_prms->angles,
@@ -1116,6 +1117,7 @@ bool energy_prms_populate_from_options(
                     "fix_receptor", &stage_fix_rec,
                     "fix_ligand", &stage_fix_lig,
                     "score_only", &stage_prms->score_only,
+                    "pull_ligand_away", &stage_prms->pull_ligand_away,
                     "nsteps", &stage_prms->nsteps,
 
                     // float options
@@ -1141,6 +1143,12 @@ bool energy_prms_populate_from_options(
 
             if ((stage_fix_rec || stage_fix_lig) && !opts.separate) {
                 ERR_MSG("You can't provide fix-* flags in a single file mode");
+                error = true;
+                break;
+            }
+
+            if ((!opts.separate) && stage_prms->pull_ligand_away) {
+                ERR_MSG("Option 'pull_ligand_away' can be used only in rec/lig mode");
                 error = true;
                 break;
             }
@@ -1242,4 +1250,29 @@ bool energy_prms_populate_from_options(
     *result_nstages = nstages;
 
     return true;
+}
+
+
+void pull_ligand_away(struct mol_atom_group* ag, size_t rec_size, double dist)
+{
+    struct mol_vector3 rec_com = {0., 0., 0.};
+    for (size_t i = 0; i < rec_size; i++) {
+        MOL_VEC_ADD(rec_com, rec_com, ag->coords[i]);
+    }
+    MOL_VEC_DIV_SCALAR(rec_com, rec_com, rec_size);
+
+    struct mol_vector3 lig_com = {0., 0., 0.};
+    for (size_t i = rec_size; i < ag->natoms; i++) {
+        MOL_VEC_ADD(lig_com, lig_com, ag->coords[i]);
+    }
+    MOL_VEC_DIV_SCALAR(lig_com, lig_com, ag->natoms - rec_size);
+
+    struct mol_vector3 tv;
+    MOL_VEC_SUB(tv, lig_com, rec_com);
+    double mult = dist / (sqrt(MOL_VEC_SQ_NORM(tv)) + 1e-6);
+    MOL_VEC_MULT_SCALAR(tv, tv, mult);
+
+    for (size_t i = rec_size; i < ag->natoms; i++) {
+        MOL_VEC_ADD(ag->coords[i], ag->coords[i], tv);
+    }
 }
