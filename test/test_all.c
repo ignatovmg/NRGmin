@@ -905,6 +905,8 @@ Suite *lists_suite(void)
 
 int main(void)
 {
+    VERBOSITY = QUIET;
+
     Suite *suite = lists_suite();
     SRunner *runner = srunner_create(suite);
     srunner_run_all(runner, CK_ENV);

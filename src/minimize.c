@@ -91,6 +91,8 @@ int main(int argc, char **argv) {
     #endif
 
         // Create local copy of energy prms for each thread
+        // TODO: move this outside of omp parallel and implement
+        //       energy_prms_copy() function in setup.c
         struct energy_prms* min_prms;
         size_t nstages;
         if (!energy_prms_populate_from_options(&min_prms, &nstages, opts)) {
@@ -134,8 +136,7 @@ int main(int argc, char **argv) {
                 } else {
                     mol_fixed_update(ag, 0, NULL);
                 }
-
-                update_nblst(ag, &ag_setup);
+                mol_nblst_update_fixed(ag, &ag_setup);
 
                 // Set up ACE
                 struct acesetup ace_setup;
