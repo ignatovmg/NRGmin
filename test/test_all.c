@@ -147,14 +147,14 @@ START_TEST(test_check_getopt_success)
             break;
         case 3:
             opts = options_populate_from_argv(18, (char *[]) {"sham", "sham",
-                                                              "--rec-pdb", "test.pdb",
-                                                              "--rec-psf", "test.psf",
-                                                              "--rec-rtf", "test.rtf",
-                                                              "--rec-prm", "test.prm",
-                                                              "--lig-pdb", "test.pdb",
-                                                              "--lig-psf", "test.psf",
-                                                              "--lig-rtf", "test.rtf",
-                                                              "--lig-prm", "test.prm"}, &error);
+                                                              "--rec_pdb", "test.pdb",
+                                                              "--rec_psf", "test.psf",
+                                                              "--rec_rtf", "test.rtf",
+                                                              "--rec_prm", "test.prm",
+                                                              "--lig_pdb", "test.pdb",
+                                                              "--lig_psf", "test.psf",
+                                                              "--lig_rtf", "test.rtf",
+                                                              "--lig_prm", "test.prm"}, &error);
             ck_assert(!error);
             ck_assert_str_eq(opts.rec_pdb, "test.pdb");
             ck_assert_str_eq(opts.lig_pdb, "test.pdb");
@@ -162,11 +162,11 @@ START_TEST(test_check_getopt_success)
             break;
         case 4:
             opts = options_populate_from_argv(12, (char *[]) {"sham", "sham",
-                                                              "--rec-pdb", "test.pdb",
-                                                              "--rec-psf", "test.psf",
-                                                              "--rec-rtf", "test.rtf",
-                                                              "--rec-prm", "test.prm",
-                                                              "--lig-json", "test.json"}, &error);
+                                                              "--rec_pdb", "test.pdb",
+                                                              "--rec_psf", "test.psf",
+                                                              "--rec_rtf", "test.rtf",
+                                                              "--rec_prm", "test.prm",
+                                                              "--lig_json", "test.json"}, &error);
             ck_assert(!error);
             ck_assert_str_eq(opts.rec_pdb, "test.pdb");
             ck_assert_str_eq(opts.lig_json, "test.json");
@@ -174,11 +174,11 @@ START_TEST(test_check_getopt_success)
             break;
         case 5:
             opts = options_populate_from_argv(12, (char *[]) {"sham", "sham",
-                                                              "--rec-json", "test.json",
-                                                              "--lig-pdb", "test.pdb",
-                                                              "--lig-psf", "test.psf",
-                                                              "--lig-rtf", "test.rtf",
-                                                              "--lig-prm", "test.prm"}, &error);
+                                                              "--rec_json", "test.json",
+                                                              "--lig_pdb", "test.pdb",
+                                                              "--lig_psf", "test.psf",
+                                                              "--lig_rtf", "test.rtf",
+                                                              "--lig_prm", "test.prm"}, &error);
             ck_assert(!error);
             ck_assert_str_eq(opts.rec_json, "test.json");
             ck_assert_str_eq(opts.lig_pdb, "test.pdb");
@@ -186,11 +186,11 @@ START_TEST(test_check_getopt_success)
             break;
         case 6:
             opts = options_populate_from_argv(11, (char *[]) {"sham", "sham",
-                                                              "--rec-json", "test.json",
-                                                              "--lig-json", "test.json",
+                                                              "--rec_json", "test.json",
+                                                              "--lig_json", "test.json",
                                                               "--nsteps", "500",
-                                                              "--pair-springs-txt", "test",
-                                                              "--fix-receptor"}, &error);
+                                                              "--pair_springs_txt", "test",
+                                                              "--fix_receptor"}, &error);
             ck_assert(!error);
             ck_assert_str_eq(opts.rec_json, "test.json");
             ck_assert_str_eq(opts.lig_json, "test.json");
@@ -201,7 +201,7 @@ START_TEST(test_check_getopt_success)
             break;
         case 7:
             opts = options_populate_from_argv(4, (char *[]) {"sham", "sham",
-                                                             "--setup-json", "setup_global.json"}, &error);
+                                                             "--setup_json", "setup_global.json"}, &error);
             ck_assert(!error);
             ck_assert_str_eq(opts.json, "test.json");
             ck_assert_str_eq(opts.pdb, "test.pdb");
@@ -233,7 +233,7 @@ START_TEST(test_check_getopt_failure)
         case 2:
             options_populate_from_argv(6, (char *[]) {"sham", "sham",
                                                       "--json", "test.json",
-                                                      "--rec-pdb", "test"}, &error);
+                                                      "--rec_pdb", "test"}, &error);
             ck_assert(error);
             break;
         case 3:
@@ -244,29 +244,29 @@ START_TEST(test_check_getopt_failure)
             break;
         case 4:
             options_populate_from_argv(10, (char *[]) {"sham", "sham",
-                                                       "--rec-pdb", "test.pdb",
-                                                       "--rec-rtf", "test.rtf",
-                                                       "--rec-prm", "test.prm",
-                                                       "--lig-json", "test.json"}, &error);
+                                                       "--rec_pdb", "test.pdb",
+                                                       "--rec_rtf", "test.rtf",
+                                                       "--rec_prm", "test.prm",
+                                                       "--lig_json", "test.json"}, &error);
             ck_assert(error);
             break;
         case 5:
             options_populate_from_argv(10, (char *[]) {"sham", "sham",
-                                                       "--rec-json", "test.json",
-                                                       "--lig-pdb", "test.pdb",
-                                                       "--lig-psf", "test.psf",
-                                                       "--lig-prm", "test.prm"}, &error);
+                                                       "--rec_json", "test.json",
+                                                       "--lig_pdb", "test.pdb",
+                                                       "--lig_psf", "test.psf",
+                                                       "--lig_prm", "test.prm"}, &error);
             ck_assert(error);
             break;
         case 6:
             options_populate_from_argv(5, (char *[]) {"sham", "sham",
                                                       "--json", "test.json",
-                                                      "--fix-receptor"}, &error);
+                                                      "--fix_receptor"}, &error);
             ck_assert(error);
             break;
         case 7:
             options_populate_from_argv(4, (char *[]) {"sham", "sham",
-                                                      "--setup-json", "setup_global_unknown_args.json"}, &error);
+                                                      "--setup_json", "setup_global_unknown_args.json"}, &error);
             ck_assert(error);
             break;
     }
