@@ -15,12 +15,12 @@ Examples of different minimization setups can be found in examples/energy_setup.
 
     Output control:
 
-    --out-pdb Where to write the minimized molecule(s)
-    --out-json Log file with energy terms
-    --out-prefix Overrides the above two options
-    --print-step Log energies for every step
-    --print-stage Log energies for every stage
-    --print-noe-matrix Log NOE matrix is NOE calculation is on
+    --out_pdb Where to write the minimized molecule(s)
+    --out_json Log file with energy terms
+    --out_prefix Overrides the above two options
+    --print_step Log energies for every step
+    --print_stage Log energies for every stage
+    --print_noe_matrix Log NOE matrix is NOE calculation is on
     --verbosity 0 - QUIET, 1 - ERROR, 2 - WARNING, 3 - INFO, >=4 - DEBUG
 
 
@@ -34,16 +34,16 @@ Examples of different minimization setups can be found in examples/energy_setup.
 
     Parameters for rec/lig mode
 
-    --rec-psf Receptor geometry in CHARMM (old) format
-    --rec-prm Receptor forcefield parameters
-    --rec-rtf Receptor topology file
-    --rec-pdb Receptor atom coordinates (can contain multiple models)
-    --rec-json Receptor json file with coordinates, geometry and force field parameters
-    --lig-psf Ligand geometry in CHARMM (old) format
-    --lig-prm Ligand forcefield parameters
-    --lig-rtf Ligand topology file with residues description
-    --lig-pdb Ligand atom coordinates (can contain multiple models)
-    --lig-json Ligand json file with coordinates, geometry and force field parameters
+    --rec_psf Receptor geometry in CHARMM (old) format
+    --rec_prm Receptor forcefield parameters
+    --rec_rtf Receptor topology file
+    --rec_pdb Receptor atom coordinates (can contain multiple models)
+    --rec_json Receptor json file with coordinates, geometry and force field parameters
+    --lig_psf Ligand geometry in CHARMM (old) format
+    --lig_prm Ligand forcefield parameters
+    --lig_rtf Ligand topology file with residues description
+    --lig_pdb Ligand atom coordinates (can contain multiple models)
+    --lig_json Ligand json file with coordinates, geometry and force field parameters
 
 
     Minimization setup
@@ -52,44 +52,55 @@ Examples of different minimization setups can be found in examples/energy_setup.
 
     Energy terms switches. Everything is on by default except for GBSA
 
-    --bonds-on/--bonds-off Bonds energy term
-    --angles-on/--angles-off Angles
-    --dihedrals-on/--dihedrals-off Dihedrals
-    --impropers-on/--impropers-on Impropers
-    --vdw-on/--vdw-off VDW
-    --vdw03-on/--vdw03-off 1-4 VDW
-    --eleng-on/--eleng-off Coulomb electrostatics
-    --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics
-    --gbsa-on/--gbsa-off GBSA
+    --bonds_on/--bonds_off Bonds energy term
+    --angles_on/--angles_off Angles
+    --dihedrals_on/--dihedrals_off Dihedrals
+    --impropers_on/--impropers_off Impropers
+    --vdw_on/--vdw_off VDW
+    --vdw03_on/--vdw03_off 1-4 VDW
+    --eleng_on/--eleng_off Coulomb electrostatics
+    --elengs03_on/--elengs03_off 1-4 Coulomb electrostatics
+    --ace_on/--ace_off ACE
+    --gbsa_on/--gbsa_off GBSA
+
+    Energy parameters.
+
+    --tol Tolerance during minimization (default 5e-4)
+    --nbcut Non-bonded cutoff (default 13.0)
+    --ace_efac ACE efac (default 0.5)
+    --scale_vdw_s03 (default 1.0)
+    --scale_coul_s03 (default 0.8333333)
+    --eeps Water epsilon (default 80.0)
+    --gbcut GB cutoff for descreening and effective bondii calculation. (default 25.0 from Amber)
 
     Fixed atoms
 
-    --fixed-pdb PDB file with fixed atoms (uses coordinates, not atom IDs)
-    --fix-receptor Fix receptor atoms (works only in rec/lig mode)
-    --fix-ligand Fix ligand atoms (works only in rec/lig mode)
+    --fixed_pdb PDB file with fixed atoms (uses coordinates, not atom IDs)
+    --fix_receptor Fix receptor atoms (works only in rec/lig mode)
+    --fix_ligand Fix ligand atoms (works only in rec/lig mode)
 
     Distance restraints
 
-    --pair-springs-txt Text file setup for pairwise restraints
-    --point-springs-txt Text file setup for pointwise restraints
+    --pair_springs_txt Text file setup for pairwise restraints
+    --point_springs_txt Text file setup for pointwise restraints
 
     NOE setup (available with -DNOE=ON during build)
 
-    --noe-json Json file setup for NOE
+    --noe_json Json file setup for NOE
 
     Density setup
 
-    --density-json Json file setup for density fitting
+    --density_json Json file setup for density fitting
 
     Global setup in json format
 
-    --setup-json This file duplicates all the other options. It also allows for
+    --setup_json This file duplicates all the other options. It also allows for
                  multistage minimization protocol, where each stage can have
                  different minimization terms
 
     Miscellaneous
 
-    --num-threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads
-    --score-only Score without doing minimization
+    --num_threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads
+    --score_only Score without doing minimization
     --help Show this message and exit
 

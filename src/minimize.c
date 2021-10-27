@@ -19,8 +19,6 @@
 #include <omp.h>
 #endif
 
-#define __TOL__ 5E-4
-
 
 jmp_buf FE_RETURN_LOCATION;
 
@@ -91,6 +89,8 @@ int main(int argc, char **argv) {
     #endif
 
         // Create local copy of energy prms for each thread
+        // TODO: move this outside of omp parallel and implement
+        //       energy_prms_copy() function in setup.c
         struct energy_prms* min_prms;
         size_t nstages;
         if (!energy_prms_populate_from_options(&min_prms, &nstages, opts)) {
@@ -119,7 +119,6 @@ int main(int argc, char **argv) {
 
             struct agsetup ag_setup;
             init_nblst(ag, &ag_setup);
-            ag_setup.nblst->nbcut = 13.0;
 
             // Run stages of minimization
             for (size_t stage_id = 0; stage_id < nstages; stage_id++) {
@@ -128,19 +127,19 @@ int main(int argc, char **argv) {
                 struct energy_prms *stage_prms = calloc(1, sizeof(struct energy_prms));
                 *stage_prms = min_prms[stage_id];
                 stage_prms->ag = ag;
+                ag_setup.nblst->nbcut = stage_prms->nbcut;
 
                 if (stage_prms->fixed) {
                     mol_fixed_update(ag, stage_prms->fixed->setups[modeli]->natoms, stage_prms->fixed->setups[modeli]->atoms);
                 } else {
                     mol_fixed_update(ag, 0, NULL);
                 }
-
-                update_nblst(ag, &ag_setup);
+                mol_nblst_update_fixed(ag, &ag_setup);
 
                 // Set up ACE
                 struct acesetup ace_setup;
                 if (stage_prms->ace) {
-                    ace_setup.efac = 0.5;
+                    ace_setup.efac = stage_prms->ace_efac;
                     ace_ini(ag, &ace_setup);
                     ace_fixedupdate(ag, &ag_setup, &ace_setup);
                     ace_updatenblst(&ag_setup, &ace_setup);
@@ -174,7 +173,7 @@ int main(int argc, char **argv) {
                             json_object_set_new(last_energy_dict, "exception", json_string("Floating point exception during minimization"));
                         }
                     } else {
-                        mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, __TOL__, ag, (void *) stage_prms, energy_func);
+                        mol_minimize_ag(MOL_LBFGS, stage_prms->nsteps, stage_prms->tol, ag, (void *) stage_prms, energy_func);
                     }
 
                     // Record energy every time it was evaluated

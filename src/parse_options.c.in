@@ -15,14 +15,21 @@
     if ((dot_pos = strchr(str_arg, '.')) != NULL) {                    \
         dot_pos = dot_pos + 1;                                         \
     }                                                                  \
-    char* dash_pos = dot_pos;                                          \
-    while ((dash_pos = strchr(dash_pos, '_')) != NULL) {               \
-        *dash_pos = '-';                                               \
-    };                                                                 \
     if (strcmp(dot_pos, long_options[option_index].name) == 0) {       \
             (arg) = (value);                                           \
             break;                                                     \
     }                                                                  \
+} while (0)
+
+
+#define _FILL_DOUBLE_PARAM(arg) do {                                                           \
+    if (strcmp(#arg, long_options[option_index].name) == 0) {                                  \
+        if (sscanf(optarg, "%lf", &prms. arg) != 1) {                                          \
+            ERR_MSG("Wrong value provided for --%s", long_options[option_index].name);         \
+            *error = true;                                                                     \
+            return prms;                                                                       \
+        }                                                                                      \
+    }                                                                                          \
 } while (0)
 
 
@@ -87,6 +94,14 @@ struct options options_get_default()
             .ace = 0,
             .gbsa = 0,
 
+            .tol = 5e-4,
+            .nbcut = 13.0,
+            .ace_efac = 0.5,
+            .scale_vdw_s03 = 1.0,
+            .scale_coul_s03 = 0.8333333,
+            .eeps = 80.0,
+            .gbcut = 25.0,
+
             .verbosity = DEBUG,
             .fix_receptor = 0,
             .fix_ligand = 0,
@@ -140,7 +155,8 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "{s?i, s?i, s?i "
             " s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, s?b, "
             " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
-            " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s}",
+            " s?s, s?s, s?s, s?s, s?s, s?s, s?s, s?s, "
+            " s?f, s?f, s?f, s?f, s?f, s?f, s?f}",
 
             // integer options
             "nsteps", &opts->nsteps,
@@ -188,7 +204,16 @@ static bool _fill_prms_from_json(struct options* opts, const json_t* root)
             "pair_springs_txt", &opts->pair_springs_txt,
             "point_springs_txt", &opts->point_springs_txt,
             "noe_json", &opts->noe_json,
-            "density_json", &opts->density_json
+            "density_json", &opts->density_json,
+
+            // float options
+            "tol", &opts->tol,
+            "nbcut", &opts->nbcut,
+            "ace_efac", &opts->ace_efac,
+            "scale_vdw_s03", &opts->scale_vdw_s03,
+            "scale_coul_s03", &opts->scale_coul_s03,
+            "eeps", &opts->eeps,
+            "gbcut", &opts->gbcut
     );
 
     if (code != 0) {
@@ -330,15 +355,15 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
     struct option long_options[] =
             {
-                    {"out-pdb",              required_argument, 0,                 0},
-                    {"out-json",             required_argument, 0,                 0},
-                    {"out-prefix",           required_argument, 0,                 0},
+                    {"out_pdb",              required_argument, 0,                 0},
+                    {"out_json",             required_argument, 0,                 0},
+                    {"out_prefix",           required_argument, 0,                 0},
                     {"verbosity",            required_argument, 0,                 0},
-                    {"num-threads",          required_argument, 0,                 0},
+                    {"num_threads",          required_argument, 0,                 0},
 
-                    {"print-step",           no_argument,       &prms.print_step,  1},
-                    {"print-stage",          no_argument,       &prms.print_stage, 1},
-                    {"print-noe-matrix",     no_argument,  &prms.print_noe_matrix, 1},
+                    {"print_step",           no_argument,       &prms.print_step,  1},
+                    {"print_stage",          no_argument,       &prms.print_stage, 1},
+                    {"print_noe_matrix",     no_argument,  &prms.print_noe_matrix, 1},
 
                     {"psf",                  required_argument, 0,                 0},
                     {"prm",                  required_argument, 0,                 0},
@@ -346,56 +371,64 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                     {"pdb",                  required_argument, 0,                 0},
                     {"json",                 required_argument, 0,                 0},
 
-                    {"rec-psf",              required_argument, 0,                 0},
-                    {"rec-prm",              required_argument, 0,                 0},
-                    {"rec-rtf",              required_argument, 0,                 0},
-                    {"rec-pdb",              required_argument, 0,                 0},
-                    {"rec-json",             required_argument, 0,                 0},
+                    {"rec_psf",              required_argument, 0,                 0},
+                    {"rec_prm",              required_argument, 0,                 0},
+                    {"rec_rtf",              required_argument, 0,                 0},
+                    {"rec_pdb",              required_argument, 0,                 0},
+                    {"rec_json",             required_argument, 0,                 0},
 
-                    {"lig-psf",              required_argument, 0,                 0},
-                    {"lig-prm",              required_argument, 0,                 0},
-                    {"lig-rtf",              required_argument, 0,                 0},
-                    {"lig-pdb",              required_argument, 0,                 0},
-                    {"lig-json",             required_argument, 0,                 0},
+                    {"lig_psf",              required_argument, 0,                 0},
+                    {"lig_prm",              required_argument, 0,                 0},
+                    {"lig_rtf",              required_argument, 0,                 0},
+                    {"lig_pdb",              required_argument, 0,                 0},
+                    {"lig_json",             required_argument, 0,                 0},
 
-                    {"fixed-pdb",            required_argument, 0,                 0},
+                    {"fixed_pdb",            required_argument, 0,                 0},
 
-                    {"pair-springs-txt",     required_argument, 0,                 0},
-                    {"point-springs-txt",    required_argument, 0,                 0},
+                    {"pair_springs_txt",     required_argument, 0,                 0},
+                    {"point_springs_txt",    required_argument, 0,                 0},
 
-                    {"noe-txt",              required_argument, 0,                 0},
-                    {"noe-json",             required_argument, 0,                 0},
+                    {"noe_txt",              required_argument, 0,                 0},
+                    {"noe_json",             required_argument, 0,                 0},
 
-                    {"density-json",         required_argument, 0,                 0},
+                    {"density_json",         required_argument, 0,                 0},
 
-                    {"setup-json",           required_argument, 0,                 0},
+                    {"setup_json",           required_argument, 0,                 0},
 
                     {"nsteps",               required_argument, 0,                 0},
 
-                    {"bonds-on",             no_argument,  &prms.bonds,            1},
-                    {"bonds-off",            no_argument,  &prms.bonds,            0},
-                    {"angles-on",            no_argument,  &prms.angles,           1},
-                    {"angles-off",           no_argument,  &prms.angles,           0},
-                    {"dihedrals-on",         no_argument,  &prms.dihedrals,        1},
-                    {"dihedrals-off",        no_argument,  &prms.dihedrals,        0},
-                    {"impropers-on",         no_argument,  &prms.impropers,        1},
-                    {"impropers-off",        no_argument,  &prms.impropers,        0},
-                    {"vdw-on",               no_argument,  &prms.vdw,              1},
-                    {"vdw-off",              no_argument,  &prms.vdw,              0},
-                    {"vdw03-on",             no_argument,  &prms.vdw03,            1},
-                    {"vdw03-off",            no_argument,  &prms.vdw03,            0},
-                    {"eleng-on",             no_argument,  &prms.eleng,            1},
-                    {"eleng-off",            no_argument,  &prms.eleng,            0},
-                    {"elengs03-on",          no_argument,  &prms.elengs03,         1},
-                    {"elengs03-off",         no_argument,  &prms.elengs03,         0},
-                    {"gbsa-on",              no_argument,  &prms.gbsa,             1},
-                    {"gbsa-off",             no_argument,  &prms.gbsa,             0},
-                    {"ace-on",               no_argument,  &prms.ace,              1},
-                    {"ace-off",              no_argument,  &prms.ace,              0},
+                    {"tol",                  required_argument, 0,                 0},
+                    {"nbcut",                required_argument, 0,                 0},
+                    {"ace_efac",             required_argument, 0,                 0},
+                    {"scale_vdw_s03",        required_argument, 0,                 0},
+                    {"scale_coul_s03",       required_argument, 0,                 0},
+                    {"eeps",                 required_argument, 0,                 0},
+                    {"gbcut",                required_argument, 0,                 0},
 
-                    {"fix-receptor",         no_argument,  &prms.fix_receptor,     1},
-                    {"fix-ligand",           no_argument,  &prms.fix_ligand,       1},
-                    {"score-only",           no_argument,  &prms.score_only,       1},
+                    {"bonds_on",             no_argument,  &prms.bonds,            1},
+                    {"bonds_off",            no_argument,  &prms.bonds,            0},
+                    {"angles_on",            no_argument,  &prms.angles,           1},
+                    {"angles_off",           no_argument,  &prms.angles,           0},
+                    {"dihedrals_on",         no_argument,  &prms.dihedrals,        1},
+                    {"dihedrals_off",        no_argument,  &prms.dihedrals,        0},
+                    {"impropers_on",         no_argument,  &prms.impropers,        1},
+                    {"impropers_off",        no_argument,  &prms.impropers,        0},
+                    {"vdw_on",               no_argument,  &prms.vdw,              1},
+                    {"vdw_off",              no_argument,  &prms.vdw,              0},
+                    {"vdw03_on",             no_argument,  &prms.vdw03,            1},
+                    {"vdw03_off",            no_argument,  &prms.vdw03,            0},
+                    {"eleng_on",             no_argument,  &prms.eleng,            1},
+                    {"eleng_off",            no_argument,  &prms.eleng,            0},
+                    {"elengs03_on",          no_argument,  &prms.elengs03,         1},
+                    {"elengs03_off",         no_argument,  &prms.elengs03,         0},
+                    {"gbsa_on",              no_argument,  &prms.gbsa,             1},
+                    {"gbsa_off",             no_argument,  &prms.gbsa,             0},
+                    {"ace_on",               no_argument,  &prms.ace,              1},
+                    {"ace_off",              no_argument,  &prms.ace,              0},
+
+                    {"fix_receptor",         no_argument,  &prms.fix_receptor,     1},
+                    {"fix_ligand",           no_argument,  &prms.fix_ligand,       1},
+                    {"score_only",           no_argument,  &prms.score_only,       1},
                     {"help",                 no_argument,  0,                    'h'},
 
                     {0,                      0,            0,                      0}
@@ -468,13 +501,21 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
                 return prms;
             }
         }
-        if (strcmp("num-threads", long_options[option_index].name) == 0) {
+        if (strcmp("num_threads", long_options[option_index].name) == 0) {
             if (sscanf(optarg, "%i", &prms.num_threads) != 1) {
                 ERR_MSG("Wrong value provided for --%s", long_options[option_index].name);
                 *error = true;
                 return prms;
             }
         }
+
+        _FILL_DOUBLE_PARAM(tol);
+        _FILL_DOUBLE_PARAM(nbcut);
+        _FILL_DOUBLE_PARAM(ace_efac);
+        _FILL_DOUBLE_PARAM(scale_vdw_s03);
+        _FILL_DOUBLE_PARAM(scale_coul_s03);
+        _FILL_DOUBLE_PARAM(eeps);
+        _FILL_DOUBLE_PARAM(gbcut);
     }
 
     if (!_check_flags_and_fill_from_json(&prms)) {
@@ -489,5 +530,5 @@ struct options options_populate_from_argv(const int argc, char *const *argv, boo
 
 void usage_message(char *const *argv) {
     fprintf(stderr, "\nUsage %s [ options ]\n\n", argv[0]);
-    fprintf(stderr, "@USAGE_TEXT@");
+    fprintf(stderr, "@USAGE_TEXT@\n\n");
 }
