@@ -49,13 +49,13 @@ Or as a json file
 As well as in a rec/lig mode:
 
 ```
-./nrgmin --rec-pdb rec.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+./nrgmin --rec_pdb rec.pdb --rec_psf rec.psf --rec_prm rec.prm --rec_rtf rec.rtf --lig_json lig.json
 ```
 
 If you want to use parameters from json file and coordinates from pdb
 
 ```
-./nrgmin --rec-pdb rec.pdb --rec-json rec.json --lig-pdb lig.pdb --lig-json lig.json
+./nrgmin --rec_pdb rec.pdb --rec_json rec.json --lig_pdb lig.pdb --lig_json lig.json
 ```
 
 #### Multiple models, multithreading
@@ -64,7 +64,7 @@ PDB file can contain multiple models. `nrgmin.omp` parallelizes minimization for
 using the flag `--num-threads`. All available cores are used by default.
 
 ```
-./nrgmin.omp --json mol.json --pdb mol_10models.pdb --num-threads 10
+./nrgmin.omp --json mol.json --pdb mol_10models.pdb --num_threads 10
 ```
 
 In `rec/lig` mode the receptor can contain a single model and the ligand and can have N models 
@@ -72,17 +72,17 @@ and vice versa. In this case the receptor model is copied N times and merged wit
 Otherwise, the number of receptor and ligand models must match. Therefore, the following will work:
 
 ```
-./nrgmin.omp --rec-pdb rec_1model.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+./nrgmin.omp --rec_pdb rec_1model.pdb --lig_pdb lig_10models.pdb --rec_psf rec.psf --rec_prm rec.prm --rec_rtf rec.rtf --lig_json lig.json
 
-./nrgmin.omp --rec-pdb rec_10models.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+./nrgmin.omp --rec_pdb rec_10models.pdb --lig_pdb lig_10models.pdb --rec_psf rec.psf --rec_prm rec.prm --rec_rtf rec.rtf --lig_json lig.json
 
-./nrgmin.omp --rec-pdb rec_10models.pdb --lig-pdb lig_1model.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+./nrgmin.omp --rec_pdb rec_10models.pdb --lig_pdb lig_1model.pdb --rec_psf rec.psf --rec_prm rec.prm --rec_rtf rec.rtf --lig_json lig.json
 ```
 
 And the following will not:
 
 ```
-./nrgmin.omp --rec-pdb rec_3models.pdb --lig-pdb lig_10models.pdb --rec-psf rec.psf --rec-prm rec.prm --rec-rtf rec.rtf --lig-json lig.json
+./nrgmin.omp --rec_pdb rec_3models.pdb --lig_pdb lig_10models.pdb --rec_psf rec.psf --rec_prm rec.prm --rec_rtf rec.rtf --lig_json lig.json
 ```
 
 ### Energy function
@@ -90,28 +90,28 @@ And the following will not:
 Energy function setup is flexible, so you can switch terms on and off
 
 ```
-./nrgmin --json mol.json --vdw-off --ace-on
+./nrgmin --json mol.json --vdw_off --ace_on
 ```
 
 And add restraining potentials
 
 ```
-./nrgmin --json mol.json --pair-springs-txt springs.txt
+./nrgmin --json mol.json --pair_springs_txt springs.txt
 ```
 
 List of restraints:      
 
-* fixed atoms (`--fix-receptor`, `--fix-ligand`, `--fixed-pdb`)
-* pairwise distance restraints (`--pair-springs-txt`)
-* pointwise distance restraints (`--point-springs-txt`)
-* density fitting (`--density-json`)
-* NOE matrix fitting (`--noe-txt`, `--noe-json`) 
+* fixed atoms (`--fix_receptor`, `--fix_ligand`, `--fixed_pdb`)
+* pairwise distance restraints (`--pair_springs_txt`)
+* pointwise distance restraints (`--point_springs_txt`)
+* density fitting (`--density_json`)
+* NOE matrix fitting (`--noe_txt`, `--noe_json`) 
 
 Instead of providing flags you can setup all minimization parameters and 
 multiple minimization stages using a master json file
 
 ```
-./nrgmin --setup-json setup.json
+./nrgmin --setup_json setup.json
 ```
 
 To see all flags:
@@ -122,19 +122,19 @@ To see all flags:
 ### Freezing atoms
 Atoms can be frozen in several ways:   
 
-1. `--fix-receptor` and `--fix-ligand` flags can be used in `rec/lig` mode
+1. `--fix_receptor` and `--fix_ligand` flags can be used in `rec/lig` mode
    
 
-2. `--fixed-pdb` flag can be used to pass fixed atoms. Atoms in the minimized 
+2. `--fixed_pdb` flag can be used to pass fixed atoms. Atoms in the minimized 
    atom group will be frozen, if they are closer than 0.01 A to any of the atoms in
-   `--fixed-pdb`. `--fixed-pdb` can contain multiple models, in which case the
+   `--fixed_pdb`. `--fixed_pdb` can contain multiple models, in which case the
    number of models should match the number of models in the minimized atom group. 
    If it contains only one model and the minimized atom group has several, 
-   then the same `--fixed-pdb` will be applied to all the models in the minimized 
+   then the same `--fixed_pdb` will be applied to all the models in the minimized 
    atom group.
 
 
-3. Field `fixed` in `--setup-json` can specify IDs of frozen atoms (for example `fixed: [0, 1, 3, 4]`)
+3. Field `fixed` in `--setup_json` can specify IDs of frozen atoms (for example `fixed: [0, 1, 3, 4]`)
 
 
 ### Master json file format for --setup-json
@@ -209,88 +209,3 @@ As can be seen in the example of Master json above, to use the "pairsprings" pot
 ### Examples
 
 More setup examples are [here](./examples/energy_setup) and usage examples [here](./examples/usage).
-
-### All flags
-
-#### Input/Output
-
-Output control:
-        
-            --out-pdb Where to write the minimized molecule(s)
-            --out-json Log file with energy terms
-            --out-prefix Overrides the above two options
-            --print-step Log energies for every step
-            --print-stage Log energies for every stage
-            --print-noe-matrix Log NOE matrix is NOE calculation is on
-            --verbosity 0 - QUIET, 1 - ERROR, 2 - WARNING, 3 - INFO, >=4 - DEBUG
-        
-        
-Single file mode:
-        
-            --psf Geometry
-            --prm Forcefield parameters
-            --rtf Topology file with residues description
-            --pdb Atom coordinates (can contain multiple models)
-            --json Json file with coordinates, geometry and force field parameters
-        
-Parameters for rec/lig mode
-        
-            --rec-psf Receptor geometry
-            --rec-prm Receptor forcefield parameters
-            --rec-rtf Receptor topology file
-            --rec-pdb Receptor atom coordinates (can contain multiple models)
-            --rec-json Receptor json file with coordinates, geometry and force field parameters
-            --lig-psf Ligand geometry
-            --lig-prm Ligand forcefield parameters
-            --lig-rtf Ligand topology file with residues description
-            --lig-pdb Ligand atom coordinates (can contain multiple models)
-            --lig-json Ligand json file with coordinates, geometry and force field parameters
-        
-        
-#### Minimization setup
-        
-            --nsteps Number of minimization steps
-        
-Energy terms switches. Everything is on by default except for GBSA
-        
-            --bonds-on/--bonds-off Bonds energy term
-            --angles-on/--angles-off Angles
-            --dihedrals-on/--dihedrals-off Dihedrals
-            --impropers-on/--impropers-on Impropers
-            --vdw-on/--vdw-off VDW
-            --vdw03-on/--vdw03-off 1-4 VDW
-            --eleng-on/--eleng-off Coulomb electrostatics
-            --elengs03-on/--elengs03-off 1-4 Coulomb electrostatics
-            --gbsa-on/gbsa-off GBSA
-        
-Fixed atoms
-        
-            --fixed-pdb PDB file with fixed atoms (uses coordinates, not atom IDs)
-            --fix-receptor Fix receptor atoms (works only in rec/lig mode)
-            --fix-ligand Fix ligand atoms (works only in rec/lig mode)
-        
-Distance restraints
-        
-            --pair-springs-txt Text file setup for pairwise restraints
-            --point-springs-txt Text file setup for pointwise restraints
-        
-NOE setup
-
-            --noe-json Json file setup for NOE
-        
-Density setup
-        
-            --density-json Json file setup for density fitting
-        
-Global setup in json format
-        
-            --setup-json This file duplicates all the other options. It also allows for
-                         multistage minimization protocol, where each stage can have
-                         different minimization terms
-        
-Miscellaneous
-            
-            --num-threads Number of OpenMP threads to use. 0 (default) means using maximum number of threads
-            --score-only Score only without doing minimization
-            --help Show this message and exit
-
