@@ -304,11 +304,14 @@ struct mol_atom_group_list* mol_atom_group_list_from_options(struct options *opt
 static void _fixed_setup_free(struct fixed_setup **fixed)
 {
     if (*fixed != NULL) {
-        if ((*fixed)->atoms) {
-            free((*fixed)->atoms);
-            (*fixed)->atoms = NULL;
+        (*fixed)->ref_count -= 1;
+        if ((*fixed)->ref_count == 0) {
+            if ((*fixed)->atoms) {
+                free((*fixed)->atoms);
+                (*fixed)->atoms = NULL;
+            }
+            free(*fixed);
         }
-        free(*fixed);
         *fixed = NULL;
     }
 }
@@ -354,6 +357,7 @@ static struct fixed_setup* _fixed_atoms_from_ag(struct mol_atom_group* ag, struc
     }
 
     struct fixed_setup* out = calloc(1, sizeof(struct fixed_setup));
+    out->ref_count = 1;
     out->natoms = 0;
     for (size_t i = 0; i < ag->natoms; i++) {
         if (fix_mask[i]) {
@@ -420,6 +424,7 @@ static struct fixed_setup_multi* _fixed_setup_multi_read_json(const json_t *root
     }
 
     struct fixed_setup *result = calloc(1, sizeof(struct fixed_setup));
+    result->ref_count = 1;
     result->natoms = json_array_size(root);
     result->atoms = calloc(result->natoms, sizeof(size_t));
 
@@ -437,7 +442,9 @@ static struct fixed_setup_multi* _fixed_setup_multi_read_json(const json_t *root
     struct fixed_setup_multi* out = _fixed_setup_multi_create(num_models);
     for (size_t i = 0; i < num_models; i++) {
         out->setups[i] = result;
+        result->ref_count += 1;
     }
+    result->ref_count -= 1;
     return out;
 }
 
@@ -445,6 +452,7 @@ static struct fixed_setup_multi* _fixed_setup_multi_read_json(const json_t *root
 static struct fixed_setup* _fixed_setup_atom_range(const size_t start_atom, const size_t end_atom)
 {
     struct fixed_setup* fixed = calloc(1, sizeof(struct fixed_setup));
+    fixed->ref_count = 1;
     fixed->natoms = end_atom - start_atom;
     fixed->atoms = calloc(fixed->natoms, sizeof(size_t));
     for (size_t i = 0; i < fixed->natoms; i++) {

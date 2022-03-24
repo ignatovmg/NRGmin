@@ -121,6 +121,7 @@ struct pointsprings_setup {
 struct fixed_setup {
     size_t natoms;
     size_t *atoms;
+    size_t ref_count;
 };
 
 struct fixed_setup_multi {
