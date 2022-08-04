@@ -617,14 +617,14 @@ static struct pairsprings_setup *_pairsprings_setup_read_json(const json_t *root
 
         for (i = 0; i < len1; ++i) {
             if (json_is_integer(json_array_get(g1, i))) {
-                spring_set[counter].group1[i] = json_integer_value(json_array_get(g1, i)) - 1;
+                spring_set[counter].group1[i] = json_integer_value(json_array_get(g1, i));
             } else {
                 ERR_MSG("Index in group1 must be interger");
             }
         }
         for (i = 0; i < len2; ++i) {
             if (json_is_integer(json_array_get(g2, i))) {
-                spring_set[counter].group2[i] = json_integer_value(json_array_get(g2, i)) - 1;
+                spring_set[counter].group2[i] = json_integer_value(json_array_get(g2, i));
             } else {
                 ERR_MSG("Index in group2 must be interger");
             }

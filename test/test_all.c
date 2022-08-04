@@ -763,7 +763,7 @@ START_TEST(test_energy_prm_from_json)
             ck_assert_int_eq(prms[1].nmr->spec->size, 2);
 #endif
             ck_assert_int_eq(prms[2].sprst_points->springs[0].atoms[3], 4);
-            ck_assert_int_eq(prms[1].sprst_pairs->springs[0].group2[0], 4);
+            ck_assert_int_eq(prms[1].sprst_pairs->springs[0].group2[0], 5);
 
             energy_prms_free(&prms, nstages);
             break;
